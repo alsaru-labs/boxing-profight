@@ -13,9 +13,8 @@ export const metadata: Metadata = {
   description: "Entrenamiento de Boxeo y K1 en Alcorcón con Álex Pintor. Asegura tu plaza.",
   themeColor: "#000000",
   icons: {
-    apple: [
-      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
-    ],
+    icon: "/favicon.ico",
+    apple: "/icon_boxing_profight-192x192.webp",
   },
   // Esto es vital para que se abra sin la barra del navegador (modo app)
   appleWebApp: {
