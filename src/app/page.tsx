@@ -26,7 +26,7 @@ export default function Home() {
       <Navbar />
 
       <main className="relative z-10 flex flex-col items-center justify-center pt-40 md:pt-56 px-6 md:px-24">
-        
+
         {/* ================= HERO SECTION ================= */}
         <section className="min-h-[70vh] flex flex-col items-center justify-center text-center w-full max-w-5xl">
           <motion.div
@@ -41,7 +41,7 @@ export default function Home() {
               Entrenamiento Real.
             </p>
           </motion.div>
-          
+
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -58,7 +58,7 @@ export default function Home() {
         <section className="w-full max-w-6xl py-20 border-t border-white/10">
           <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
             {/* Texto */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, x: -30 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
@@ -72,12 +72,12 @@ export default function Home() {
                 Aprende de la Experiencia.
               </h2>
               <p className="text-lg text-white/60 mb-6 leading-relaxed">
-                Las clases son impartidas por <span className="text-white font-semibold">Álex Pintor</span>, 
+                Las clases son impartidas por <span className="text-white font-semibold">Álex Pintor</span>,
                 un joven talento originario de Alcorcón. Con más de una década subiéndose
-                al ring y forjando una sólida experiencia competitiva, Álex no solo enseña la técnica, 
+                al ring y forjando una sólida experiencia competitiva, Álex no solo enseña la técnica,
                 <span className="italic text-white/80"> transmite la táctica, la disciplina y la realidad del combate.</span>
               </p>
-              
+
               <div className="flex items-center gap-4 text-white/40 mb-8 font-medium">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-red-600" />
@@ -91,7 +91,7 @@ export default function Home() {
             </motion.div>
 
             {/* Video Youtube */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, x: 30 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
@@ -101,13 +101,13 @@ export default function Home() {
               <div className="p-[2px] rounded-[1.5rem] bg-gradient-to-br from-white/20 to-white/5 overflow-hidden">
                 <div className="bg-black relative rounded-[1.4rem] overflow-hidden aspect-video shadow-2xl">
                   {/* Aspect Ratio iframe */}
-                  <iframe 
-                    width="100%" 
-                    height="100%" 
-                    src="https://www.youtube.com/embed/luOWGnr_SBU" 
-                    title="Álex Pintor en acción" 
-                    frameBorder="0" 
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                  <iframe
+                    width="100%"
+                    height="100%"
+                    src="https://www.youtube.com/embed/luOWGnr_SBU"
+                    title="Álex Pintor en acción"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
                     className="absolute inset-0 z-10"
                   ></iframe>
@@ -146,13 +146,14 @@ export default function Home() {
               >
                 {/* Glow Effect Behind Card */}
                 <div className="absolute -inset-0.5 bg-gradient-to-br from-white/10 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm" />
-                
+
+
                 {/* Card Front Glass Layer */}
                 <Card className="relative h-full bg-white/5 backdrop-blur-xl border-white/10 overflow-hidden rounded-2xl flex flex-col justify-between">
                   <div className="absolute top-0 right-0 p-4 opacity-20">
                     <Calendar className="w-24 h-24" />
                   </div>
-                  
+
                   <CardHeader className="relative z-10 pb-2">
                     <CardTitle className="text-3xl text-white font-bold">{cls.title}</CardTitle>
                     <CardDescription className="text-white/60 font-medium text-base mt-1">{cls.type}</CardDescription>
@@ -162,15 +163,14 @@ export default function Home() {
                       <div className="bg-black/40 rounded-lg p-4 border border-white/5">
                         <span className="text-xl font-semibold tracking-wider text-white/90">{cls.time}</span>
                       </div>
-                      
+
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-sm font-medium text-white/50">Disponibilidad en vivo</span>
                         <div className="flex items-center space-x-2">
-                          <span className={`w-3 h-3 rounded-full ${
-                            cls.slots === 'Verde' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]' : 
-                            cls.slots === 'Amarillo' ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.8)]' : 
-                            'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]'
-                          }`} />
+                          <span className={`w-3 h-3 rounded-full ${cls.slots === 'Verde' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]' :
+                              cls.slots === 'Amarillo' ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.8)]' :
+                                'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]'
+                            }`} />
                           <span className="text-sm font-medium text-white/70">
                             {cls.slots === 'Verde' ? 'Disponible' : cls.slots === 'Amarillo' ? 'Últimas plazas' : 'Completo'}
                           </span>
