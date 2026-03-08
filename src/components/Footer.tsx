@@ -51,9 +51,18 @@ export default function Footer() {
           </Link>
         </div>
 
-        {/* Copyright */}
-        <div className="text-sm font-medium">
-          &copy; {currentYear} Boxing Profight.
+        {/* Copyright & Credits */}
+        <div className="flex flex-col items-center md:items-end gap-1">
+          <div className="text-sm font-medium">
+            &copy; {currentYear} Boxing Profight.
+          </div>
+          <Link 
+            href="https://alsaru.dev" 
+            target="_blank" 
+            className="text-[10px] text-white/30 hover:text-white transition-colors"
+          >
+            Desarrollado por alsaru.dev
+          </Link>
         </div>
 
       </div>
