@@ -1,0 +1,131 @@
+"use client";
+
+import { motion } from "framer-motion";
+import Image from "next/image";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ArrowLeft } from "lucide-react";
+
+export default function RegisterPage() {
+  return (
+    <div className="relative min-h-screen bg-black overflow-hidden font-sans text-white flex flex-col md:flex-row">
+      {/* Background Gradient effects */}
+      <div className="absolute inset-0 z-0 opacity-80 mix-blend-screen pointer-events-none">
+        <div className="absolute top-[-10%] right-[-10%] w-[80%] h-[80%] animate-pulse bg-gradient-to-bl from-zinc-800 via-stone-900 to-black rounded-full blur-[100px]" />
+        <div className="absolute bottom-[20%] left-[-20%] w-[60%] h-[60%] bg-gradient-to-tr from-red-900/10 via-neutral-800/20 to-transparent rounded-full blur-[120px]" />
+      </div>
+
+      {/* Left Side: Visual / Branding */}
+      <div className="w-full md:w-1/2 min-h-[40vh] md:min-h-screen relative flex flex-col items-center justify-center p-8 z-10 hidden md:flex">
+        {/* Apple Style Glass Card inside visual side */}
+        <motion.div 
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          className="relative z-10 flex flex-col items-center"
+        >
+          <div className="w-32 h-32 md:w-48 md:h-48 relative mb-8">
+            <div className="absolute inset-0 bg-white/20 blur-3xl rounded-full animate-pulse" />
+            <Image 
+              src="/logo_boxing_profight.jpg" 
+              alt="PROFIGHT Logo" 
+              fill
+              className="rounded-full object-cover border-4 border-white/10 relative z-10 shadow-2xl"
+            />
+          </div>
+          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tighter text-center bg-clip-text text-transparent bg-gradient-to-b from-white to-white/60 mb-4">
+            TU LUGAR EN EL TATAMI.
+          </h1>
+          <p className="text-white/50 text-xl font-medium tracking-tight">
+            Únete a la disciplina de Álex Pintor.
+          </p>
+        </motion.div>
+        
+        {/* Overlay gradient to subtly blend with black right side */}
+        <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-black to-transparent pointer-events-none" />
+      </div>
+
+      {/* Right Side: Register Form */}
+      <div className="w-full md:w-1/2 min-h-screen relative flex flex-col justify-center px-6 py-12 md:px-16 lg:px-24 z-10 bg-black/60 md:bg-black/90 backdrop-blur-2xl">
+        
+        <Link href="/" className="absolute top-8 left-6 md:top-12 md:left-12 flex items-center text-white/50 hover:text-white transition-colors group">
+          <ArrowLeft className="w-5 h-5 mr-2 group-hover:-translate-x-1 transition-transform" />
+          <span className="font-medium">Volver al inicio</span>
+        </Link>
+
+        {/* Mobile Logo Header */}
+        <div className="md:hidden flex flex-col items-center mb-12 mt-8">
+          <div className="w-24 h-24 relative mb-6">
+            <Image 
+              src="/logo_boxing_profight.jpg" 
+              alt="PROFIGHT Logo" 
+              fill
+              className="rounded-full object-cover border-2 border-white/20"
+            />
+          </div>
+          <h2 className="text-3xl font-bold tracking-tight">Únete a Profight</h2>
+        </div>
+
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="w-full max-w-md mx-auto"
+        >
+          <div className="hidden md:block mb-10">
+            <h2 className="text-4xl font-bold tracking-tight mb-2">Crea tu cuenta</h2>
+            <p className="text-white/50">Regístrate para poder reservar tu plaza en las clases.</p>
+          </div>
+
+          <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-white/80 font-medium">Nombre completo</Label>
+              <Input 
+                id="name" 
+                type="text" 
+                placeholder="Juan Pérez" 
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-14 rounded-xl px-4 focus-visible:ring-1 focus-visible:ring-white/30 focus-visible:border-white/30 transition-all"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-white/80 font-medium">Correo electrónico</Label>
+              <Input 
+                id="email" 
+                type="email" 
+                placeholder="alumno@email.com" 
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-14 rounded-xl px-4 focus-visible:ring-1 focus-visible:ring-white/30 focus-visible:border-white/30 transition-all"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-white/80 font-medium">Contraseña</Label>
+              <Input 
+                id="password" 
+                type="password" 
+                placeholder="••••••••" 
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-14 rounded-xl px-4 focus-visible:ring-1 focus-visible:ring-white/30 focus-visible:border-white/30 transition-all"
+              />
+            </div>
+
+            <Button 
+              type="submit" 
+              className="w-full bg-white text-black hover:bg-neutral-200 h-14 rounded-xl text-lg font-semibold transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)]"
+            >
+              Completar Registro
+            </Button>
+          </form>
+
+          <div className="mt-8 text-center text-sm text-white/50">
+            ¿Ya tienes una cuenta?{" "}
+            <Link href="/login" className="font-medium text-white hover:underline transition-all">
+              Inicia sesión
+            </Link>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
