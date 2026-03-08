@@ -18,14 +18,14 @@ export default function manifest(): MetadataRoute.Manifest {
                 type: 'image/webp',
             },
             {
-                src: '/icon_boxing_profight-192x192.png',
+                src: '/icon_boxing_profight-192x192.webp',
                 sizes: '192x192',
-                type: 'image/png',
+                type: 'image/webp',
             },
             {
-                src: '/icon_boxing_profight-512x512.png',
+                src: '/icon_boxing_profight-512x512.webp',
                 sizes: '512x512',
-                type: 'image/png',
+                type: 'image/webp',
                 purpose: 'maskable', // <--- IMPORTANTE para Android
             }
         ],
