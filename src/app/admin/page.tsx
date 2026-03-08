@@ -69,9 +69,9 @@ export default function AdminDashboard() {
         <div>
           <div className="flex items-center space-x-3 mb-12">
             <div className="w-10 h-10 relative">
-              <Image 
-                src="/logo_boxing_profight.jpg" 
-                alt="PROFIGHT Logo" 
+              <Image
+                src="/logo_boxing_profight.webp"
+                alt="PROFIGHT Logo"
                 fill
                 className="rounded-full object-cover border border-white/20"
               />
@@ -109,9 +109,9 @@ export default function AdminDashboard() {
         <div className="md:hidden flex items-center justify-between mb-8 pb-4 border-b border-white/10">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 relative">
-              <Image 
-                src="/logo_boxing_profight.jpg" 
-                alt="PROFIGHT Logo" 
+              <Image
+                src="/logo_boxing_profight.webp"
+                alt="PROFIGHT Logo"
                 fill
                 className="rounded-full object-cover border border-white/20"
               />
@@ -142,7 +142,7 @@ export default function AdminDashboard() {
               <p className="text-xs text-emerald-400 mt-1">Casi al límite de capacidad</p>
             </CardContent>
           </Card>
-          
+
           <Card className="bg-white/5 border-white/10 backdrop-blur-lg">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-white/70">Ingresos Mensuales</CardTitle>
@@ -174,7 +174,7 @@ export default function AdminDashboard() {
               + Nuevo Alumno
             </Button>
           </div>
-          
+
           <Card className="bg-white/5 border-white/10 backdrop-blur-lg shadow-2xl overflow-hidden">
             <Table>
               <TableHeader className="bg-white/5">
@@ -192,7 +192,7 @@ export default function AdminDashboard() {
                     <TableCell className="font-medium">
                       <div className="flex items-center space-x-3">
                         <Avatar className="h-9 w-9 border border-white/20">
-                          <AvatarFallback className="bg-black text-white">{student.name.substring(0,2).toUpperCase()}</AvatarFallback>
+                          <AvatarFallback className="bg-black text-white">{student.name.substring(0, 2).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div>
                           <p className="text-white font-medium">{student.name}</p>
@@ -202,12 +202,12 @@ export default function AdminDashboard() {
                     </TableCell>
                     <TableCell className="text-white/80">{student.plan}</TableCell>
                     <TableCell>
-                      <Badge 
-                        variant="outline" 
+                      <Badge
+                        variant="outline"
                         className={
-                          student.status === "Pagado" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : 
-                          student.status === "No Pagado" ? "bg-red-500/10 text-red-400 border-red-500/20" : 
-                          "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                          student.status === "Pagado" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                            student.status === "No Pagado" ? "bg-red-500/10 text-red-400 border-red-500/20" :
+                              "bg-amber-500/10 text-amber-400 border-amber-500/20"
                         }
                       >
                         {student.status}

@@ -20,7 +20,7 @@ export default function LoginPage() {
       {/* Left Side: Visual / Branding */}
       <div className="w-full md:w-1/2 min-h-[40vh] md:min-h-screen relative flex flex-col items-center justify-center p-8 z-10 hidden md:flex">
         {/* Apple Style Glass Card inside visual side */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, x: -50 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
@@ -28,9 +28,9 @@ export default function LoginPage() {
         >
           <div className="w-32 h-32 md:w-48 md:h-48 relative mb-8">
             <div className="absolute inset-0 bg-white/20 blur-3xl rounded-full animate-pulse" />
-            <Image 
-              src="/logo_boxing_profight.jpg" 
-              alt="PROFIGHT Logo" 
+            <Image
+              src="/logo_boxing_profight.webp"
+              alt="PROFIGHT Logo"
               fill
               className="rounded-full object-cover border-4 border-white/10 relative z-10 shadow-2xl"
             />
@@ -42,14 +42,14 @@ export default function LoginPage() {
             Accede al sistema de reservas.
           </p>
         </motion.div>
-        
+
         {/* Overlay gradient to subtly blend with black right side */}
         <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-black to-transparent pointer-events-none" />
       </div>
 
       {/* Right Side: Login Form */}
       <div className="w-full md:w-1/2 min-h-screen relative flex flex-col justify-center px-6 py-12 md:px-16 lg:px-24 z-10 bg-black/60 md:bg-black/90 backdrop-blur-2xl">
-        
+
         <Link href="/" className="absolute top-8 left-6 md:top-12 md:left-12 flex items-center text-white/50 hover:text-white transition-colors group">
           <ArrowLeft className="w-5 h-5 mr-2 group-hover:-translate-x-1 transition-transform" />
           <span className="font-medium">Volver al inicio</span>
@@ -58,9 +58,9 @@ export default function LoginPage() {
         {/* Mobile Logo Header */}
         <div className="md:hidden flex flex-col items-center mb-12 mt-8">
           <div className="w-24 h-24 relative mb-6">
-            <Image 
-              src="/logo_boxing_profight.jpg" 
-              alt="PROFIGHT Logo" 
+            <Image
+              src="/logo_boxing_profight.webp"
+              alt="PROFIGHT Logo"
               fill
               className="rounded-full object-cover border-2 border-white/20"
             />
@@ -68,7 +68,7 @@ export default function LoginPage() {
           <h2 className="text-3xl font-bold tracking-tight">Inicia Sesión</h2>
         </div>
 
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
@@ -82,14 +82,14 @@ export default function LoginPage() {
           <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
             <div className="space-y-2">
               <Label htmlFor="email" className="text-white/80 font-medium">Correo electrónico</Label>
-              <Input 
-                id="email" 
-                type="email" 
-                placeholder="alumno@email.com" 
+              <Input
+                id="email"
+                type="email"
+                placeholder="alumno@email.com"
                 className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-14 rounded-xl px-4 focus-visible:ring-1 focus-visible:ring-white/30 focus-visible:border-white/30 transition-all"
               />
             </div>
-            
+
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password" className="text-white/80 font-medium">Contraseña</Label>
@@ -97,16 +97,16 @@ export default function LoginPage() {
                   ¿Has olvidado la contraseña?
                 </Link>
               </div>
-              <Input 
-                id="password" 
-                type="password" 
-                placeholder="••••••••" 
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
                 className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-14 rounded-xl px-4 focus-visible:ring-1 focus-visible:ring-white/30 focus-visible:border-white/30 transition-all"
               />
             </div>
 
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full bg-white text-black hover:bg-neutral-200 h-14 rounded-xl text-lg font-semibold transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)]"
             >
               Iniciar Sesión

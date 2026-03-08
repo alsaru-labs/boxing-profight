@@ -9,8 +9,20 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Boxing Profight | Entrenamiento Real",
+  title: "Boxing Profight",
   description: "Entrenamiento de Boxeo y K1 en Alcorcón con Álex Pintor. Asegura tu plaza.",
+  themeColor: "#000000",
+  icons: {
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
+  // Esto es vital para que se abra sin la barra del navegador (modo app)
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Boxing Profight",
+  },
 };
 
 export default function RootLayout({
