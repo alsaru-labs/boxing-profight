@@ -25,7 +25,7 @@ export default function Home() {
 
       <Navbar />
 
-      <main className="relative z-10 flex flex-col items-center justify-center pt-40 md:pt-56 px-6 md:px-24">
+      <main className="relative z-20 flex flex-col items-center justify-center pt-40 md:pt-56 px-6 md:px-24">
 
         {/* ================= HERO SECTION ================= */}
         <section className="min-h-[70vh] flex flex-col items-center justify-center text-center w-full max-w-5xl">
@@ -33,6 +33,7 @@ export default function Home() {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+            className="relative z-10"
           >
             <h1 className="text-5xl md:text-8xl font-extrabold tracking-tighter mb-4 md:mb-6 bg-clip-text text-transparent bg-gradient-to-b from-white to-white/60">
               BOXING PROFIGHT.
