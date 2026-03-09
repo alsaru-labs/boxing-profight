@@ -1,9 +1,12 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { User, CreditCard, CalendarClock, History, Settings, LogOut, ArrowLeft, ShieldAlert, CheckCircle2, XCircle, Activity } from "lucide-react";
+import { User, CreditCard, CalendarClock, History, Settings, LogOut, ArrowLeft, ShieldAlert, CheckCircle2, XCircle, Activity, Loader2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { account } from "@/lib/appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import {
@@ -32,6 +35,37 @@ const pastClasses = [
 ];
 
 export default function StudentProfile() {
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const currentUser = await account.get();
+        setUser(currentUser);
+      } catch (error) {
+        console.error("No active session", error);
+        router.push("/login"); // Redirect back to login if no session is active
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUser();
+  }, [router]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <Loader2 className="w-10 h-10 text-white animate-spin" />
+      </div>
+    );
+  }
+
+  // Get user initials for Avatars
+  const initials = user?.name ? user.name.substring(0, 2).toUpperCase() : "US";
+
   return (
     <div className="dark min-h-screen bg-black text-white font-sans flex flex-col md:flex-row relative">
       {/* Background glow effects */}
@@ -52,10 +86,10 @@ export default function StudentProfile() {
           <div className="flex flex-col items-center justify-center text-center mb-10 pb-8 border-b border-white/10">
             <Avatar className="h-24 w-24 border-2 border-white/20 mb-4 shadow-2xl">
               <AvatarImage src="" />
-              <AvatarFallback className="bg-gradient-to-br from-zinc-700 to-black text-white text-2xl font-bold">JD</AvatarFallback>
+              <AvatarFallback className="bg-gradient-to-br from-zinc-700 to-black text-white text-2xl font-bold">{initials}</AvatarFallback>
             </Avatar>
-            <h2 className="text-xl font-bold tracking-tight">Javier Díaz</h2>
-            <p className="text-white/50 text-sm mt-1">javier.diaz@email.com</p>
+            <h2 className="text-xl font-bold tracking-tight">{user?.name || "Usuario"}</h2>
+            <p className="text-white/50 text-sm mt-1">{user?.email}</p>
           </div>
 
           <nav className="space-y-2">
@@ -68,10 +102,16 @@ export default function StudentProfile() {
         </div>
 
         <div className="pt-8 border-t border-white/10">
-          <Link href="/login" className="inline-flex w-full items-center justify-start rounded-lg px-3 py-2 text-sm font-medium transition-colors text-white/50 hover:text-white hover:bg-white/5">
+          <button 
+            onClick={async () => {
+              await account.deleteSession("current");
+              router.push("/login");
+            }}
+            className="inline-flex w-full items-center justify-start rounded-lg px-3 py-2 text-sm font-medium transition-colors text-white/50 hover:text-white hover:bg-white/5"
+          >
             <LogOut className="mr-3 h-5 w-5" />
             Cerrar Sesión
-          </Link>
+          </button>
         </div>
       </aside>
 
@@ -84,9 +124,9 @@ export default function StudentProfile() {
             <span className="font-semibold text-sm">Inicio</span>
           </Link>
           <div className="flex items-center gap-3">
-            <span className="font-bold text-sm">Javier Díaz</span>
+            <span className="font-bold text-sm">{user?.name || "Usuario"}</span>
             <Avatar className="h-8 w-8 border border-white/20">
-              <AvatarFallback className="bg-zinc-800 text-white text-xs">JD</AvatarFallback>
+              <AvatarFallback className="bg-zinc-800 text-white text-xs">{initials}</AvatarFallback>
             </Avatar>
           </div>
         </div>
