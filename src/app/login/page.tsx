@@ -3,12 +3,51 @@
 import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { account } from "@/lib/appwrite";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setError("Por favor, rellena todos los campos.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+      
+      // Clean up previous sessions to avoid "session is active" error
+      try {
+        await account.deleteSession("current");
+      } catch (e) {
+        // Ignore error if no session exists
+      }
+      
+      // Create session
+      await account.createEmailPasswordSession(email, password);
+      
+      // Redirect to Profile
+      router.push("/perfil");
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Ocurrió un error al iniciar sesión. Revisa tus credenciales.");
+    } finally {
+      setLoading(false);
+    }
+  };
   return (
     <div className="relative min-h-screen bg-black overflow-hidden font-sans text-white flex flex-col md:flex-row">
       {/* Background Gradient effects */}
@@ -79,13 +118,22 @@ export default function LoginPage() {
             <p className="text-white/50">Introduce en tu cuenta para reservar clases.</p>
           </div>
 
-          <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+          <form className="space-y-6" onSubmit={handleLogin}>
+            {error && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
+                {error}
+              </div>
+            )}
+            
             <div className="space-y-2">
               <Label htmlFor="email" className="text-white/80 font-medium">Correo electrónico</Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="alumno@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={loading}
                 className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-14 rounded-xl px-4 focus-visible:ring-1 focus-visible:ring-white/30 focus-visible:border-white/30 transition-all"
               />
             </div>
@@ -101,15 +149,26 @@ export default function LoginPage() {
                 id="password"
                 type="password"
                 placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
                 className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-14 rounded-xl px-4 focus-visible:ring-1 focus-visible:ring-white/30 focus-visible:border-white/30 transition-all"
               />
             </div>
 
             <Button
               type="submit"
+              disabled={loading}
               className="w-full bg-white text-black hover:bg-neutral-200 h-14 rounded-xl text-lg font-semibold transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)]"
             >
-              Iniciar Sesión
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Iniciando...
+                </>
+              ) : (
+                "Iniciar Sesión"
+              )}
             </Button>
           </form>
 
