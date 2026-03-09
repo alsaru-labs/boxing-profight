@@ -4,17 +4,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { client } from "@/lib/appwrite";
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    // Ping to verify Appwrite setup
-    client.ping()
-      .then(() => console.log("Appwrite ping successful! Setup is verified."))
-      .catch((err) => console.error("Appwrite ping failed:", err));
-
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
     };

@@ -29,21 +29,27 @@ export default function LoginPage() {
       setLoading(true);
       setError("");
       
-      // Clean up previous sessions to avoid "session is active" error
+      // Create session safely
       try {
-        await account.deleteSession("current");
-      } catch (e) {
-        // Ignore error if no session exists
+        await account.createEmailPasswordSession(email, password);
+      } catch (sessionError: any) {
+        if (sessionError?.message?.includes('session is active') || sessionError?.message?.includes('creation is prohibited')) {
+          // If a session already exists, delete it first and retry
+          await account.deleteSession("current");
+          await account.createEmailPasswordSession(email, password);
+        } else {
+          throw sessionError; // Re-throw if it's a different error
+        }
       }
-      
-      // Create session
-      await account.createEmailPasswordSession(email, password);
       
       // Redirect to Profile
       router.push("/perfil");
     } catch (err: any) {
-      console.error(err);
-      setError(err?.message || "Ocurrió un error al iniciar sesión. Revisa tus credenciales.");
+      if (err?.message?.includes('Invalid credentials')) {
+        setError("Las credenciales son incorrectas. Por favor, revisa tu correo y contraseña.");
+      } else {
+        setError("Ocurrió un error al intentar iniciar sesión. Inténtalo de nuevo.");
+      }
     } finally {
       setLoading(false);
     }

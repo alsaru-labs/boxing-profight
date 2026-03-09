@@ -44,11 +44,10 @@ export default function StudentProfile() {
       try {
         const currentUser = await account.get();
         setUser(currentUser);
-      } catch (error) {
-        console.error("No active session", error);
-        router.push("/login"); // Redirect back to login if no session is active
-      } finally {
         setLoading(false);
+      } catch (error) {
+        // Redirige al login silenciosamente si no hay sesión
+        router.push("/login"); 
       }
     };
 

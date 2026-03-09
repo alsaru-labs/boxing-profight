@@ -31,24 +31,32 @@ export default function RegisterPage() {
       setLoading(true);
       setError("");
       
-      // Clean up previous sessions to avoid "session is active" error
-      try {
-        await account.deleteSession("current");
-      } catch (e) {
-        // Ignore error if no session exists
-      }
-      
       // 1. Create User
       await account.create(ID.unique(), email, password, name);
       
       // 2. Create Session (Login immediately)
-      await account.createEmailPasswordSession(email, password);
+      try {
+        await account.createEmailPasswordSession(email, password);
+      } catch (sessionError: any) {
+        if (sessionError?.message?.includes('session is active') || sessionError?.message?.includes('creation is prohibited')) {
+          // If a session already exists, delete it first and retry
+          await account.deleteSession("current");
+          await account.createEmailPasswordSession(email, password);
+        } else {
+          throw sessionError; // Re-throw if it's a different error
+        }
+      }
       
       // 3. Redirect to Profile
       router.push("/perfil");
     } catch (err: any) {
-      console.error(err);
-      setError(err?.message || "Ocurrió un error al registrar el usuario.");
+      if (err?.message?.includes('already exists')) {
+        setError("Ya existe una cuenta con este correo electrónico. Por favor, inicia sesión.");
+      } else if (err?.message?.includes('Password must be')) {
+        setError("La contraseña es muy débil. Debe tener al menos 8 caracteres.");
+      } else {
+        setError("Ocurrió un error inesperado al registrar tu cuenta. Inténtalo de nuevo.");
+      }
     } finally {
       setLoading(false);
     }
