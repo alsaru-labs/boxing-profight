@@ -80,7 +80,7 @@ export default function Navbar() {
             {roleLoading ? (
               <div className="w-24 h-8 animate-pulse bg-white/10 rounded-md"></div>
             ) : isAdmin ? (
-              <Link href="/admin" className="text-2xl font-semibold text-white/80 hover:text-white transition-colors">
+              <Link href="/sys-director" className="text-2xl font-semibold text-white/80 hover:text-white transition-colors">
                 Panel de Control
               </Link>
             ) : (

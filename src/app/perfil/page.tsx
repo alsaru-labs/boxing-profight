@@ -51,7 +51,7 @@ export default function StudentProfile() {
         );
 
         if (profile.role === "admin") {
-          router.push("/admin"); // Redirect admins strictly to their dashboard
+          router.push("/sys-director"); // Redirect admins strictly to their obfuscated dashboard
           return;
         }
 
