@@ -37,6 +37,7 @@ const pastClasses = [
 export default function StudentProfile() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
+  const [profileInfo, setProfileInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -55,6 +56,7 @@ export default function StudentProfile() {
           return;
         }
 
+        setProfileInfo(profile);
         setUser(currentUser);
         setLoading(false);
       } catch (error) {
@@ -174,28 +176,49 @@ export default function StudentProfile() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {/* Payment Status Card - Prominent design */}
               <Card className="bg-white/5 border-white/10 backdrop-blur-xl lg:col-span-2 overflow-hidden relative group">
-                {/* Glow behind successful payment */}
-                <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/0 via-emerald-500/10 to-transparent blur-2xl opacity-50 block" />
+                {/* Glow behind payment status */}
+                <div 
+                  className={`absolute -inset-1 blur-2xl opacity-50 block transition-colors duration-1000 ${
+                    profileInfo?.is_paid 
+                      ? "bg-gradient-to-r from-emerald-500/0 via-emerald-500/10 to-transparent" 
+                      : "bg-gradient-to-r from-red-500/0 via-red-500/10 to-transparent"
+                  }`} 
+                />
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg text-white font-semibold flex items-center gap-2">
                       <CreditCard className="h-5 w-5 text-white/60" />
                       Estado de tu Cuota
                     </CardTitle>
-                    <Badge className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 font-medium px-3 py-1 text-sm border-0 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4" /> Al día
-                    </Badge>
+                    {profileInfo?.is_paid ? (
+                      <Badge className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 font-medium px-3 py-1 text-sm border-0 flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                        <CheckCircle2 className="w-4 h-4" /> Al día
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-red-500/20 text-red-400 hover:bg-red-500/30 font-medium px-3 py-1 text-sm border-0 flex items-center gap-1.5 shadow-[0_0_15px_rgba(239,68,68,0.2)] animate-pulse">
+                        <XCircle className="w-4 h-4" /> Pago Pendiente
+                      </Badge>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent className="pt-4 pb-6">
                   <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div>
                       <p className="text-white/50 text-sm mb-1">Plan Actual</p>
-                      <p className="text-3xl font-bold text-white tracking-tight">Tarifa Completa <span className="text-lg text-white/40 ml-2 font-medium">/ 55€ mes</span></p>
+                      <p className="text-3xl font-bold text-white tracking-tight">
+                        Tarifa Completa <span className="text-lg text-white/40 ml-2 font-medium">/ 55€ mes</span>
+                      </p>
+                      {profileInfo?.payment_method && profileInfo?.is_paid && (
+                        <p className="text-emerald-400/80 text-xs mt-2 uppercase tracking-widest font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> Abonado vía {profileInfo.payment_method}
+                        </p>
+                      )}
                     </div>
-                    <div className="bg-black/30 p-3 rounded-lg border border-white/5">
-                      <p className="text-sm font-medium text-white/60">Próxima renovación</p>
-                      <p className="text-lg font-bold text-white tracking-wide">01 de Noviembre</p>
+                    <div className="bg-black/30 p-3 rounded-lg border border-white/5 flex flex-col justify-center items-center text-center px-6 shadow-inner">
+                      <p className="text-sm font-medium text-white/60">Aviso</p>
+                      <p className={`text-lg font-bold tracking-wide mt-1 ${profileInfo?.is_paid ? 'text-white' : 'text-red-400'}`}>
+                        {profileInfo?.is_paid ? "Todo correcto" : "Acude a recepción"}
+                      </p>
                     </div>
                   </div>
                 </CardContent>

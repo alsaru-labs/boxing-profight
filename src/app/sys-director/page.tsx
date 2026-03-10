@@ -297,16 +297,15 @@ export default function AdminDashboard() {
               <TableHeader className="bg-white/5">
                 <TableRow className="border-white/10 hover:bg-transparent">
                   <TableHead className="text-white/70">Alumno</TableHead>
-                  <TableHead className="text-white/70">Plan / Tarifa</TableHead>
                   <TableHead className="text-white/70">Estado de Pago</TableHead>
                   <TableHead className="text-white/70">Siguiente Clase</TableHead>
-                  <TableHead className="text-right text-white/70">Acciones</TableHead>
+                  <TableHead className="text-right text-white/70"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {studentsList.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center h-24 text-white/50">
+                    <TableCell colSpan={4} className="text-center h-24 text-white/50">
                       No hay alumnos registrados todavía en la Base de Datos.
                     </TableCell>
                   </TableRow>
@@ -325,9 +324,6 @@ export default function AdminDashboard() {
                             <p className="text-white/50 text-xs">{student.email}</p>
                           </div>
                         </div>
-                      </TableCell>
-                      <TableCell className="text-white/80">
-                         {student.role === 'admin' ? 'Admin / Instructor' : 'Mensualidad Completa'}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col items-start gap-1">
