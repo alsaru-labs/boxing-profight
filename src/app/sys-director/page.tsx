@@ -115,31 +115,79 @@ export default function AdminDashboard() {
 
         const allStudents = profilesData.documents.filter((s: any) => s.role !== "admin");
 
-        setStudentsList(allStudents);
         setTotalStudents(allStudents.length);
         setClassesList(classesData.documents);
 
-        // Unpaid logic
-        const paidStudentsCount = allStudents.filter((s: any) => s.is_paid === true).length;
-        setUnpaidCount(allStudents.length - paidStudentsCount);
-
-        // Revenue calculation (Monthly Table)
         const d = new Date();
         const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
         try {
+          // Check if current month revenue exists
           const revData = await databases.listDocuments(
             DATABASE_ID,
             COLLECTION_REVENUE,
             [Query.equal("month", currentMonthStr), Query.limit(1)]
           );
+
           if (revData.documents.length > 0) {
             setMonthlyRevenue(revData.documents[0].amount);
+
+            // Standard Unpaid logic
+            const paidStudentsCount = allStudents.filter((s: any) => s.is_paid === true).length;
+            setUnpaidCount(allStudents.length - paidStudentsCount);
+            setStudentsList(allStudents);
           } else {
-            setMonthlyRevenue(0);
+            // CURRENT MONTH NOT FOUND: Possible new month!
+            const anyPastRev = await databases.listDocuments(
+              DATABASE_ID,
+              COLLECTION_REVENUE,
+              [Query.limit(1)]
+            );
+
+            if (anyPastRev.documents.length > 0) {
+              // DETECTED ROLLOVER! Previous months exist, but current doesn't.
+              // Reset all paid students
+              const resetPromises = allStudents.filter(s => s.is_paid).map(s => {
+                s.is_paid = false;
+                s.payment_method = null;
+                return databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, s.$id, {
+                  is_paid: false,
+                  payment_method: null
+                });
+              });
+
+              await Promise.all(resetPromises);
+
+              // Create new month revenue
+              await databases.createDocument(DATABASE_ID, COLLECTION_REVENUE, ID.unique(), {
+                month: currentMonthStr,
+                amount: 0
+              });
+
+              setMonthlyRevenue(0);
+              setUnpaidCount(allStudents.length); // Everyone is unpaid now
+              setStudentsList([...allStudents]); // Update state with mutated allStudents
+            } else {
+              // FIRST TIME SETUP: No previous months exist. Do not reset.
+              const paidStudentsCount = allStudents.filter((s: any) => s.is_paid === true).length;
+              const initialRevenue = paidStudentsCount * 55;
+
+              await databases.createDocument(DATABASE_ID, COLLECTION_REVENUE, ID.unique(), {
+                month: currentMonthStr,
+                amount: initialRevenue
+              });
+
+              setMonthlyRevenue(initialRevenue);
+              setUnpaidCount(allStudents.length - paidStudentsCount);
+              setStudentsList(allStudents);
+            }
           }
         } catch (e) {
           console.error("Revenue collection missing or permission error:", e);
+          const paidStudentsCount = allStudents.filter((s: any) => s.is_paid === true).length;
           setMonthlyRevenue(paidStudentsCount * 55); // Fallback until table is created
+          setUnpaidCount(allStudents.length - paidStudentsCount);
+          setStudentsList(allStudents);
         }
 
         // If verified and data loaded, remove loading state
