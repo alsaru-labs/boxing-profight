@@ -340,10 +340,27 @@ export default function AdminDashboard() {
   
   const isDateValid = newClass.date !== "" && newClass.date >= localTodayISO;
   const isCoachValid = newClass.coach.trim() !== "" && !/\d/.test(newClass.coach);
-  const isTimeValid = /^([01]?\d|2[0-3]):[0-5]\d\s*-\s*([01]?\d|2[0-3]):[0-5]\d$/.test(newClass.time.trim());
+  const isTimeFormatValid = /^([01]?\d|2[0-3]):[0-5]\d\s*-\s*([01]?\d|2[0-3]):[0-5]\d$/.test(newClass.time.trim());
+  
+  // Specific Time-in-past validation for today
+  let isTimeFuture = true;
+  if (isDateValid && isTimeFormatValid && newClass.date === localTodayISO) {
+    const startTimeStr = newClass.time.split('-')[0].trim();
+    const [startHours, startMinutes] = startTimeStr.split(':').map(Number);
+    
+    // Create an artificial Date representing "today at class start time" in local time
+    const classTimeToday = new Date();
+    classTimeToday.setHours(startHours, startMinutes, 0, 0);
+    
+    // Compare directly against current time
+    if (classTimeToday <= new Date()) {
+      isTimeFuture = false;
+    }
+  }
+
   const isCapacityValid = newClass.capacity > 0;
 
-  const isNewClassFormValid = isDateValid && isCoachValid && isTimeValid && isCapacityValid;
+  const isNewClassFormValid = isDateValid && isCoachValid && isTimeFormatValid && isTimeFuture && isCapacityValid;
 
   // --- Next Class Calculation ---
   const now = new Date();
@@ -1042,10 +1059,13 @@ export default function AdminDashboard() {
                   placeholder="Ej: 18:00 - 19:30"
                   value={newClass.time}
                   onChange={(e) => setNewClass({...newClass, time: e.target.value})}
-                  className={`bg-black text-white focus-visible:ring-emerald-500 ${!isTimeValid && newClass.time !== "" ? "border-red-500" : "border-white/20"}`}
+                  className={`bg-black text-white focus-visible:ring-emerald-500 ${(!isTimeFormatValid || !isTimeFuture) && newClass.time !== "" ? "border-red-500" : "border-white/20"}`}
                 />
-                {!isTimeValid && newClass.time !== "" && (
+                {!isTimeFormatValid && newClass.time !== "" && (
                   <span className="text-xs text-red-500">Formato inválido. Usa formato: 18:00 - 19:30</span>
+                )}
+                {isTimeFormatValid && !isTimeFuture && newClass.date === localTodayISO && (
+                  <span className="text-xs text-red-500">Esa hora ya ha pasado hoy.</span>
                 )}
               </div>
             </div>
