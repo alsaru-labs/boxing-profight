@@ -6,7 +6,7 @@ import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, Shiel
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS } from "@/lib/appwrite";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS, COLLECTION_REVENUE, COLLECTION_PAYMENTS } from "@/lib/appwrite";
 import { Query, ID } from "appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -119,10 +119,28 @@ export default function AdminDashboard() {
         setTotalStudents(allStudents.length);
         setClassesList(classesData.documents);
 
-        // Revenue calculation (55€ per paid student)
-        const paidStudentsCount = allStudents.filter(s => s.is_paid === true).length;
-        setMonthlyRevenue(paidStudentsCount * 55);
+        // Unpaid logic
+        const paidStudentsCount = allStudents.filter((s: any) => s.is_paid === true).length;
         setUnpaidCount(allStudents.length - paidStudentsCount);
+
+        // Revenue calculation (Monthly Table)
+        const d = new Date();
+        const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        try {
+          const revData = await databases.listDocuments(
+            DATABASE_ID,
+            COLLECTION_REVENUE,
+            [Query.equal("month", currentMonthStr), Query.limit(1)]
+          );
+          if (revData.documents.length > 0) {
+            setMonthlyRevenue(revData.documents[0].amount);
+          } else {
+            setMonthlyRevenue(0);
+          }
+        } catch (e) {
+          console.error("Revenue collection missing or permission error:", e);
+          setMonthlyRevenue(paidStudentsCount * 55); // Fallback until table is created
+        }
 
         // If verified and data loaded, remove loading state
         setLoading(false);
@@ -173,6 +191,67 @@ export default function AdminDashboard() {
         }
       );
 
+      // --- Revenue Database Update Logic ---
+      const pAmount = Number(paymentAmount) || 55;
+      const d = new Date();
+      const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+      let paymentAmountToDeduct = pAmount;
+
+      try {
+        if (newStatus) {
+          // --- 1. Create Individual Payment History Record ---
+          await databases.createDocument(DATABASE_ID, COLLECTION_PAYMENTS, ID.unique(), {
+            student_id: studentId,
+            month: currentMonthStr,
+            amount: pAmount,
+            method: paymentMethod
+          });
+        } else {
+          // --- 2. Remove Individual Payment History Record (if exists) ---
+          const userPayments = await databases.listDocuments(
+            DATABASE_ID,
+            COLLECTION_PAYMENTS,
+            [Query.equal("student_id", studentId), Query.equal("month", currentMonthStr), Query.limit(10)]
+          );
+
+          if (userPayments.documents.length > 0) {
+            paymentAmountToDeduct = userPayments.documents[0].amount; // Real amount paid
+            const deletePromises = userPayments.documents.map(p =>
+              databases.deleteDocument(DATABASE_ID, COLLECTION_PAYMENTS, p.$id)
+            );
+            await Promise.all(deletePromises);
+          }
+        }
+
+        // --- 3. Update Overall Revenue Aggregate ---
+        const revData = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTION_REVENUE,
+          [Query.equal("month", currentMonthStr), Query.limit(1)]
+        );
+
+        let updatedRevenue = 0;
+        if (revData.documents.length > 0) {
+          const doc = revData.documents[0];
+          updatedRevenue = newStatus ? doc.amount + pAmount : Math.max(0, doc.amount - paymentAmountToDeduct);
+          await databases.updateDocument(DATABASE_ID, COLLECTION_REVENUE, doc.$id, { amount: updatedRevenue });
+          setMonthlyRevenue(updatedRevenue);
+        } else if (newStatus) {
+          // Create it if there's none this month and someone pays
+          await databases.createDocument(DATABASE_ID, COLLECTION_REVENUE, ID.unique(), {
+            month: currentMonthStr,
+            amount: pAmount
+          });
+          setMonthlyRevenue(pAmount);
+        } else {
+          // Changing to unpaid but table was empty (0 anyway)
+          setMonthlyRevenue(0);
+        }
+      } catch (e) {
+        console.error("Could not update revenue or payment tables:", e);
+      }
+
       // Update Local State for instant UI feedback
       const updatedList = studentsList.map(s =>
         s.$id === studentId ? { ...s, is_paid: newStatus, payment_method: newStatus ? paymentMethod : null } : s
@@ -180,9 +259,8 @@ export default function AdminDashboard() {
 
       setStudentsList(updatedList);
 
-      // Recalculate quick stats locally
+      // Recalculate quick stats locally for unpaid count
       const paidStudentsCount = updatedList.filter(s => s.is_paid === true).length;
-      setMonthlyRevenue(paidStudentsCount * 55);
       setUnpaidCount(updatedList.length - paidStudentsCount);
 
       if (newStatus === true) {
@@ -622,13 +700,14 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-4xl font-bold text-white">{totalStudents}</div>
-              <p className="text-xs text-emerald-400 mt-1">Total registrados en bbdd</p>
             </CardContent>
           </Card>
 
           <Card className="bg-white/5 border-white/10 backdrop-blur-lg">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-white/70">Ingresos Proyectados</CardTitle>
+              <CardTitle className="text-sm font-medium text-white/70 capitalize">
+                Ingresos en {new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(new Date())}
+              </CardTitle>
               <CreditCard className="h-4 w-4 text-white/50" />
             </CardHeader>
             <CardContent>
