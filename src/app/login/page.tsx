@@ -18,6 +18,16 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const deleteAllCookies = () => {
+    const cookies = document.cookie.split(";");
+    for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i];
+        const eqPos = cookie.indexOf("=");
+        const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
+        document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
@@ -35,7 +45,15 @@ export default function LoginPage() {
       } catch (sessionError: any) {
         if (sessionError?.message?.includes('session is active') || sessionError?.message?.includes('creation is prohibited')) {
           // If a session already exists, delete it first and retry
-          await account.deleteSession("current");
+          try {
+            await account.deleteSession("current");
+          } catch (deleteErr) {
+            // If delete fails (e.g., user was deleted in console but cookie remains),
+            // forcefully clear local storage tokens Appwrite generates.
+            localStorage.clear();
+            sessionStorage.clear();
+            deleteAllCookies();
+          }
           await account.createEmailPasswordSession(email, password);
         } else {
           throw sessionError; // Re-throw if it's a different error

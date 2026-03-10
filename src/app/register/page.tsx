@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { account } from "@/lib/appwrite";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
 import { ID } from "appwrite";
 
 export default function RegisterPage() {
@@ -19,6 +19,16 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const deleteAllCookies = () => {
+    const cookies = document.cookie.split(";");
+    for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i];
+        const eqPos = cookie.indexOf("=");
+        const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
+        document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+    }
+  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,21 +41,42 @@ export default function RegisterPage() {
       setLoading(true);
       setError("");
       
-      // 1. Create User
-      await account.create(ID.unique(), email, password, name);
+      // 1. Create User in Auth
+      const user = await account.create(ID.unique(), email, password, name);
       
-      // 2. Create Session (Login immediately)
+      // 2. Create Session (Login immediately) to gain permissions
       try {
         await account.createEmailPasswordSession(email, password);
       } catch (sessionError: any) {
         if (sessionError?.message?.includes('session is active') || sessionError?.message?.includes('creation is prohibited')) {
           // If a session already exists, delete it first and retry
-          await account.deleteSession("current");
+          try {
+            await account.deleteSession("current");
+          } catch (deleteErr) {
+            // Forcefully clear ghost tokens from browser cache
+            localStorage.clear();
+            sessionStorage.clear();
+            deleteAllCookies();
+          }
           await account.createEmailPasswordSession(email, password);
         } else {
           throw sessionError; // Re-throw if it's a different error
         }
       }
+
+      // 3. Create Profile in Database now that we are logged in
+      await databases.createDocument(
+        DATABASE_ID,
+        COLLECTION_PROFILES,
+        user.$id, // Uses the exact same ID Appwrite Auth gave to the user
+        {
+          user_id: user.$id,
+          name: name,
+          email: email,
+          is_paid: false,
+          role: "estudiante"
+        }
+      );
       
       // 3. Redirect to Profile
       router.push("/perfil");
@@ -55,7 +86,7 @@ export default function RegisterPage() {
       } else if (err?.message?.includes('Password must be')) {
         setError("La contraseña es muy débil. Debe tener al menos 8 caracteres.");
       } else {
-        setError("Ocurrió un error inesperado al registrar tu cuenta. Inténtalo de nuevo.");
+        setError(`Error del servidor: ${err?.message || JSON.stringify(err)}`);
       }
     } finally {
       setLoading(false);

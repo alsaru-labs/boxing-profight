@@ -1,9 +1,12 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, ShieldCheck } from "lucide-react";
+import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, ShieldCheck, Loader2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -62,6 +65,47 @@ const students = [
 ];
 
 export default function AdminDashboard() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const verifyAdmin = async () => {
+      try {
+        // 1. Get current logged in user
+        const userData = await account.get();
+        
+        // 2. Fetch their profile from the database to check role
+        const profile = await databases.getDocument(
+          DATABASE_ID,
+          COLLECTION_PROFILES,
+          userData.$id
+        );
+
+        if (profile.role !== "admin") {
+          throw new Error("No tienes permisos de administrador.");
+        }
+
+        // If verified, remove loading state
+        setLoading(false);
+      } catch (error) {
+        // If they are not logged in or not an admin, kick them to login
+        router.push("/login");
+      }
+    };
+
+    verifyAdmin();
+  }, [router]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
+        <ShieldCheck className="w-16 h-16 text-white/20 mb-4" />
+        <Loader2 className="w-10 h-10 text-white animate-spin" />
+        <p className="text-white/50 mt-4 font-medium">Verificando credenciales de instructor...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-black text-white font-sans flex flex-col md:flex-row">
       {/* Sidebar */}
