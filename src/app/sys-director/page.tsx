@@ -64,6 +64,11 @@ export default function AdminDashboard() {
   const [editLevel, setEditLevel] = useState("Iniciación");
   const [editPhoneError, setEditPhoneError] = useState("");
 
+  // New Student Modal States
+  const [isNewStudentModalOpen, setIsNewStudentModalOpen] = useState(false);
+  const [newStudentForm, setNewStudentForm] = useState({ name: "", email: "", phone: "", level: "Iniciación" });
+  const [newStudentFormError, setNewStudentFormError] = useState("");
+
   // Table Fitler & Sort States
   const [searchTerm, setSearchTerm] = useState("");
   const [filterPayment, setFilterPayment] = useState("todos"); // "todos", "pagado", "pendiente"
@@ -367,6 +372,64 @@ export default function AdminDashboard() {
       setIsEditModalOpen(false);
     } catch (error) {
       console.error("Error updating profile stats:", error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleCreateStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNewStudentFormError("");
+
+    if (!newStudentForm.name || !newStudentForm.email) {
+      setNewStudentFormError("Nombre y correo son requeridos.");
+      return;
+    }
+
+    if (newStudentForm.name.length > 50) {
+      setNewStudentFormError("El nombre no puede superar los 50 caracteres.");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newStudentForm.email)) {
+      setNewStudentFormError("Por favor, introduce un correo electrónico válido.");
+      return;
+    }
+
+    const phoneRegex = /^(\+34|0034|34)?[6789]\d{8}$/;
+    if (newStudentForm.phone.trim() !== "" && !phoneRegex.test(newStudentForm.phone.trim())) {
+      setNewStudentFormError("Por favor, introduce un teléfono válido (ej: 600123456).");
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      const uniqueRef = ID.unique();
+      const newProfile = await databases.createDocument(
+        DATABASE_ID,
+        COLLECTION_PROFILES,
+        uniqueRef,
+        {
+          user_id: uniqueRef, // Fulfill required db schema constraint for manual creation
+          name: newStudentForm.name,
+          email: newStudentForm.email.toLowerCase(),
+          phone: newStudentForm.phone || null,
+          role: "alumno",
+          is_paid: false,
+          level: newStudentForm.level
+        }
+      );
+
+      setStudentsList(prev => [newProfile, ...prev]);
+      setTotalStudents(prev => prev + 1);
+      setUnpaidCount(prev => prev + 1);
+      setIsNewStudentModalOpen(false);
+      setNewStudentForm({ name: "", email: "", phone: "", level: "Iniciación" });
+      alert("Alumno registrado correctamente.");
+    } catch (err) {
+      console.error("Error creating student:", err);
+      alert("Hubo un error al registrar el alumno.");
     } finally {
       setIsUpdating(false);
     }
@@ -745,6 +808,12 @@ export default function AdminDashboard() {
     }
   });
 
+  const isNewStudentFormValid =
+    newStudentForm.name.trim().length > 0 &&
+    newStudentForm.name.length <= 50 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newStudentForm.email) &&
+    (newStudentForm.phone.trim() === "" || /^(\+34|0034|34)?[6789]\d{8}$/.test(newStudentForm.phone.trim()));
+
   return (
     <div className="min-h-screen bg-black text-white font-sans flex flex-col md:flex-row">
       {/* Sidebar */}
@@ -800,11 +869,18 @@ export default function AdminDashboard() {
           </button>
         </div>
 
-        <div className="flex justify-between items-end mb-10">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-10">
           <div>
             <h1 className="text-3xl md:text-5xl font-bold tracking-tight mb-2">Panel de Control</h1>
             <p className="text-white/50 text-lg">Gestiona tus alumnos, clases y pagos actuales.</p>
           </div>
+          <Button
+            onClick={() => setIsNewStudentModalOpen(true)}
+            className="bg-white text-black hover:bg-neutral-200 shadow-lg"
+          >
+            <Users className="w-4 h-4 mr-2" />
+            + Nuevo Alumno
+          </Button>
         </div>
 
         {/* Dashboard Stats Cards */}
@@ -914,10 +990,6 @@ export default function AdminDashboard() {
                   Limpiar Filtros
                 </Button>
               )}
-
-              <Button className="bg-white text-black hover:bg-neutral-200 whitespace-nowrap hidden sm:inline-flex h-10">
-                + Nuevo
-              </Button>
             </div>
           </div>
 
@@ -928,14 +1000,13 @@ export default function AdminDashboard() {
                   <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('name')}>
                     <div className="flex items-center gap-1">Alumno <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
                   </TableHead>
+                  <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('is_paid')}>
+                    <div className="flex items-center gap-1">Estado de Pago <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
+                  </TableHead>
                   <TableHead className="text-white/70">Contacto</TableHead>
                   <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('level')}>
                     <div className="flex items-center gap-1">Nivel <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
                   </TableHead>
-                  <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('is_paid')}>
-                    <div className="flex items-center gap-1">Estado de Pago <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
-                  </TableHead>
-                  <TableHead className="text-white/70">Siguiente Clase</TableHead>
                   <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('$createdAt')}>
                     <div className="flex items-center gap-1">Alta <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
                   </TableHead>
@@ -945,7 +1016,7 @@ export default function AdminDashboard() {
               <TableBody>
                 {slicedStudents.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center h-24 text-white/50">
+                    <TableCell colSpan={6} className="text-center h-24 text-white/50">
                       No hay alumnos registrados todavía en la Base de Datos.
                     </TableCell>
                   </TableRow>
@@ -963,6 +1034,27 @@ export default function AdminDashboard() {
                             <p className="text-white font-medium">{student.name || "Usuario Desconocido"}</p>
                             <p className="text-white/50 text-xs">{student.email}</p>
                           </div>
+                        </div>
+                      </TableCell>
+
+                      {/* Estado de Pago */}
+                      <TableCell>
+                        <div className="flex flex-col items-start gap-1">
+                          <Badge
+                            variant="outline"
+                            className={
+                              student.is_paid
+                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                : "bg-red-500/10 text-red-400 border-red-500/20"
+                            }
+                          >
+                            {student.is_paid ? "Pagado" : "No Pagado"}
+                          </Badge>
+                          {student.is_paid && student.payment_method && (
+                            <span className="text-[10px] text-white/40 uppercase tracking-wider font-semibold">
+                              {student.payment_method}
+                            </span>
+                          )}
                         </div>
                       </TableCell>
 
@@ -997,32 +1089,6 @@ export default function AdminDashboard() {
                             }`} />
                           <span className="text-sm">{student.level || 'Iniciación'}</span>
                         </div>
-                      </TableCell>
-
-                      {/* Estado de Pago */}
-                      <TableCell>
-                        <div className="flex flex-col items-start gap-1">
-                          <Badge
-                            variant="outline"
-                            className={
-                              student.is_paid
-                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                                : "bg-red-500/10 text-red-400 border-red-500/20"
-                            }
-                          >
-                            {student.is_paid ? "Pagado" : "No Pagado"}
-                          </Badge>
-                          {student.is_paid && student.payment_method && (
-                            <span className="text-[10px] text-white/40 uppercase tracking-wider font-semibold">
-                              {student.payment_method}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-
-                      {/* Próxima Clase */}
-                      <TableCell className="text-white/80">
-                        ---
                       </TableCell>
 
                       {/* Fecha de Alta (Antigüedad) */}
@@ -1581,6 +1647,107 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Nuevo Alumno Modal */}
+      <Dialog open={isNewStudentModalOpen} onOpenChange={setIsNewStudentModalOpen}>
+        <DialogContent className="bg-zinc-950 border border-white/10 text-white max-w-md w-[95vw] shadow-2xl p-6 sm:p-8">
+          <DialogTitle className="text-2xl font-bold tracking-tight">Registrar Nuevo Alumno</DialogTitle>
+          <p className="text-white/50 text-sm mb-4">
+            Añade los datos básicos. (Más adelante implementaremos el envío de invitación para crear su contraseña).
+          </p>
+          <form onSubmit={handleCreateStudent} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-white/50 uppercase tracking-widest">Nombre y Apellidos</label>
+              <Input
+                type="text"
+                required
+                maxLength={50}
+                placeholder="Paco Fernández"
+                value={newStudentForm.name}
+                onChange={(e) => setNewStudentForm({ ...newStudentForm, name: e.target.value })}
+                className="bg-white/5 border-white/10 text-white focus:border-white focus:ring-1 focus:ring-white h-12"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-white/50 uppercase tracking-widest">Correo Electrónico (ID de acceso)</label>
+              <Input
+                type="email"
+                required
+                placeholder="paco@email.com"
+                value={newStudentForm.email}
+                onChange={(e) => setNewStudentForm({ ...newStudentForm, email: e.target.value })}
+                className="bg-white/5 border-white/10 text-white focus:border-white focus:ring-1 focus:ring-white h-12"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-white/50 uppercase tracking-widest">Teléfono (WhatsApp)</label>
+              <Input
+                type="text"
+                placeholder="600123456"
+                value={newStudentForm.phone}
+                onChange={(e) => setNewStudentForm({ ...newStudentForm, phone: e.target.value })}
+                className="bg-white/5 border-white/10 text-white focus:border-white focus:ring-1 focus:ring-white h-12"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-1 block">Nivel de Experiencia Inicial</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setNewStudentForm({ ...newStudentForm, level: "Iniciación" })}
+                  className={newStudentForm.level === "Iniciación" ? "bg-white/20 hover:bg-white/30 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
+                >
+                  Iniciación
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setNewStudentForm({ ...newStudentForm, level: "Media" })}
+                  className={newStudentForm.level === "Media" ? "bg-amber-500 hover:bg-amber-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
+                >
+                  Media
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setNewStudentForm({ ...newStudentForm, level: "Profesional" })}
+                  className={newStudentForm.level === "Profesional" ? "bg-purple-500 hover:bg-purple-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
+                >
+                  Profesional
+                </Button>
+              </div>
+            </div>
+
+            {newStudentFormError && (
+              <p className="text-sm font-medium text-red-500 bg-red-500/10 p-3 rounded-md border border-red-500/20">
+                {newStudentFormError}
+              </p>
+            )}
+
+            <div className="pt-4 flex flex-col sm:flex-row gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 bg-transparent border-white/10 text-white hover:bg-white/5"
+                onClick={() => setIsNewStudentModalOpen(false)}
+                disabled={isUpdating}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                className="flex-1 bg-white text-black hover:bg-neutral-200 disabled:opacity-50"
+                disabled={isUpdating || !isNewStudentFormValid}
+              >
+                {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Registrar Alumno
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
