@@ -390,7 +390,7 @@ export default function StudentProfile() {
                       <span className="text-3xl font-bold text-white">{pastClasses.length}</span>
                     </div>
 
-                    <div className="flex justify-between items-center border-b border-white/5 pb-3">
+                    <div className="flex justify-between items-center">
                       <div className="flex flex-col">
                         <span className="text-white/60">Reservas Activas</span>
                         <span className="text-[10px] text-white/40 uppercase tracking-wider">Próximas</span>
@@ -398,11 +398,6 @@ export default function StudentProfile() {
                       <span className="text-2xl font-bold text-emerald-400">
                         {userBookings.length - pastClasses.length}
                       </span>
-                    </div>
-
-                    <div className="flex justify-between items-center pt-1">
-                      <span className="text-white/60">Disponibilidad</span>
-                      <span className="text-sm font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">Ilimitada</span>
                     </div>
                   </div>
                 </CardContent>
