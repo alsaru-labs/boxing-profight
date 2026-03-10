@@ -6,8 +6,8 @@ import { User, CreditCard, CalendarClock, History, Settings, LogOut, ArrowLeft, 
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES } from "@/lib/appwrite";
-import { Query } from "appwrite";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS } from "@/lib/appwrite";
+import { Query, ID } from "appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import {
@@ -32,7 +32,8 @@ export default function StudentProfile() {
   
   // Real-time Class & Booking States
   const [availableClasses, setAvailableClasses] = useState<any[]>([]);
-  const [userPrefs, setUserPrefs] = useState<{ bookedClasses: string[] }>({ bookedClasses: [] });
+  const [userBookings, setUserBookings] = useState<any[]>([]);
+  const [pastClasses, setPastClasses] = useState<any[]>([]);
   const [isProcessingBooking, setIsProcessingBooking] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,11 +52,12 @@ export default function StudentProfile() {
           return;
         }
 
-        // Fetch User Preferences (contains their booked class IDs silently)
-        let prefs = await account.getPrefs();
-        if (!prefs.bookedClasses) {
-          prefs = { bookedClasses: [] } as any;
-        }
+        // Fetch User Bookings from real DB table
+        const bookingsData = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTION_BOOKINGS,
+          [Query.equal("student_id", currentUser.$id), Query.limit(100)]
+        );
         
         // Fetch All Classes
         const classesData = await databases.listDocuments(
@@ -85,8 +87,27 @@ export default function StudentProfile() {
           }
         });
 
+        // Process Classes: Past attended classes
+        const pastClassesFiltered = classesData.documents.filter((cls: any) => {
+          try {
+            const startTime = cls.time.split('-')[0].trim();
+            if (!startTime || !cls.date) return false;
+            
+            const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
+            const [hours, minutes] = startTime.split(":").map(Number);
+            const classDateTime = new Date(year, month - 1, day, hours, minutes);
+            
+            return classDateTime < now;
+          } catch (err) {
+            return false;
+          }
+        });
+
+        const attendedClasses = pastClassesFiltered.filter(cls => bookingsData.documents.some((b: any) => b.class_id === cls.$id));
+
         setAvailableClasses(validUpcomingClasses);
-        setUserPrefs(prefs as any);
+        setPastClasses(attendedClasses.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        setUserBookings(bookingsData.documents);
         setProfileInfo(profile);
         setUser(currentUser);
         setLoading(false);
@@ -115,12 +136,19 @@ export default function StudentProfile() {
         registeredCount: freshClass.registeredCount + 1
       });
 
-      // 3. Save to User Preferences (Secret Array of IDs)
-      const newBookedIds = [...userPrefs.bookedClasses, classObj.$id];
-      await account.updatePrefs({ bookedClasses: newBookedIds });
+      // 3. Save directly to Bookings Collection table
+      const newBooking = await databases.createDocument(
+        DATABASE_ID,
+        COLLECTION_BOOKINGS,
+        ID.unique(),
+        {
+          student_id: user.$id,
+          class_id: classObj.$id
+        }
+      );
       
       // 4. Update UI State without reloading
-      setUserPrefs({ bookedClasses: newBookedIds });
+      setUserBookings(prev => [...prev, newBooking]);
       setAvailableClasses(prev => prev.map(c => 
         c.$id === classObj.$id ? { ...c, registeredCount: c.registeredCount + 1 } : c
       ));
@@ -139,6 +167,10 @@ export default function StudentProfile() {
     try {
       setIsProcessingBooking(classObj.$id);
       
+      // Find the specific booking document id for this class and user
+      const bookingToCancel = userBookings.find((b: any) => b.class_id === classObj.$id);
+      if (!bookingToCancel) return;
+
       const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
       
       // Free the slot
@@ -146,12 +178,11 @@ export default function StudentProfile() {
         registeredCount: Math.max(0, freshClass.registeredCount - 1)
       });
 
-      // Remove from preferences
-      const newBookedIds = userPrefs.bookedClasses.filter(id => id !== classObj.$id);
-      await account.updatePrefs({ bookedClasses: newBookedIds });
+      // Remove from Bookings collection database
+      await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, bookingToCancel.$id);
       
       // Update UI 
-      setUserPrefs({ bookedClasses: newBookedIds });
+      setUserBookings(prev => prev.filter((b: any) => b.$id !== bookingToCancel.$id));
       setAvailableClasses(prev => prev.map(c => 
         c.$id === classObj.$id ? { ...c, registeredCount: Math.max(0, c.registeredCount - 1) } : c
       ));
@@ -331,8 +362,8 @@ export default function StudentProfile() {
                 <CardContent className="pt-4">
                   <div className="space-y-4">
                     <div className="flex justify-between items-center border-b border-white/5 pb-3">
-                      <span className="text-white/60">Reservas Globales de Cuenta</span>
-                      <span className="text-2xl font-bold text-white">{userPrefs.bookedClasses.length}</span>
+                      <span className="text-white/60">Clases totales</span>
+                      <span className="text-2xl font-bold text-white">{userBookings.length}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-white/60">Disponibilidad de Entrenamiento</span>
@@ -356,12 +387,12 @@ export default function StudentProfile() {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {availableClasses.filter(c => !userPrefs.bookedClasses.includes(c.$id)).length === 0 ? (
+                {availableClasses.filter(c => !userBookings.some((b: any) => b.class_id === c.$id)).length === 0 ? (
                   <div className="col-span-full bg-white/5 border border-white/10 rounded-xl p-8 text-center text-white/50">
                     No hay clases nuevas disponibles para reservar en los próximos 7 días.
                   </div>
                 ) : (
-                  availableClasses.filter(c => !userPrefs.bookedClasses.includes(c.$id)).map(cls => {
+                  availableClasses.filter(c => !userBookings.some((b: any) => b.class_id === c.$id)).map(cls => {
                     const isFull = cls.registeredCount >= cls.capacity;
                     return (
                       <Card key={cls.$id} className="bg-white/5 border-white/10 backdrop-blur-lg overflow-hidden group hover:border-white/20 transition-colors">
@@ -420,12 +451,12 @@ export default function StudentProfile() {
               </h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {availableClasses.filter(c => userPrefs.bookedClasses.includes(c.$id)).length === 0 ? (
+                {availableClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).length === 0 ? (
                   <div className="col-span-full text-white/30 text-sm italic">
                     Aún no te has apuntado a ninguna clase esta semana.
                   </div>
                 ) : (
-                  availableClasses.filter(c => userPrefs.bookedClasses.includes(c.$id)).map(cls => (
+                  availableClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).map(cls => (
                     <div key={cls.$id} className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 flex items-center justify-between">
                       <div>
                         <Badge className="bg-emerald-500/20 text-emerald-400 font-medium mb-1 border-0 rounded-sm">
@@ -446,6 +477,49 @@ export default function StudentProfile() {
                   ))
                 )}
               </div>
+            </div>
+
+            {/* Historial de Asistencia */}
+            <div className="space-y-4 pt-8 border-t border-white/10">
+              <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                <History className="w-5 h-5 text-white/40" /> Historial de Asistencia
+              </h3>
+              <Card className="bg-transparent border-white/5 overflow-hidden">
+                <Table>
+                  <TableHeader className="bg-black/40">
+                    <TableRow className="border-white/5 hover:bg-transparent">
+                      <TableHead className="text-white/50">Disciplina</TableHead>
+                      <TableHead className="text-white/50">Fecha</TableHead>
+                      <TableHead className="text-white/50">Instructor</TableHead>
+                      <TableHead className="text-right text-white/50">Resultado</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pastClasses.length === 0 ? (
+                      <TableRow className="border-white/5 hover:bg-transparent">
+                        <TableCell colSpan={4} className="text-center text-white/50 h-24">
+                          Todavía no has asistido a ninguna clase.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      pastClasses.map((cls) => (
+                        <TableRow key={cls.$id} className="border-white/5 hover:bg-white/5 transition-colors">
+                          <TableCell className="font-medium text-white/80">{cls.name}</TableCell>
+                          <TableCell className="text-white/60">
+                            {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} a las {cls.time.split('-')[0].trim()}
+                          </TableCell>
+                          <TableCell className="text-white/60">{cls.coach}</TableCell>
+                          <TableCell className="text-right">
+                            <Badge variant="outline" className="bg-white/10 text-white border-white/20">
+                              Asistido
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </Card>
             </div>
           </TabsContent>
 

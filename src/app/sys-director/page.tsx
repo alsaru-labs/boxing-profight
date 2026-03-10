@@ -6,7 +6,7 @@ import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, Shiel
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES } from "@/lib/appwrite";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS } from "@/lib/appwrite";
 import { Query, ID } from "appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,6 +75,12 @@ export default function AdminDashboard() {
   const [classesList, setClassesList] = useState<any[]>([]);
   const [isClassModalOpen, setIsClassModalOpen] = useState(false);
   const [newClass, setNewClass] = useState({ name: "Boxeo", date: "", time: "18:00 - 19:30", coach: "Álex Pintor", capacity: 30 });
+
+  // Attendees Modal States
+  const [isAttendeesModalOpen, setIsAttendeesModalOpen] = useState(false);
+  const [selectedClassForAttendees, setSelectedClassForAttendees] = useState<any>(null);
+  const [attendeesList, setAttendeesList] = useState<any[]>([]);
+  const [isFetchingAttendees, setIsFetchingAttendees] = useState(false);
 
   useEffect(() => {
     const verifyAdmin = async () => {
@@ -268,14 +274,55 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteClass = async (classId: string) => {
-    if (!window.confirm("¿Seguro que quieres borrar esta clase de forma permanente?")) return;
+    if (!window.confirm("¿Seguro que quieres borrar esta clase de forma permanente? Se cancelarán también todas las reservas de los alumnos.")) return;
     
     try {
+      // 1. Fetch all bookings associated with this class
+      const relatedBookings = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTION_BOOKINGS,
+        [Query.equal("class_id", classId), Query.limit(100)]
+      );
+
+      // 2. Delete all related bookings one by one (cascade delete effect)
+      const deleteBookingPromises = relatedBookings.documents.map(booking => 
+        databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id)
+      );
+      await Promise.all(deleteBookingPromises);
+
+      // 3. Delete the class itself
       await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
+      
+      // 4. Update the UI state
       setClassesList(prev => prev.filter(c => c.$id !== classId));
     } catch (error: any) {
       console.error("Error al borrar la clase:", error);
-      alert(`No se pudo borrar la clase. Revisa si en Appwrite le diste el tick verde a 'Delete' en los Permisos. \n\nError: ${error?.message}`);
+      alert(`No se pudo borrar la clase o sus reservas. Revisa si en Appwrite le diste el tick verde a 'Delete' en los Permisos tanto para Classes como Bookings. \n\nError: ${error?.message}`);
+    }
+  };
+
+  const handleViewAttendees = async (classObj: any) => {
+    try {
+      setIsFetchingAttendees(true);
+      setSelectedClassForAttendees(classObj);
+      setIsAttendeesModalOpen(true);
+      
+      const bookingsData = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTION_BOOKINGS,
+        [Query.equal("class_id", classObj.$id), Query.limit(100)]
+      );
+
+      const studentIds = bookingsData.documents.map(b => b.student_id);
+      
+      // Filter out only the existing student profiles
+      const attendees = studentsList.filter(student => studentIds.includes(student.$id));
+      setAttendeesList(attendees);
+    } catch (error) {
+      console.error("Error fetching attendees:", error);
+      alert("Error verificando asitentes.");
+    } finally {
+      setIsFetchingAttendees(false);
     }
   };
 
@@ -844,7 +891,10 @@ export default function AdminDashboard() {
                             <MoreVertical className="h-4 w-4" />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10">
-                            <DropdownMenuItem className="text-white focus:bg-white/10 cursor-pointer">
+                            <DropdownMenuItem 
+                              className="text-white focus:bg-white/10 cursor-pointer"
+                              onClick={() => handleViewAttendees(cls)}
+                            >
                               Ver Lista de Asistentes
                             </DropdownMenuItem>
                             <DropdownMenuItem 
@@ -1138,6 +1188,56 @@ export default function AdminDashboard() {
               Publicar Clase
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Attendees Modal */}
+      <Dialog open={isAttendeesModalOpen} onOpenChange={setIsAttendeesModalOpen}>
+        <DialogContent className="bg-zinc-950 text-white border border-white/10 p-0 overflow-hidden sm:max-w-[450px]">
+          <DialogHeader className="p-6 pb-2">
+            <DialogTitle className="text-xl font-bold">Listado de Alumnos</DialogTitle>
+            <DialogDescription className="text-white/50">
+              {selectedClassForAttendees?.name} ({selectedClassForAttendees?.time})
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto px-6 pb-6">
+            {isFetchingAttendees ? (
+              <div className="flex justify-center items-center py-10">
+                <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+              </div>
+            ) : attendeesList.length === 0 ? (
+              <div className="text-center text-white/40 py-8 italic">
+                Aún no hay ningún alumno apuntado a esta clase.
+              </div>
+            ) : (
+              <div className="space-y-3 mt-4">
+                {attendeesList.map(student => (
+                  <div key={student.$id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10 border border-white/10">
+                        <AvatarFallback className="bg-zinc-800 text-white font-bold">{student.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-bold text-white text-sm">{student.name}</p>
+                        <p className="text-xs text-white/50">{student.email}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <Badge variant="outline" className={`
+                        ${student.level === 'Iniciación' ? 'border-amber-500/30 text-amber-500' : ''}
+                        ${student.level === 'Media' ? 'border-blue-500/30 text-blue-400' : ''}
+                        ${student.level === 'Profesional' ? 'border-red-500/30 text-red-500' : ''}
+                        bg-black/40 shadow-inner px-2 py-0.5
+                      `}>
+                        <Signal className={`w-3 h-3 mr-1 `} />
+                        {student.level || "N/A"}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
