@@ -1056,10 +1056,7 @@ export default function AdminDashboard() {
                             >
                               Editar Perfil (Contacto/Nivel)
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-amber-400 focus:bg-amber-500/10 focus:text-amber-400 cursor-pointer">
-                              <CalendarX className="mr-2 h-4 w-4" />
-                              Cancelar su reserva actual
-                            </DropdownMenuItem>
+
                             <DropdownMenuItem className="text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer">
                               Dar de baja (Eliminar)
                             </DropdownMenuItem>
