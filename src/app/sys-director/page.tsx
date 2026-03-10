@@ -29,6 +29,16 @@ import {
   DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 
 
@@ -39,6 +49,13 @@ export default function AdminDashboard() {
   const [totalStudents, setTotalStudents] = useState(0);
   const [monthlyRevenue, setMonthlyRevenue] = useState(0);
   const [unpaidCount, setUnpaidCount] = useState(0);
+
+  // Payment Modal States
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [paymentAmount, setPaymentAmount] = useState("55");
+  const [paymentMethod, setPaymentMethod] = useState("Efectivo");
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     const verifyAdmin = async () => {
@@ -91,6 +108,56 @@ export default function AdminDashboard() {
       // Ignore if session already destroyed
     } finally {
       router.push("/login");
+    }
+  };
+
+  const handleActionClick = (student: any) => {
+    if (student.is_paid) {
+      // If already paid, flip directly back to pending without modal
+      handleConfirmPayment(student.$id, false);
+    } else {
+      // If not paid, open the confirmation modal
+      setSelectedStudent(student);
+      setPaymentAmount("55"); // Reset default
+      setPaymentMethod("Efectivo"); // Reset default
+      setIsPaymentModalOpen(true);
+    }
+  };
+
+  const handleConfirmPayment = async (studentId: string, newStatus: boolean) => {
+    try {
+      setIsUpdating(true);
+      
+      // Update in Appwrite Database
+      await databases.updateDocument(
+        DATABASE_ID,
+        COLLECTION_PROFILES,
+        studentId,
+        { 
+          is_paid: newStatus,
+          payment_method: newStatus ? paymentMethod : null 
+        }
+      );
+
+      // Update Local State for instant UI feedback
+      const updatedList = studentsList.map(s => 
+        s.$id === studentId ? { ...s, is_paid: newStatus, payment_method: newStatus ? paymentMethod : null } : s
+      );
+      
+      setStudentsList(updatedList);
+      
+      // Recalculate quick stats locally
+      const paidStudentsCount = updatedList.filter(s => s.is_paid === true).length;
+      setMonthlyRevenue(paidStudentsCount * 55);
+      setUnpaidCount(updatedList.length - paidStudentsCount);
+
+      if (newStatus === true) {
+         setIsPaymentModalOpen(false); // Close Modal only when it was used to pay
+      }
+    } catch (error) {
+      console.error("Error updating payment status:", error);
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -263,16 +330,23 @@ export default function AdminDashboard() {
                          {student.role === 'admin' ? 'Admin / Instructor' : 'Mensualidad Completa'}
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={
-                            student.is_paid 
-                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
-                              : "bg-red-500/10 text-red-400 border-red-500/20"
-                          }
-                        >
-                          {student.is_paid ? "Pagado" : "No Pagado"}
-                        </Badge>
+                        <div className="flex flex-col items-start gap-1">
+                          <Badge
+                            variant="outline"
+                            className={
+                              student.is_paid 
+                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+                                : "bg-red-500/10 text-red-400 border-red-500/20"
+                            }
+                          >
+                            {student.is_paid ? "Pagado" : "No Pagado"}
+                          </Badge>
+                          {student.is_paid && student.payment_method && (
+                            <span className="text-[10px] text-white/40 uppercase tracking-wider font-semibold">
+                              {student.payment_method}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-white/80">
                         ---
@@ -288,8 +362,12 @@ export default function AdminDashboard() {
                               <DropdownMenuLabel>Gestión de Alumno</DropdownMenuLabel>
                             </DropdownMenuGroup>
                             <DropdownMenuSeparator className="bg-white/10" />
-                            <DropdownMenuItem className="focus:bg-white/10 focus:text-white cursor-pointer hover:bg-white/5">
-                              {student.is_paid ? "Marcar como pendiente" : "Marcar como pagado"}
+                            <DropdownMenuItem 
+                              className="focus:bg-white/10 focus:text-white cursor-pointer hover:bg-white/5"
+                              onClick={() => handleActionClick(student)}
+                              disabled={isUpdating}
+                            >
+                              {student.is_paid ? "Marcar como pendiente" : "Registrar Pago"}
                             </DropdownMenuItem>
                             <DropdownMenuItem className="text-amber-400 focus:bg-amber-500/10 focus:text-amber-400 cursor-pointer">
                               <CalendarX className="mr-2 h-4 w-4" />
@@ -310,6 +388,70 @@ export default function AdminDashboard() {
         </div>
 
       </main>
+
+      {/* Payment Confirmation Modal */}
+      <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
+        <DialogContent className="bg-zinc-950 border border-white/10 text-white sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl">Registrar Mensualidad</DialogTitle>
+            <DialogDescription className="text-white/50">
+              Vas a confirmar el pago mensual de <strong className="text-white">{selectedStudent?.name}</strong>. Rellena los detalles de la transacción.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-6 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="amount" className="text-white/80">Cantidad Recibida (€)</Label>
+              <Input
+                id="amount"
+                type="number"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                className="bg-black border-white/20 text-white focus-visible:ring-emerald-500"
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label className="text-white/80 mb-2">Método de Pago</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setPaymentMethod("Efectivo")}
+                  className={paymentMethod === "Efectivo" ? "bg-emerald-500 hover:bg-emerald-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
+                >
+                  Efectivo
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setPaymentMethod("Bizum")}
+                  className={paymentMethod === "Bizum" ? "bg-cyan-500 hover:bg-cyan-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
+                >
+                  Bizum
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setPaymentMethod("Tarjeta")}
+                  className={paymentMethod === "Tarjeta" ? "bg-purple-500 hover:bg-purple-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
+                >
+                  Tarjeta
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="mt-4 border-t border-white/10 pt-4">
+            <Button variant="ghost" onClick={() => setIsPaymentModalOpen(false)} className="text-white/50 hover:text-white bg-transparent">
+              Cancelar
+            </Button>
+            <Button 
+              onClick={() => handleConfirmPayment(selectedStudent?.$id, true)}
+              disabled={isUpdating}
+              className="bg-white text-black hover:bg-neutral-200"
+            >
+              {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Confirmar Ingreso
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
