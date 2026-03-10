@@ -43,7 +43,11 @@ export default function LoginPage() {
       try {
         await account.createEmailPasswordSession(email, password);
       } catch (sessionError: any) {
-        if (sessionError?.message?.includes('session is active') || sessionError?.message?.includes('creation is prohibited')) {
+        if (
+          sessionError?.message?.includes('session is active') || 
+          sessionError?.message?.includes('creation is prohibited') ||
+          sessionError?.message?.includes('missing scope')
+        ) {
           // If a session already exists, delete it first and retry
           try {
             await account.deleteSession("current");

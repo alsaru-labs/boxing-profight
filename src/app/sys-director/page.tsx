@@ -6,8 +6,8 @@ import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, Shiel
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
-import { Query } from "appwrite";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES } from "@/lib/appwrite";
+import { Query, ID } from "appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -70,6 +70,11 @@ export default function AdminDashboard() {
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
   const [visibleCount, setVisibleCount] = useState(30);
 
+  // Classes States
+  const [classesList, setClassesList] = useState<any[]>([]);
+  const [isClassModalOpen, setIsClassModalOpen] = useState(false);
+  const [newClass, setNewClass] = useState({ name: "Boxeo", date: "", time: "18:00 - 19:30", coach: "Álex Pintor", capacity: 30 });
+
   useEffect(() => {
     const verifyAdmin = async () => {
       try {
@@ -87,17 +92,25 @@ export default function AdminDashboard() {
           throw new Error("No tienes permisos de administrador.");
         }
 
-        // 3. Admin verified. Let's fetch all real data.
-        const profilesData = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTION_PROFILES,
-          [Query.limit(500)] // Ensures we get a big chunk of users
-        );
+        // 3. Admin verified. Let's fetch all real data (Students and Classes parallel)
+        const [profilesData, classesData] = await Promise.all([
+          databases.listDocuments(
+            DATABASE_ID,
+            COLLECTION_PROFILES,
+            [Query.limit(500)]
+          ),
+          databases.listDocuments(
+            DATABASE_ID,
+            COLLECTION_CLASSES,
+            [Query.limit(100), Query.orderAsc("date")]
+          )
+        ]);
 
         const allStudents = profilesData.documents.filter((s: any) => s.role !== "admin");
 
         setStudentsList(allStudents);
         setTotalStudents(allStudents.length);
+        setClassesList(classesData.documents);
 
         // Revenue calculation (55€ per paid student)
         const paidStudentsCount = allStudents.filter(s => s.is_paid === true).length;
@@ -226,6 +239,43 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleCreateClass = async () => {
+    try {
+      setIsUpdating(true);
+      const createdClass = await databases.createDocument(
+        DATABASE_ID,
+        COLLECTION_CLASSES,
+        ID.unique(),
+        {
+          name: newClass.name,
+          date: newClass.date,
+          time: newClass.time,
+          coach: newClass.coach,
+          capacity: Number(newClass.capacity),
+          registeredCount: 0,
+          status: "Activa"
+        }
+      );
+      
+      setClassesList(prev => [...prev, createdClass].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+      setIsClassModalOpen(false);
+    } catch (error) {
+      console.error("Error creating class:", error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDeleteClass = async (classId: string) => {
+    if (!confirm("¿Seguro que quieres borrar esta clase?")) return;
+    try {
+      await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
+      setClassesList(prev => prev.filter(c => c.$id !== classId));
+    } catch (error) {
+      console.error("Error al borrar la clase:", error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center">
@@ -283,6 +333,73 @@ export default function AdminDashboard() {
   };
 
   const slicedStudents = processedStudents.slice(0, visibleCount);
+
+  // --- New Class Validation ---
+  const tzOffset = (new Date()).getTimezoneOffset() * 60000; 
+  const localTodayISO = new Date(Date.now() - tzOffset).toISOString().split('T')[0];
+  
+  const isDateValid = newClass.date !== "" && newClass.date >= localTodayISO;
+  const isCoachValid = newClass.coach.trim() !== "" && !/\d/.test(newClass.coach);
+  const isTimeValid = /^([01]?\d|2[0-3]):[0-5]\d\s*-\s*([01]?\d|2[0-3]):[0-5]\d$/.test(newClass.time.trim());
+  const isCapacityValid = newClass.capacity > 0;
+
+  const isNewClassFormValid = isDateValid && isCoachValid && isTimeValid && isCapacityValid;
+
+  // --- Next Class Calculation ---
+  const now = new Date();
+  const nextClass = classesList
+    .filter(cls => {
+      try {
+        const startTime = cls.time.split('-')[0].trim();
+        if (!startTime || !cls.date) return false;
+        
+        // Use substring(0, 10) to safely strip "T00:00..." if Appwrite returns a full Datetime
+        const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
+        const [hours, minutes] = startTime.split(":").map(Number);
+        
+        const classDateTime = new Date(year, month - 1, day, hours, minutes);
+        return classDateTime > now;
+      } catch (err) {
+        return false;
+      }
+    })
+    .sort((a, b) => {
+      try {
+        const aStart = a.time.split('-')[0].trim();
+        const bStart = b.time.split('-')[0].trim();
+        
+        const [aYear, aMonth, aDay] = a.date.substring(0, 10).split("-").map(Number);
+        const [aHours, aMinutes] = aStart.split(":").map(Number);
+        const aDate = new Date(aYear, aMonth - 1, aDay, aHours, aMinutes).getTime();
+
+        const [bYear, bMonth, bDay] = b.date.substring(0, 10).split("-").map(Number);
+        const [bHours, bMinutes] = bStart.split(":").map(Number);
+        const bDate = new Date(bYear, bMonth - 1, bDay, bHours, bMinutes).getTime();
+
+        return aDate - bDate;
+      } catch (err) {
+        return 0;
+      }
+    })[0];
+
+  const sortedClassesList = [...classesList].sort((a, b) => {
+    try {
+      const aStart = a.time.split('-')[0].trim();
+      const bStart = b.time.split('-')[0].trim();
+      
+      const [aYear, aMonth, aDay] = a.date.substring(0, 10).split("-").map(Number);
+      const [aHours, aMinutes] = aStart.split(":").map(Number);
+      const aDate = new Date(aYear, aMonth - 1, aDay, aHours, aMinutes).getTime();
+
+      const [bYear, bMonth, bDay] = b.date.substring(0, 10).split("-").map(Number);
+      const [bHours, bMinutes] = bStart.split(":").map(Number);
+      const bDate = new Date(bYear, bMonth - 1, bDay, bHours, bMinutes).getTime();
+
+      return aDate - bDate;
+    } catch (err) {
+      return 0;
+    }
+  });
 
   return (
     <div className="min-h-screen bg-black text-white font-sans flex flex-col md:flex-row">
@@ -390,8 +507,17 @@ export default function AdminDashboard() {
               <ShieldCheck className="h-4 w-4 text-white/50" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">Boxeo (18:00)</div>
-              <p className="text-xs text-emerald-400 mt-1">14 reservas confirmadas</p>
+              {nextClass ? (
+                <>
+                  <div className="text-2xl font-bold text-white">{nextClass.name} ({nextClass.time.split('-')[0].trim()})</div>
+                  <p className="text-xs text-emerald-400 mt-1">{nextClass.registeredCount} reservas confirmadas</p>
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-white/50">Sin clases</div>
+                  <p className="text-xs text-white/30 mt-1">Programa una nueva clase</p>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -629,6 +755,97 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
+        {/* Classes Section */}
+        <div className="space-y-4 mt-16 pb-12">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">Horarios y Clases</h2>
+              <p className="text-white/50 text-sm mt-1">Programa las próximas sesiones para que los alumnos puedan reservar.</p>
+            </div>
+            <Button 
+              onClick={() => setIsClassModalOpen(true)}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white whitespace-nowrap"
+            >
+              + Programar Clase
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {classesList.length === 0 ? (
+              <div className="col-span-full bg-white/5 border border-white/10 rounded-xl p-8 text-center">
+                <CalendarDays className="w-12 h-12 text-white/20 mx-auto mb-3" />
+                <h3 className="text-lg font-medium text-white mb-1">No hay clases programadas</h3>
+                <p className="text-white/50 text-sm">Empieza creando una clase de Boxeo o K1 para esta semana.</p>
+              </div>
+            ) : (
+              sortedClassesList.map((cls) => {
+                const isFull = cls.registeredCount >= cls.capacity;
+                return (
+                  <Card key={cls.$id} className="bg-white/5 border-white/10 backdrop-blur-lg overflow-hidden group">
+                    <CardHeader className="pb-3 border-b border-white/5 relative">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <Badge className={`mb-2 font-medium ${cls.name === 'Boxeo' ? 'bg-amber-500/20 text-amber-500 hover:bg-amber-500/30' : 'bg-red-500/20 text-red-500 hover:bg-red-500/30'}`}>
+                            {cls.name}
+                          </Badge>
+                          <CardTitle className="text-xl font-bold text-white">{cls.coach}</CardTitle>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger className="h-8 w-8 flex justify-center items-center text-white/50 hover:text-white hover:bg-white/10 rounded transition-colors">
+                            <MoreVertical className="h-4 w-4" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10">
+                            <DropdownMenuItem className="text-white focus:bg-white/10 cursor-pointer">
+                              Ver Lista de Asistentes
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              className="text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer"
+                              onClick={() => handleDeleteClass(cls.$id)}
+                            >
+                              Cancelar Clase
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-4 pb-4">
+                      <div className="flex justify-between items-center mb-4">
+                        <div className="text-sm">
+                          <p className="text-white font-medium flex items-center gap-1.5 mb-1">
+                            <CalendarDays className="w-4 h-4 text-white/50" />
+                            {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                          </p>
+                          <p className="text-white/70 flex items-center gap-1.5">
+                            <ShieldCheck className="w-4 h-4 text-white/50" />
+                            {cls.time}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {/* Capacity Bar */}
+                      <div>
+                        <div className="flex justify-between text-xs mb-1.5 font-medium">
+                          <span className={isFull ? 'text-red-400' : 'text-emerald-400'}>
+                            {cls.registeredCount} Reservas
+                          </span>
+                          <span className="text-white/40">{cls.capacity} Plazas</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-black rounded-full overflow-hidden border border-white/5">
+                          <div 
+                            className={`h-full transition-all duration-500 ${isFull ? 'bg-red-500' : 'bg-emerald-500'}`} 
+                            style={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }} 
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })
+            )}
+          </div>
+        </div>
+
       </main>
 
       {/* Payment Confirmation Modal */}
@@ -763,6 +980,98 @@ export default function AdminDashboard() {
             >
               {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Guardar Cambios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Class Modal */}
+      <Dialog open={isClassModalOpen} onOpenChange={setIsClassModalOpen}>
+        <DialogContent className="bg-zinc-950 border border-white/10 text-white sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl">Programar Nueva Clase</DialogTitle>
+            <DialogDescription className="text-white/50">
+              Añade una sesión al calendario. Los alumnos podrán apuntarse hasta cubrir el cupo de plazas.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label className="text-white/80">Disciplina</Label>
+                <select 
+                  value={newClass.name}
+                  onChange={(e) => setNewClass({...newClass, name: e.target.value})}
+                  className="bg-black border border-white/20 text-white rounded-md p-2 text-sm focus:ring-emerald-500 w-full"
+                >
+                  <option value="Boxeo">Boxeo</option>
+                  <option value="K1">K1</option>
+                  <option value="Sparring">Sparring</option>
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label className="text-white/80">Monitor</Label>
+                <Input
+                  value={newClass.coach}
+                  onChange={(e) => setNewClass({...newClass, coach: e.target.value})}
+                  className={`bg-black text-white focus-visible:ring-emerald-500 ${!isCoachValid && newClass.coach !== "" ? "border-red-500" : "border-white/20"}`}
+                />
+                {!isCoachValid && newClass.coach !== "" && (
+                  <span className="text-xs text-red-500">No puede estar vacío ni contener números.</span>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label className="text-white/80">Fecha (Día)</Label>
+                <Input
+                  type="date"
+                  min={localTodayISO}
+                  value={newClass.date}
+                  onChange={(e) => setNewClass({...newClass, date: e.target.value})}
+                  className={`bg-black text-white focus-visible:ring-emerald-500 ${!isDateValid && newClass.date !== "" ? "border-red-500" : "border-white/20"}`}
+                />
+                {!isDateValid && newClass.date !== "" && (
+                  <span className="text-xs text-red-500">La fecha no puede ser en el pasado.</span>
+                )}
+              </div>
+              <div className="grid gap-2">
+                <Label className="text-white/80">Franja Horaria</Label>
+                <Input
+                  placeholder="Ej: 18:00 - 19:30"
+                  value={newClass.time}
+                  onChange={(e) => setNewClass({...newClass, time: e.target.value})}
+                  className={`bg-black text-white focus-visible:ring-emerald-500 ${!isTimeValid && newClass.time !== "" ? "border-red-500" : "border-white/20"}`}
+                />
+                {!isTimeValid && newClass.time !== "" && (
+                  <span className="text-xs text-red-500">Formato inválido. Usa formato: 18:00 - 19:30</span>
+                )}
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label className="text-white/80">Límite de Plazas (Aforo max)</Label>
+              <Input
+                type="number"
+                value={newClass.capacity}
+                onChange={(e) => setNewClass({...newClass, capacity: Number(e.target.value)})}
+                className="bg-black border-white/20 text-white focus-visible:ring-emerald-500"
+              />
+            </div>
+
+          </div>
+          <DialogFooter className="mt-4 border-t border-white/10 pt-4">
+            <Button variant="ghost" onClick={() => setIsClassModalOpen(false)} className="text-white/50 hover:text-white bg-transparent">
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleCreateClass}
+              disabled={isUpdating || !isNewClassFormValid}
+              className="bg-emerald-500 text-white hover:bg-emerald-600"
+            >
+              {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Publicar Clase
             </Button>
           </DialogFooter>
         </DialogContent>
