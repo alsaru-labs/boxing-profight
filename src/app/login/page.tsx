@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { account } from "@/lib/appwrite";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,10 +21,10 @@ export default function LoginPage() {
   const deleteAllCookies = () => {
     const cookies = document.cookie.split(";");
     for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i];
-        const eqPos = cookie.indexOf("=");
-        const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
-        document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+      const cookie = cookies[i];
+      const eqPos = cookie.indexOf("=");
+      const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
+      document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
     }
   };
 
@@ -38,13 +38,13 @@ export default function LoginPage() {
     try {
       setLoading(true);
       setError("");
-      
+
       // Create session safely
       try {
         await account.createEmailPasswordSession(email, password);
       } catch (sessionError: any) {
         if (
-          sessionError?.message?.includes('session is active') || 
+          sessionError?.message?.includes('session is active') ||
           sessionError?.message?.includes('creation is prohibited') ||
           sessionError?.message?.includes('missing scope')
         ) {
@@ -63,9 +63,26 @@ export default function LoginPage() {
           throw sessionError; // Re-throw if it's a different error
         }
       }
-      
-      // Redirect to Profile
-      router.push("/perfil");
+
+      // Fetch user profile to determine correct redirection route
+      const currentUser = await account.get();
+      const profile = await databases.getDocument(
+        DATABASE_ID,
+        COLLECTION_PROFILES,
+        currentUser.$id
+      );
+
+      if (profile.role === "admin") {
+        router.push("/sys-director");
+      } else {
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectPath = urlParams.get('redirect');
+        if (redirectPath && redirectPath.startsWith('/')) {
+          router.push(redirectPath);
+        } else {
+          router.push("/bookings");
+        }
+      }
     } catch (err: any) {
       if (err?.message?.includes('Invalid credentials')) {
         setError("Las credenciales son incorrectas. Por favor, revisa tu correo y contraseña.");
@@ -152,7 +169,7 @@ export default function LoginPage() {
                 {error}
               </div>
             )}
-            
+
             <div className="space-y-2">
               <Label htmlFor="email" className="text-white/80 font-medium">Correo electrónico</Label>
               <Input

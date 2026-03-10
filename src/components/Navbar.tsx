@@ -9,6 +9,7 @@ import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appw
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [roleLoading, setRoleLoading] = useState(true);
 
   useEffect(() => {
@@ -23,6 +24,7 @@ export default function Navbar() {
     const checkUserRole = async () => {
       try {
         const currentUser = await account.get();
+        setIsLoggedIn(true);
         const profile = await databases.getDocument(
           DATABASE_ID,
           COLLECTION_PROFILES,
@@ -31,6 +33,7 @@ export default function Navbar() {
         setIsAdmin(profile.role === "admin");
       } catch (error) {
         // Not logged in or no session, keep default state
+        setIsLoggedIn(false);
         setIsAdmin(false);
       } finally {
         setRoleLoading(false);
@@ -93,7 +96,7 @@ export default function Navbar() {
             <div className={`shrink-0 rounded-full bg-white/10 animate-pulse transition-all duration-300 ${scrolled ? 'w-[80px] md:w-[140px] h-8 md:h-10' : 'w-[100px] md:w-[180px] h-10 md:h-16'}`}></div>
           ) : !isAdmin && (
             <Link
-              href="/login"
+              href={isLoggedIn ? "/bookings" : "/login?redirect=/bookings"}
               className={`inline-flex shrink-0 items-center justify-center bg-white/10 text-white backdrop-blur-lg hover:bg-white/20 border border-white/20 rounded-full transition-all duration-300 font-bold
                 ${scrolled
                   ? 'px-4 py-2 text-xs md:px-8 md:py-3 md:text-lg h-8 md:h-10'

@@ -113,7 +113,7 @@ export default function StudentProfile() {
         setLoading(false);
       } catch (error) {
         // Redirige al login silenciosamente si no hay sesión
-        router.push("/login");
+        router.push("/login?redirect=/perfil");
       }
     };
 
@@ -306,8 +306,8 @@ export default function StudentProfile() {
                 {/* Glow behind payment status */}
                 <div
                   className={`absolute -inset-1 blur-2xl opacity-50 block transition-colors duration-1000 ${profileInfo?.is_paid
-                      ? "bg-gradient-to-r from-emerald-500/0 via-emerald-500/10 to-transparent"
-                      : "bg-gradient-to-r from-red-500/0 via-red-500/10 to-transparent"
+                    ? "bg-gradient-to-r from-emerald-500/0 via-emerald-500/10 to-transparent"
+                    : "bg-gradient-to-r from-red-500/0 via-red-500/10 to-transparent"
                     }`}
                 />
                 <CardHeader className="pb-2">
