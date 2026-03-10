@@ -23,6 +23,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function StudentProfile() {
   const router = useRouter();
@@ -263,12 +269,28 @@ export default function StudentProfile() {
             <ArrowLeft className="h-5 w-5" />
             <span className="font-semibold text-sm">Inicio</span>
           </Link>
-          <div className="flex items-center gap-3">
-            <span className="font-bold text-sm">{user?.name || "Usuario"}</span>
-            <Avatar className="h-8 w-8 border border-white/20">
-              <AvatarFallback className="bg-zinc-800 text-white text-xs">{initials}</AvatarFallback>
-            </Avatar>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="outline-none focus:outline-none">
+              <div className="flex items-center gap-3 cursor-pointer">
+                <span className="font-bold text-sm">{user?.name || "Usuario"}</span>
+                <Avatar className="h-8 w-8 border border-white/20">
+                  <AvatarFallback className="bg-zinc-800 text-white text-xs">{initials}</AvatarFallback>
+                </Avatar>
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10 text-white rounded-xl">
+              <DropdownMenuItem
+                onClick={async () => {
+                  await account.deleteSession("current");
+                  router.push("/login");
+                }}
+                className="text-red-400 focus:bg-white/5 focus:text-red-400 cursor-pointer py-2 px-3"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Cerrar Sesión
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <div className="mb-10">
