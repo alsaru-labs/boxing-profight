@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, ShieldCheck, Loader2, Home } from "lucide-react";
+import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, ShieldCheck, Loader2, Home, MessageCircle, Signal, CalendarDays } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -56,6 +56,12 @@ export default function AdminDashboard() {
   const [paymentAmount, setPaymentAmount] = useState("55");
   const [paymentMethod, setPaymentMethod] = useState("Efectivo");
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Profile Edit Modal States
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editPhone, setEditPhone] = useState("");
+  const [editLevel, setEditLevel] = useState("Iniciación");
+  const [editPhoneError, setEditPhoneError] = useState("");
 
   useEffect(() => {
     const verifyAdmin = async () => {
@@ -156,6 +162,57 @@ export default function AdminDashboard() {
       }
     } catch (error) {
       console.error("Error updating payment status:", error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleOpenEditModal = (student: any) => {
+    setSelectedStudent(student);
+    setEditPhone(student.phone || "");
+    setEditLevel(student.level || "Iniciación");
+    setEditPhoneError(""); // Clear previous errors
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!selectedStudent) return;
+    
+    // Front-end Validation for Phone Number
+    // Allows empty strings (to remove phone), OR valid formats: e.g. 600123456, +34600123456, 0034600123456...
+    const phoneRegex = /^(\+34|0034|34)?[6789]\d{8}$/;
+    
+    if (editPhone.trim() !== "" && !phoneRegex.test(editPhone.trim())) {
+      setEditPhoneError("Por favor, introduce un número válido (ej: 600123456 o +34600123456).");
+      return; // Stop execution
+    }
+
+    // Reset error just in case
+    setEditPhoneError("");
+    
+    try {
+      setIsUpdating(true);
+      
+      // Update in Appwrite Database
+      await databases.updateDocument(
+        DATABASE_ID,
+        COLLECTION_PROFILES,
+        selectedStudent.$id,
+        { 
+          phone: editPhone,
+          level: editLevel
+        }
+      );
+
+      // Update Local State for instant UI feedback
+      const updatedList = studentsList.map(s => 
+        s.$id === selectedStudent.$id ? { ...s, phone: editPhone, level: editLevel } : s
+      );
+      
+      setStudentsList(updatedList);
+      setIsEditModalOpen(false);
+    } catch (error) {
+      console.error("Error updating profile stats:", error);
     } finally {
       setIsUpdating(false);
     }
@@ -297,15 +354,18 @@ export default function AdminDashboard() {
               <TableHeader className="bg-white/5">
                 <TableRow className="border-white/10 hover:bg-transparent">
                   <TableHead className="text-white/70">Alumno</TableHead>
+                  <TableHead className="text-white/70">Contacto</TableHead>
+                  <TableHead className="text-white/70">Nivel</TableHead>
                   <TableHead className="text-white/70">Estado de Pago</TableHead>
                   <TableHead className="text-white/70">Siguiente Clase</TableHead>
+                  <TableHead className="text-white/70">Alta</TableHead>
                   <TableHead className="text-right text-white/70"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {studentsList.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center h-24 text-white/50">
+                    <TableCell colSpan={7} className="text-center h-24 text-white/50">
                       No hay alumnos registrados todavía en la Base de Datos.
                     </TableCell>
                   </TableRow>
@@ -325,6 +385,32 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       </TableCell>
+                      
+                      {/* Contacto (Teléfono/WhatsApp) */}
+                      <TableCell>
+                        {student.phone ? (
+                          <div className="flex items-center gap-2 text-white/80 hover:text-white transition-colors cursor-pointer w-fit group">
+                            <MessageCircle className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition-transform" />
+                            <span className="text-sm font-medium">{student.phone}</span>
+                          </div>
+                        ) : (
+                          <span className="text-white/30 text-xs italic">No indicado</span>
+                        )}
+                      </TableCell>
+
+                      {/* Nivel de Experiencia */}
+                      <TableCell>
+                        <div className="flex items-center gap-1.5 text-white/70">
+                          <Signal className={`w-4 h-4 ${
+                            student.level === 'Profesional' ? 'text-purple-400' :
+                            student.level === 'Media' ? 'text-amber-400' :
+                            'text-white/40' // Iniciación or Null
+                          }`} />
+                          <span className="text-sm">{student.level || 'Iniciación'}</span>
+                        </div>
+                      </TableCell>
+
+                      {/* Estado de Pago */}
                       <TableCell>
                         <div className="flex flex-col items-start gap-1">
                           <Badge
@@ -344,9 +430,18 @@ export default function AdminDashboard() {
                           )}
                         </div>
                       </TableCell>
+
+                      {/* Próxima Clase */}
                       <TableCell className="text-white/80">
                         ---
                       </TableCell>
+
+                      {/* Fecha de Alta (Antigüedad) */}
+                      <TableCell className="text-white/50 text-xs font-medium">
+                        {new Date(student.$createdAt).toLocaleDateString('es-ES', { month: 'short', year: 'numeric'})}
+                      </TableCell>
+
+                      {/* Acciones */}
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger className="h-8 w-8 flex flex-col justify-center items-center text-white hover:bg-white/10 border-0 outline-none rounded-md transition-colors">
@@ -364,6 +459,13 @@ export default function AdminDashboard() {
                               disabled={isUpdating}
                             >
                               {student.is_paid ? "Marcar como pendiente" : "Registrar Pago"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              className="focus:bg-white/10 focus:text-white cursor-pointer hover:bg-white/5"
+                              onClick={() => handleOpenEditModal(student)}
+                              disabled={isUpdating}
+                            >
+                              Editar Perfil (Contacto/Nivel)
                             </DropdownMenuItem>
                             <DropdownMenuItem className="text-amber-400 focus:bg-amber-500/10 focus:text-amber-400 cursor-pointer">
                               <CalendarX className="mr-2 h-4 w-4" />
@@ -444,6 +546,79 @@ export default function AdminDashboard() {
             >
               {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Confirmar Ingreso
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Profile (Contact/Level) Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="bg-zinc-950 border border-white/10 text-white sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl">Editar Información de Alumno</DialogTitle>
+            <DialogDescription className="text-white/50">
+              Añade un número de teléfono de contacto y ajusta el nivel táctico actuál de <strong className="text-white">{selectedStudent?.name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-6 py-4">
+            {/* Phone */}
+            <div className="grid gap-2">
+              <Label htmlFor="phone" className="text-white/80">Teléfono (WhatsApp)</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="+34 600 000 000"
+                value={editPhone}
+                onChange={(e) => {
+                  setEditPhone(e.target.value);
+                  if (editPhoneError) setEditPhoneError(""); // clear error on typing
+                }}
+                className={`bg-black text-white placeholder:text-white/20 focus-visible:ring-blue-500 ${editPhoneError ? 'border-red-500 bg-red-500/5' : 'border-white/20'}`}
+              />
+              {editPhoneError && (
+                <p className="text-red-400 text-xs mt-1 font-medium">{editPhoneError}</p>
+              )}
+            </div>
+            
+            {/* Level */}
+            <div className="grid gap-2">
+              <Label className="text-white/80 mb-2">Nivel de Experiencia</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setEditLevel("Iniciación")}
+                  className={editLevel === "Iniciación" ? "bg-white/20 hover:bg-white/30 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
+                >
+                  Iniciación
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setEditLevel("Media")}
+                  className={editLevel === "Media" ? "bg-amber-500 hover:bg-amber-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
+                >
+                  Media
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setEditLevel("Profesional")}
+                  className={editLevel === "Profesional" ? "bg-purple-500 hover:bg-purple-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
+                >
+                  Profesional
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="mt-4 border-t border-white/10 pt-4">
+            <Button variant="ghost" onClick={() => setIsEditModalOpen(false)} className="text-white/50 hover:text-white bg-transparent">
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleSaveProfile}
+              disabled={isUpdating}
+              className="bg-white text-black hover:bg-neutral-200"
+            >
+              {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Guardar Cambios
             </Button>
           </DialogFooter>
         </DialogContent>
