@@ -19,13 +19,28 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // Bloqueo temporal de registro sin invitación
+  // Bloqueo temporal de registro sin invitación y verificación de sesión
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (!urlParams.get("invite")) {
-      router.push("/login");
-    }
+    const checkAccess = async () => {
+      try {
+        // Intenta obtener la sesión actual
+        await account.get();
+        // Si no dio error, significa que está logado => Al perfil / dashboard
+        router.push("/perfil");
+      } catch (error) {
+        // Si dio error (no está logado), comprueba si tiene link de invitación
+        const urlParams = new URLSearchParams(window.location.search);
+        if (!urlParams.get("invite")) {
+          router.push("/login");
+        } else {
+          setCheckingAuth(false);
+        }
+      }
+    };
+
+    checkAccess();
   }, [router]);
 
   const deleteAllCookies = () => {
@@ -100,6 +115,16 @@ export default function RegisterPage() {
       setLoading(false);
     }
   };
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
+        <Loader2 className="w-10 h-10 text-white animate-spin mb-4" />
+        <p className="text-white/50 animate-pulse text-sm">Comprobando acceso seguro...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen bg-black overflow-hidden font-sans text-white flex flex-col md:flex-row">
       {/* Background Gradient effects */}

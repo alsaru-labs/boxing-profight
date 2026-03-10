@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,33 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // Redirigir a los usuarios que ya tienen sesión
+  useEffect(() => {
+    const checkUserAuth = async () => {
+      try {
+        const currentUser = await account.get();
+        // Obtener el rol para saber a dónde redirigirle
+        const profile = await databases.getDocument(
+          DATABASE_ID,
+          COLLECTION_PROFILES,
+          currentUser.$id
+        );
+
+        if (profile.role === "admin") {
+          router.push("/sys-director");
+        } else {
+          router.push("/perfil");
+        }
+      } catch (error) {
+        // No hay sesión activa. Permitir ver el formulario de login.
+        setCheckingAuth(false);
+      }
+    };
+
+    checkUserAuth();
+  }, [router]);
 
   const deleteAllCookies = () => {
     const cookies = document.cookie.split(";");
@@ -93,6 +120,16 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
+        <Loader2 className="w-10 h-10 text-white animate-spin mb-4" />
+        <p className="text-white/50 animate-pulse text-sm">Comprobando sesión segura...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen bg-black overflow-hidden font-sans text-white flex flex-col md:flex-row">
       {/* Background Gradient effects */}
