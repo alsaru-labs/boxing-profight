@@ -361,7 +361,14 @@ export default function AdminDashboard() {
 
   const isCapacityValid = newClass.capacity > 0;
 
-  const isNewClassFormValid = isDateValid && isCoachValid && isTimeFormatValid && isTimeFuture && isCapacityValid;
+  // Duplicate class validation (same discipline, date, and time)
+  const isDuplicate = classesList.some(cls => 
+    cls.name === newClass.name && 
+    cls.date.substring(0, 10) === newClass.date && 
+    cls.time.trim() === newClass.time.trim()
+  );
+
+  const isNewClassFormValid = isDateValid && isCoachValid && isTimeFormatValid && isTimeFuture && isCapacityValid && !isDuplicate;
 
   // --- Next Class Calculation ---
   const now = new Date();
@@ -1086,6 +1093,13 @@ export default function AdminDashboard() {
                 className="bg-black border-white/20 text-white focus-visible:ring-emerald-500"
               />
             </div>
+
+            {isDuplicate && (
+              <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-md text-red-500 text-sm mt-2 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4" />
+                <span>Ya existe una clase de <strong>{newClass.name}</strong> a esa misma hora y día.</span>
+              </div>
+            )}
 
           </div>
           <DialogFooter className="mt-4 border-t border-white/10 pt-4">
