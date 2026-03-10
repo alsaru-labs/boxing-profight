@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,13 +20,21 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Bloqueo temporal de registro sin invitación
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (!urlParams.get("invite")) {
+      router.push("/login");
+    }
+  }, [router]);
+
   const deleteAllCookies = () => {
     const cookies = document.cookie.split(";");
     for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i];
-        const eqPos = cookie.indexOf("=");
-        const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
-        document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+      const cookie = cookies[i];
+      const eqPos = cookie.indexOf("=");
+      const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
+      document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
     }
   };
 
@@ -40,10 +48,10 @@ export default function RegisterPage() {
     try {
       setLoading(true);
       setError("");
-      
+
       // 1. Create User in Auth
       const user = await account.create(ID.unique(), email, password, name);
-      
+
       // 2. Create Session (Login immediately) to gain permissions
       try {
         await account.createEmailPasswordSession(email, password);
@@ -77,7 +85,7 @@ export default function RegisterPage() {
           role: "estudiante"
         }
       );
-      
+
       // 3. Redirect to Profile
       router.push("/perfil");
     } catch (err: any) {
@@ -168,7 +176,7 @@ export default function RegisterPage() {
                 {error}
               </div>
             )}
-            
+
             <div className="space-y-2">
               <Label htmlFor="name" className="text-white/80 font-medium">Nombre completo</Label>
               <Input

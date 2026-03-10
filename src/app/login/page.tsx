@@ -219,9 +219,9 @@ export default function LoginPage() {
 
           <div className="mt-8 text-center text-sm text-white/50">
             ¿Aún no tienes cuenta?{" "}
-            <Link href="/register" className="font-medium text-white hover:underline transition-all">
-              Regístrate aquí
-            </Link>
+            <span className="font-medium text-white/80">
+              Acércate al centro para solicitar registro
+            </span>
           </div>
         </motion.div>
       </div>
