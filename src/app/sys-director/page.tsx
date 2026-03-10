@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, ShieldCheck, Loader2, Home, MessageCircle, Signal, CalendarDays } from "lucide-react";
+import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, ShieldCheck, Loader2, Home, MessageCircle, Signal, CalendarDays, Search, ArrowUpDown, Filter, X, ChevronDown } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -63,6 +63,13 @@ export default function AdminDashboard() {
   const [editLevel, setEditLevel] = useState("Iniciación");
   const [editPhoneError, setEditPhoneError] = useState("");
 
+  // Table Fitler & Sort States
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterPayment, setFilterPayment] = useState("todos"); // "todos", "pagado", "pendiente"
+  const [filterLevel, setFilterLevel] = useState("todos"); // "todos", "Iniciación", "Media", "Profesional"
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
+  const [visibleCount, setVisibleCount] = useState(30);
+
   useEffect(() => {
     const verifyAdmin = async () => {
       try {
@@ -88,6 +95,7 @@ export default function AdminDashboard() {
         );
 
         const allStudents = profilesData.documents.filter((s: any) => s.role !== "admin");
+
         setStudentsList(allStudents);
         setTotalStudents(allStudents.length);
 
@@ -228,6 +236,54 @@ export default function AdminDashboard() {
     );
   }
 
+  // Filter and Sort Processing
+  const processedStudents = [...studentsList]
+    .filter((student) => {
+      // Search term
+      const matchesSearch = 
+        (student.name?.toLowerCase().includes(searchTerm.toLowerCase()) || "") ||
+        (student.email?.toLowerCase().includes(searchTerm.toLowerCase()) || "");
+      
+      // Payment filter
+      const matchesPayment = 
+        filterPayment === "todos" ? true :
+        filterPayment === "pagado" ? student.is_paid === true :
+        student.is_paid === false;
+      
+      // Level filter
+      const matchesLevel =
+        filterLevel === "todos" ? true :
+        (student.level || "Iniciación") === filterLevel;
+
+      return matchesSearch && matchesPayment && matchesLevel;
+    })
+    .sort((a, b) => {
+      if (!sortConfig) return 0;
+      
+      let aValue = a[sortConfig.key];
+      let bValue = b[sortConfig.key];
+
+      // Handle nulls/undefined for level
+      if (sortConfig.key === "level") {
+        aValue = a.level || "Iniciación";
+        bValue = b.level || "Iniciación";
+      }
+
+      if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
+      return 0;
+    });
+
+  const handleSort = (key: string) => {
+    let direction: "asc" | "desc" = "asc";
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") {
+      direction = "desc";
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const slicedStudents = processedStudents.slice(0, visibleCount);
+
   return (
     <div className="min-h-screen bg-black text-white font-sans flex flex-col md:flex-row">
       {/* Sidebar */}
@@ -342,35 +398,100 @@ export default function AdminDashboard() {
 
         {/* Students Table Section */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between mb-6">
+          {/* Table Header & Controls */}
+          <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between mb-6 gap-4">
             <h2 className="text-2xl font-bold tracking-tight">Directorio de Alumnos</h2>
-            <Button className="bg-white text-black hover:bg-neutral-200">
-              + Nuevo Alumno
-            </Button>
+            
+            <div className="flex flex-col sm:flex-row w-full xl:w-auto gap-3 items-center">
+              {/* Search */}
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-white/50" />
+                <Input
+                  type="text"
+                  placeholder="Buscar alumno o email..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 bg-white/5 border-white/10 text-white focus-visible:ring-emerald-500 w-full rounded-md"
+                />
+              </div>
+
+              {/* Filter Payment */}
+              <select 
+                value={filterPayment}
+                onChange={(e) => setFilterPayment(e.target.value)}
+                className="bg-zinc-900 border border-white/10 text-white text-sm rounded-md focus:ring-emerald-500 block p-2 w-full sm:w-auto h-10"
+              >
+                <option value="todos">Todos los Pagos</option>
+                <option value="pagado">Pagados</option>
+                <option value="pendiente">Pendientes</option>
+              </select>
+
+              {/* Filter Level */}
+              <select 
+                value={filterLevel}
+                onChange={(e) => setFilterLevel(e.target.value)}
+                className="bg-zinc-900 border border-white/10 text-white text-sm rounded-md focus:ring-emerald-500 block p-2 w-full sm:w-auto h-10"
+              >
+                <option value="todos">Todos los Niveles</option>
+                <option value="Iniciación">Iniciación</option>
+                <option value="Media">Media</option>
+                <option value="Profesional">Profesional</option>
+              </select>
+
+              {/* Reset Filters / Sorting Button */}
+              {(searchTerm !== "" || filterPayment !== "todos" || filterLevel !== "todos" || sortConfig !== null) && (
+                <Button 
+                  variant="ghost" 
+                  onClick={() => {
+                    setSearchTerm("");
+                    setFilterPayment("todos");
+                    setFilterLevel("todos");
+                    setSortConfig(null);
+                    setVisibleCount(30);
+                  }}
+                  className="h-10 text-red-400 hover:text-red-300 hover:bg-red-500/10 whitespace-nowrap px-3"
+                >
+                  <X className="w-4 h-4 mr-1.5" />
+                  Limpiar Filtros
+                </Button>
+              )}
+
+              <Button className="bg-white text-black hover:bg-neutral-200 whitespace-nowrap hidden sm:inline-flex h-10">
+                + Nuevo
+              </Button>
+            </div>
           </div>
 
           <Card className="bg-white/5 border-white/10 backdrop-blur-lg shadow-2xl overflow-hidden">
             <Table>
               <TableHeader className="bg-white/5">
                 <TableRow className="border-white/10 hover:bg-transparent">
-                  <TableHead className="text-white/70">Alumno</TableHead>
+                  <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('name')}>
+                    <div className="flex items-center gap-1">Alumno <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
+                  </TableHead>
                   <TableHead className="text-white/70">Contacto</TableHead>
-                  <TableHead className="text-white/70">Nivel</TableHead>
-                  <TableHead className="text-white/70">Estado de Pago</TableHead>
+                  <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('level')}>
+                    <div className="flex items-center gap-1">Nivel <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
+                  </TableHead>
+                  <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('is_paid')}>
+                    <div className="flex items-center gap-1">Estado de Pago <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
+                  </TableHead>
                   <TableHead className="text-white/70">Siguiente Clase</TableHead>
-                  <TableHead className="text-white/70">Alta</TableHead>
+                  <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('$createdAt')}>
+                    <div className="flex items-center gap-1">Alta <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
+                  </TableHead>
                   <TableHead className="text-right text-white/70"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {studentsList.length === 0 ? (
+                {slicedStudents.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center h-24 text-white/50">
                       No hay alumnos registrados todavía en la Base de Datos.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  studentsList.map((student) => (
+                  slicedStudents.map((student) => (
                     <TableRow key={student.$id} className="border-white/10 hover:bg-white/5 transition-colors">
                       <TableCell className="font-medium">
                         <div className="flex items-center space-x-3">
@@ -389,10 +510,20 @@ export default function AdminDashboard() {
                       {/* Contacto (Teléfono/WhatsApp) */}
                       <TableCell>
                         {student.phone ? (
-                          <div className="flex items-center gap-2 text-white/80 hover:text-white transition-colors cursor-pointer w-fit group">
-                            <MessageCircle className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition-transform" />
+                          <a 
+                            href={`https://wa.me/${student.phone.replace(/[\s+]/g, '')}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 text-white/80 hover:text-white transition-colors w-fit group"
+                          >
+                            <svg 
+                              viewBox="0 0 24 24" 
+                              className="w-4 h-4 text-[#25D366] group-hover:scale-110 transition-transform fill-current"
+                            >
+                              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                            </svg>
                             <span className="text-sm font-medium">{student.phone}</span>
-                          </div>
+                          </a>
                         ) : (
                           <span className="text-white/30 text-xs italic">No indicado</span>
                         )}
@@ -482,6 +613,19 @@ export default function AdminDashboard() {
                 )}
               </TableBody>
             </Table>
+            
+            {visibleCount < processedStudents.length && (
+              <div className="w-full flex justify-center py-4 border-t border-white/10 bg-white/5">
+                <Button 
+                  variant="ghost" 
+                  onClick={() => setVisibleCount(prev => prev + 30)}
+                  className="text-white hover:bg-white/10 flex items-center gap-2"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                  Cargar más alumnos ({processedStudents.length - visibleCount} restantes)
+                </Button>
+              </div>
+            )}
           </Card>
         </div>
 
