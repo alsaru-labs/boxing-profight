@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, ShieldCheck, Loader2, Home, MessageCircle, Signal, CalendarDays, Search, ArrowUpDown, Filter, X, ChevronDown } from "lucide-react";
 import Image from "next/image";
@@ -44,6 +44,7 @@ import { Label } from "@/components/ui/label";
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [studentsList, setStudentsList] = useState<any[]>([]);
   const [totalStudents, setTotalStudents] = useState(0);
@@ -1042,13 +1043,19 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label className="text-white/80">Fecha (Día)</Label>
-                <Input
-                  type="date"
-                  min={localTodayISO}
-                  value={newClass.date}
-                  onChange={(e) => setNewClass({...newClass, date: e.target.value})}
-                  className={`bg-black text-white focus-visible:ring-emerald-500 ${!isDateValid && newClass.date !== "" ? "border-red-500" : "border-white/20"}`}
-                />
+                <div className="relative">
+                  <Input
+                    ref={dateInputRef}
+                    type="date"
+                    min={localTodayISO}
+                    value={newClass.date}
+                    onChange={(e) => setNewClass({...newClass, date: e.target.value})}
+                    className={`bg-black text-white focus-visible:ring-emerald-500 pl-10 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full cursor-pointer ${!isDateValid && newClass.date !== "" ? "border-red-500" : "border-white/20"}`}
+                  />
+                  <CalendarDays 
+                    className="absolute left-3 top-2.5 h-5 w-5 text-emerald-500 pointer-events-none" 
+                  />
+                </div>
                 {!isDateValid && newClass.date !== "" && (
                   <span className="text-xs text-red-500">La fecha no puede ser en el pasado.</span>
                 )}
