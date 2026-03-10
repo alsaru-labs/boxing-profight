@@ -268,12 +268,14 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteClass = async (classId: string) => {
-    if (!confirm("¿Seguro que quieres borrar esta clase?")) return;
+    if (!window.confirm("¿Seguro que quieres borrar esta clase de forma permanente?")) return;
+    
     try {
       await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
       setClassesList(prev => prev.filter(c => c.$id !== classId));
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al borrar la clase:", error);
+      alert(`No se pudo borrar la clase. Revisa si en Appwrite le diste el tick verde a 'Delete' en los Permisos. \n\nError: ${error?.message}`);
     }
   };
 
@@ -407,7 +409,28 @@ export default function AdminDashboard() {
       }
     })[0];
 
-  const sortedClassesList = [...classesList].sort((a, b) => {
+  const sortedClassesList = [...classesList].filter(cls => {
+    try {
+      const startTime = cls.time.split('-')[0].trim();
+      if (!startTime || !cls.date) return false;
+      
+      const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
+      const [hours, minutes] = startTime.split(":").map(Number);
+      
+      const classDateTime = new Date(year, month - 1, day, hours, minutes);
+      
+      // Remove classes in the past
+      if (classDateTime < now) return false;
+      
+      // Limit to max 7 days in the future
+      const msIn7Days = 7 * 24 * 60 * 60 * 1000;
+      if (classDateTime.getTime() > now.getTime() + msIn7Days) return false;
+
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }).sort((a, b) => {
     try {
       const aStart = a.time.split('-')[0].trim();
       const bStart = b.time.split('-')[0].trim();

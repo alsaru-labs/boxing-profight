@@ -6,7 +6,8 @@ import { User, CreditCard, CalendarClock, History, Settings, LogOut, ArrowLeft, 
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES } from "@/lib/appwrite";
+import { Query } from "appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import {
@@ -23,22 +24,16 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const upcomingClasses = [
-  { id: "1", type: "Boxeo", date: "15 Oct 2026", time: "18:00 - 19:30", instructor: "Álex Pintor", status: "Confirmado" },
-  { id: "2", type: "K1", date: "17 Oct 2026", time: "19:30 - 21:00", instructor: "Álex Pintor", status: "Confirmado" },
-];
-
-const pastClasses = [
-  { id: "3", type: "Boxeo", date: "10 Oct 2026", time: "18:00 - 19:30", instructor: "Álex Pintor", status: "Asistido" },
-  { id: "4", type: "Boxeo", date: "08 Oct 2026", time: "10:00 - 11:00", instructor: "Álex Pintor", status: "Asistido" },
-  { id: "5", type: "K1", date: "05 Oct 2026", time: "19:30 - 21:00", instructor: "Álex Pintor", status: "Falta" },
-];
-
 export default function StudentProfile() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [profileInfo, setProfileInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Real-time Class & Booking States
+  const [availableClasses, setAvailableClasses] = useState<any[]>([]);
+  const [userPrefs, setUserPrefs] = useState<{ bookedClasses: string[] }>({ bookedClasses: [] });
+  const [isProcessingBooking, setIsProcessingBooking] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -56,6 +51,42 @@ export default function StudentProfile() {
           return;
         }
 
+        // Fetch User Preferences (contains their booked class IDs silently)
+        let prefs = await account.getPrefs();
+        if (!prefs.bookedClasses) {
+          prefs = { bookedClasses: [] } as any;
+        }
+        
+        // Fetch All Classes
+        const classesData = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTION_CLASSES,
+          [Query.limit(100), Query.orderAsc("date")]
+        );
+
+        // Process Classes: Filter out past classes & limit to 7 days
+        const now = new Date();
+        const msIn7Days = 7 * 24 * 60 * 60 * 1000;
+        
+        const validUpcomingClasses = classesData.documents.filter((cls: any) => {
+          try {
+            const startTime = cls.time.split('-')[0].trim();
+            if (!startTime || !cls.date) return false;
+            
+            const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
+            const [hours, minutes] = startTime.split(":").map(Number);
+            const classDateTime = new Date(year, month - 1, day, hours, minutes);
+            
+            if (classDateTime < now) return false;
+            if (classDateTime.getTime() > now.getTime() + msIn7Days) return false;
+            return true;
+          } catch (err) {
+            return false;
+          }
+        });
+
+        setAvailableClasses(validUpcomingClasses);
+        setUserPrefs(prefs as any);
         setProfileInfo(profile);
         setUser(currentUser);
         setLoading(false);
@@ -67,6 +98,71 @@ export default function StudentProfile() {
 
     fetchUser();
   }, [router]);
+
+  const handleBookClass = async (classObj: any) => {
+    try {
+      setIsProcessingBooking(classObj.$id);
+      
+      // 1. Verify class still has space in DB acting as single truth
+      const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
+      if (freshClass.registeredCount >= freshClass.capacity) {
+        alert("¡Lo sentimos! Las plazas para esta clase se acaban de llenar.");
+        return;
+      }
+
+      // 2. Increment Registered Count locally and remotely
+      await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id, {
+        registeredCount: freshClass.registeredCount + 1
+      });
+
+      // 3. Save to User Preferences (Secret Array of IDs)
+      const newBookedIds = [...userPrefs.bookedClasses, classObj.$id];
+      await account.updatePrefs({ bookedClasses: newBookedIds });
+      
+      // 4. Update UI State without reloading
+      setUserPrefs({ bookedClasses: newBookedIds });
+      setAvailableClasses(prev => prev.map(c => 
+        c.$id === classObj.$id ? { ...c, registeredCount: c.registeredCount + 1 } : c
+      ));
+
+    } catch (err: any) {
+      alert("Error al intentar realizar la reserva. Inténtalo de nuevo.");
+      console.error(err);
+    } finally {
+      setIsProcessingBooking(null);
+    }
+  };
+
+  const handleCancelBooking = async (classObj: any) => {
+    if (!window.confirm("¿Seguro que quieres cancelar tu plaza en esta clase?")) return;
+    
+    try {
+      setIsProcessingBooking(classObj.$id);
+      
+      const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
+      
+      // Free the slot
+      await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id, {
+        registeredCount: Math.max(0, freshClass.registeredCount - 1)
+      });
+
+      // Remove from preferences
+      const newBookedIds = userPrefs.bookedClasses.filter(id => id !== classObj.$id);
+      await account.updatePrefs({ bookedClasses: newBookedIds });
+      
+      // Update UI 
+      setUserPrefs({ bookedClasses: newBookedIds });
+      setAvailableClasses(prev => prev.map(c => 
+        c.$id === classObj.$id ? { ...c, registeredCount: Math.max(0, c.registeredCount - 1) } : c
+      ));
+
+    } catch (err: any) {
+      alert("Error al cancelar la reserva.");
+      console.error(err);
+    } finally {
+      setIsProcessingBooking(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -235,12 +331,12 @@ export default function StudentProfile() {
                 <CardContent className="pt-4">
                   <div className="space-y-4">
                     <div className="flex justify-between items-center border-b border-white/5 pb-3">
-                      <span className="text-white/60">Clases Entrenadas</span>
-                      <span className="text-2xl font-bold text-white">42</span>
+                      <span className="text-white/60">Reservas Globales de Cuenta</span>
+                      <span className="text-2xl font-bold text-white">{userPrefs.bookedClasses.length}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-white/60">Clases Reservadas hoy</span>
-                      <span className="text-2xl font-bold text-white">1</span>
+                      <span className="text-white/60">Disponibilidad de Entrenamiento</span>
+                      <span className="text-xl font-bold text-emerald-400">Sin Límite</span>
                     </div>
                   </div>
                 </CardContent>
@@ -249,80 +345,107 @@ export default function StudentProfile() {
           </TabsContent>
 
           {/* TAB: Clases */}
-          <TabsContent value="classes" className="space-y-8 focus:outline-none focus:ring-0">
+          <TabsContent value="classes" className="space-y-12 focus:outline-none focus:ring-0">
+            {/* Disponibles Para Reservar */}
             <div className="space-y-4">
-              <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                <CalendarClock className="w-5 h-5 text-amber-500" /> Reservas Activas (Próximas)
-              </h3>
-              <Card className="bg-white/5 border-white/10 backdrop-blur-xl overflow-hidden shadow-2xl">
-                <Table>
-                  <TableHeader className="bg-white/5">
-                    <TableRow className="border-white/10 hover:bg-transparent">
-                      <TableHead className="text-white/70">Disciplina</TableHead>
-                      <TableHead className="text-white/70">Fecha</TableHead>
-                      <TableHead className="text-white/70">Horario</TableHead>
-                      <TableHead className="text-white/70">Estado</TableHead>
-                      <TableHead className="text-right text-white/70">Acción</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {upcomingClasses.map((cls) => (
-                      <TableRow key={cls.id} className="border-white/10 hover:bg-white/5 transition-colors">
-                        <TableCell className="font-semibold text-white">{cls.type}</TableCell>
-                        <TableCell className="text-white/80">{cls.date}</TableCell>
-                        <TableCell className="text-white/80 font-medium">{cls.time}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">{cls.status}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-8 font-medium">
-                            Cancelar Reserva
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {upcomingClasses.length === 0 && (
-                      <TableRow className="border-white/10 hover:bg-transparent">
-                        <TableCell colSpan={5} className="text-center text-white/50 h-24">
-                          No tienes ninguna clase reservada próximamente.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </Card>
+               <div className="flex justify-between items-center">
+                <h3 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+                  <CalendarClock className="w-6 h-6 text-emerald-500" /> Clases Disponibles
+                </h3>
+                <span className="text-sm text-white/40">Próximos 7 días</span>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {availableClasses.filter(c => !userPrefs.bookedClasses.includes(c.$id)).length === 0 ? (
+                  <div className="col-span-full bg-white/5 border border-white/10 rounded-xl p-8 text-center text-white/50">
+                    No hay clases nuevas disponibles para reservar en los próximos 7 días.
+                  </div>
+                ) : (
+                  availableClasses.filter(c => !userPrefs.bookedClasses.includes(c.$id)).map(cls => {
+                    const isFull = cls.registeredCount >= cls.capacity;
+                    return (
+                      <Card key={cls.$id} className="bg-white/5 border-white/10 backdrop-blur-lg overflow-hidden group hover:border-white/20 transition-colors">
+                        <CardHeader className="pb-3 border-b border-white/5">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <Badge className={`mb-2 font-medium ${cls.name === 'Boxeo' ? 'bg-amber-500/20 text-amber-500 hover:bg-amber-500/30' : 'bg-red-500/20 text-red-500 hover:bg-red-500/30'}`}>
+                                {cls.name}
+                              </Badge>
+                              <CardTitle className="text-xl font-bold text-white">{cls.coach}</CardTitle>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-sm font-bold text-white block">
+                                {new Date(cls.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }).toUpperCase()}
+                              </span>
+                              <span className="text-xs text-white/50">{cls.time.split('-')[0].trim()}</span>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="pt-4 pb-4">
+                          <div>
+                            <div className="flex justify-between text-xs mb-1.5 font-medium">
+                              <span className={isFull ? 'text-red-400' : 'text-emerald-400'}>
+                                {cls.capacity - cls.registeredCount} plazas libres
+                              </span>
+                              <span className="text-white/40">Max {cls.capacity}</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-black rounded-full overflow-hidden border border-white/5 mb-6">
+                              <div 
+                                className={`h-full transition-all duration-500 ${isFull ? 'bg-red-500' : 'bg-emerald-500'}`} 
+                                style={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }} 
+                              />
+                            </div>
+                            <Button 
+                              onClick={() => handleBookClass(cls)}
+                              disabled={isFull || isProcessingBooking === cls.$id || !profileInfo?.is_paid}
+                              className={`w-full font-bold ${isFull ? 'bg-red-500/20 text-red-400 hover:bg-red-500/20 cursor-not-allowed' : 'bg-white text-black hover:bg-emerald-500 hover:text-white'}`}
+                            >
+                              {isProcessingBooking === cls.$id ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                                !profileInfo?.is_paid ? "Pago Pendiente" : isFull ? "Clase Llena" : "Reservar Plaza"
+                              )}
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })
+                )}
+              </div>
             </div>
 
-            <div className="space-y-4">
+            {/* Mis Reservas (Ya confirmadas) */}
+            <div className="space-y-4 pt-8 border-t border-white/10">
               <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                <History className="w-5 h-5 text-white/40" /> Historial de Clases
+                <CheckCircle2 className="w-5 h-5 text-white/40" /> Mis Reservas Confirmadas
               </h3>
-              <Card className="bg-transparent border-white/5 overflow-hidden">
-                <Table>
-                  <TableHeader className="bg-black/40">
-                    <TableRow className="border-white/5 hover:bg-transparent">
-                      <TableHead className="text-white/50">Disciplina</TableHead>
-                      <TableHead className="text-white/50">Fecha</TableHead>
-                      <TableHead className="text-white/50">Instructor</TableHead>
-                      <TableHead className="text-right text-white/50">Resultado</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pastClasses.map((cls) => (
-                      <TableRow key={cls.id} className="border-white/5 hover:bg-white/5 transition-colors">
-                        <TableCell className="font-medium text-white/80">{cls.type}</TableCell>
-                        <TableCell className="text-white/60">{cls.date}</TableCell>
-                        <TableCell className="text-white/60">{cls.instructor}</TableCell>
-                        <TableCell className="text-right">
-                          <Badge variant="outline" className={cls.status === 'Asistido' ? "bg-white/10 text-white border-white/20" : "bg-red-500/10 text-red-500 border-red-500/20"}>
-                            {cls.status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Card>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {availableClasses.filter(c => userPrefs.bookedClasses.includes(c.$id)).length === 0 ? (
+                  <div className="col-span-full text-white/30 text-sm italic">
+                    Aún no te has apuntado a ninguna clase esta semana.
+                  </div>
+                ) : (
+                  availableClasses.filter(c => userPrefs.bookedClasses.includes(c.$id)).map(cls => (
+                    <div key={cls.$id} className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 flex items-center justify-between">
+                      <div>
+                        <Badge className="bg-emerald-500/20 text-emerald-400 font-medium mb-1 border-0 rounded-sm">
+                          {cls.name} • Confirmada
+                        </Badge>
+                        <p className="text-white font-bold">{new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+                        <p className="text-white/60 text-sm">{cls.time} - {cls.coach}</p>
+                      </div>
+                      <Button 
+                        variant="ghost"
+                        onClick={() => handleCancelBooking(cls)}
+                        disabled={isProcessingBooking === cls.$id}
+                        className="text-red-400 hover:text-red-500 hover:bg-red-500/10 px-3"
+                      >
+                        {isProcessingBooking === cls.$id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Cancelar"}
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </TabsContent>
 
