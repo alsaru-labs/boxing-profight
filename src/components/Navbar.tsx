@@ -89,16 +89,20 @@ export default function Navbar() {
               </Link>
             )}
           </div>
-          <Link
-            href="/login"
-            className={`inline-flex shrink-0 items-center justify-center bg-white/10 text-white backdrop-blur-lg hover:bg-white/20 border border-white/20 rounded-full transition-all duration-300 font-bold
-              ${scrolled
-                ? 'px-4 py-2 text-xs md:px-8 md:py-3 md:text-lg h-8 md:h-10'
-                : 'px-5 py-2.5 text-sm md:px-10 md:py-8 md:text-2xl h-10 md:h-16'
-              }`}
-          >
-            Reservar
-          </Link>
+          {roleLoading ? (
+            <div className={`shrink-0 rounded-full bg-white/10 animate-pulse transition-all duration-300 ${scrolled ? 'w-[80px] md:w-[140px] h-8 md:h-10' : 'w-[100px] md:w-[180px] h-10 md:h-16'}`}></div>
+          ) : !isAdmin && (
+            <Link
+              href="/login"
+              className={`inline-flex shrink-0 items-center justify-center bg-white/10 text-white backdrop-blur-lg hover:bg-white/20 border border-white/20 rounded-full transition-all duration-300 font-bold
+                ${scrolled
+                  ? 'px-4 py-2 text-xs md:px-8 md:py-3 md:text-lg h-8 md:h-10'
+                  : 'px-5 py-2.5 text-sm md:px-10 md:py-8 md:text-2xl h-10 md:h-16'
+                }`}
+            >
+              Reservar
+            </Link>
+          )}
         </div>
       </div>
     </nav>

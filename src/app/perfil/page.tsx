@@ -29,7 +29,7 @@ export default function StudentProfile() {
   const [user, setUser] = useState<any>(null);
   const [profileInfo, setProfileInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  
+
   // Real-time Class & Booking States
   const [availableClasses, setAvailableClasses] = useState<any[]>([]);
   const [userBookings, setUserBookings] = useState<any[]>([]);
@@ -58,7 +58,7 @@ export default function StudentProfile() {
           COLLECTION_BOOKINGS,
           [Query.equal("student_id", currentUser.$id), Query.limit(100)]
         );
-        
+
         // Fetch All Classes
         const classesData = await databases.listDocuments(
           DATABASE_ID,
@@ -69,16 +69,16 @@ export default function StudentProfile() {
         // Process Classes: Filter out past classes & limit to 7 days
         const now = new Date();
         const msIn7Days = 7 * 24 * 60 * 60 * 1000;
-        
+
         const validUpcomingClasses = classesData.documents.filter((cls: any) => {
           try {
             const startTime = cls.time.split('-')[0].trim();
             if (!startTime || !cls.date) return false;
-            
+
             const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
             const [hours, minutes] = startTime.split(":").map(Number);
             const classDateTime = new Date(year, month - 1, day, hours, minutes);
-            
+
             if (classDateTime < now) return false;
             if (classDateTime.getTime() > now.getTime() + msIn7Days) return false;
             return true;
@@ -92,11 +92,11 @@ export default function StudentProfile() {
           try {
             const startTime = cls.time.split('-')[0].trim();
             if (!startTime || !cls.date) return false;
-            
+
             const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
             const [hours, minutes] = startTime.split(":").map(Number);
             const classDateTime = new Date(year, month - 1, day, hours, minutes);
-            
+
             return classDateTime < now;
           } catch (err) {
             return false;
@@ -106,14 +106,14 @@ export default function StudentProfile() {
         const attendedClasses = pastClassesFiltered.filter(cls => bookingsData.documents.some((b: any) => b.class_id === cls.$id));
 
         setAvailableClasses(validUpcomingClasses);
-        setPastClasses(attendedClasses.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        setPastClasses(attendedClasses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         setUserBookings(bookingsData.documents);
         setProfileInfo(profile);
         setUser(currentUser);
         setLoading(false);
       } catch (error) {
         // Redirige al login silenciosamente si no hay sesión
-        router.push("/login"); 
+        router.push("/login");
       }
     };
 
@@ -123,7 +123,7 @@ export default function StudentProfile() {
   const handleBookClass = async (classObj: any) => {
     try {
       setIsProcessingBooking(classObj.$id);
-      
+
       // 1. Verify class still has space in DB acting as single truth
       const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
       if (freshClass.registeredCount >= freshClass.capacity) {
@@ -146,10 +146,10 @@ export default function StudentProfile() {
           class_id: classObj.$id
         }
       );
-      
+
       // 4. Update UI State without reloading
       setUserBookings(prev => [...prev, newBooking]);
-      setAvailableClasses(prev => prev.map(c => 
+      setAvailableClasses(prev => prev.map(c =>
         c.$id === classObj.$id ? { ...c, registeredCount: c.registeredCount + 1 } : c
       ));
 
@@ -163,16 +163,16 @@ export default function StudentProfile() {
 
   const handleCancelBooking = async (classObj: any) => {
     if (!window.confirm("¿Seguro que quieres cancelar tu plaza en esta clase?")) return;
-    
+
     try {
       setIsProcessingBooking(classObj.$id);
-      
+
       // Find the specific booking document id for this class and user
       const bookingToCancel = userBookings.find((b: any) => b.class_id === classObj.$id);
       if (!bookingToCancel) return;
 
       const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
-      
+
       // Free the slot
       await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id, {
         registeredCount: Math.max(0, freshClass.registeredCount - 1)
@@ -180,10 +180,10 @@ export default function StudentProfile() {
 
       // Remove from Bookings collection database
       await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, bookingToCancel.$id);
-      
+
       // Update UI 
       setUserBookings(prev => prev.filter((b: any) => b.$id !== bookingToCancel.$id));
-      setAvailableClasses(prev => prev.map(c => 
+      setAvailableClasses(prev => prev.map(c =>
         c.$id === classObj.$id ? { ...c, registeredCount: Math.max(0, c.registeredCount - 1) } : c
       ));
 
@@ -242,7 +242,7 @@ export default function StudentProfile() {
         </div>
 
         <div className="pt-8 border-t border-white/10">
-          <button 
+          <button
             onClick={async () => {
               await account.deleteSession("current");
               router.push("/login");
@@ -278,20 +278,20 @@ export default function StudentProfile() {
 
         <Tabs defaultValue="overview" className="w-full">
           <TabsList className="bg-white/5 border border-white/10 p-2 mb-8 rounded-2xl flex flex-col md:flex-row w-full md:inline-flex md:w-auto h-auto gap-3">
-            <TabsTrigger 
-              value="overview" 
+            <TabsTrigger
+              value="overview"
               className="py-3 text-base font-semibold w-full md:w-auto rounded-xl text-white/60 hover:text-white hover:bg-white/10 data-active:bg-white data-active:text-black dark:data-active:bg-white dark:data-active:text-black data-active:hover:bg-neutral-200 data-active:hover:text-black dark:data-active:hover:bg-neutral-200 dark:data-active:hover:text-black data-active:shadow-[0_0_20px_rgba(255,255,255,0.15)] transition-all"
             >
               Resumen de Alumno
             </TabsTrigger>
-            <TabsTrigger 
-              value="classes" 
+            <TabsTrigger
+              value="classes"
               className="py-3 text-base font-semibold w-full md:w-auto rounded-xl text-white/60 hover:text-white hover:bg-white/10 data-active:bg-white data-active:text-black dark:data-active:bg-white dark:data-active:text-black data-active:hover:bg-neutral-200 data-active:hover:text-black dark:data-active:hover:bg-neutral-200 dark:data-active:hover:text-black data-active:shadow-[0_0_20px_rgba(255,255,255,0.15)] transition-all"
             >
               Mis Clases y Reservas
             </TabsTrigger>
-            <TabsTrigger 
-              value="settings" 
+            <TabsTrigger
+              value="settings"
               className="py-3 text-base font-semibold w-full md:w-auto rounded-xl text-white/60 hover:text-white hover:bg-white/10 data-active:bg-white data-active:text-black dark:data-active:bg-white dark:data-active:text-black data-active:hover:bg-neutral-200 data-active:hover:text-black dark:data-active:hover:bg-neutral-200 dark:data-active:hover:text-black data-active:shadow-[0_0_20px_rgba(255,255,255,0.15)] transition-all"
             >
               Ajustes de Cuenta
@@ -304,12 +304,11 @@ export default function StudentProfile() {
               {/* Payment Status Card - Prominent design */}
               <Card className="bg-white/5 border-white/10 backdrop-blur-xl lg:col-span-2 overflow-hidden relative group">
                 {/* Glow behind payment status */}
-                <div 
-                  className={`absolute -inset-1 blur-2xl opacity-50 block transition-colors duration-1000 ${
-                    profileInfo?.is_paid 
-                      ? "bg-gradient-to-r from-emerald-500/0 via-emerald-500/10 to-transparent" 
+                <div
+                  className={`absolute -inset-1 blur-2xl opacity-50 block transition-colors duration-1000 ${profileInfo?.is_paid
+                      ? "bg-gradient-to-r from-emerald-500/0 via-emerald-500/10 to-transparent"
                       : "bg-gradient-to-r from-red-500/0 via-red-500/10 to-transparent"
-                  }`} 
+                    }`}
                 />
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -379,13 +378,13 @@ export default function StudentProfile() {
           <TabsContent value="classes" className="space-y-12 focus:outline-none focus:ring-0">
             {/* Disponibles Para Reservar */}
             <div className="space-y-4">
-               <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center">
                 <h3 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
                   <CalendarClock className="w-6 h-6 text-emerald-500" /> Clases Disponibles
                 </h3>
                 <span className="text-sm text-white/40">Próximos 7 días</span>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {availableClasses.filter(c => !userBookings.some((b: any) => b.class_id === c.$id)).length === 0 ? (
                   <div className="col-span-full bg-white/5 border border-white/10 rounded-xl p-8 text-center text-white/50">
@@ -421,12 +420,12 @@ export default function StudentProfile() {
                               <span className="text-white/40">Max {cls.capacity}</span>
                             </div>
                             <div className="h-1.5 w-full bg-black rounded-full overflow-hidden border border-white/5 mb-6">
-                              <div 
-                                className={`h-full transition-all duration-500 ${isFull ? 'bg-red-500' : 'bg-emerald-500'}`} 
-                                style={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }} 
+                              <div
+                                className={`h-full transition-all duration-500 ${isFull ? 'bg-red-500' : 'bg-emerald-500'}`}
+                                style={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }}
                               />
                             </div>
-                            <Button 
+                            <Button
                               onClick={() => handleBookClass(cls)}
                               disabled={isFull || isProcessingBooking === cls.$id || !profileInfo?.is_paid}
                               className={`w-full font-bold ${isFull ? 'bg-red-500/20 text-red-400 hover:bg-red-500/20 cursor-not-allowed' : 'bg-white text-black hover:bg-emerald-500 hover:text-white'}`}
@@ -449,7 +448,7 @@ export default function StudentProfile() {
               <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-white/40" /> Mis Reservas Confirmadas
               </h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {availableClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).length === 0 ? (
                   <div className="col-span-full text-white/30 text-sm italic">
@@ -465,7 +464,7 @@ export default function StudentProfile() {
                         <p className="text-white font-bold">{new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
                         <p className="text-white/60 text-sm">{cls.time} - {cls.coach}</p>
                       </div>
-                      <Button 
+                      <Button
                         variant="ghost"
                         onClick={() => handleCancelBooking(cls)}
                         disabled={isProcessingBooking === cls.$id}
