@@ -6,7 +6,7 @@ import { User, CreditCard, CalendarClock, History, Settings, LogOut, ArrowLeft, 
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { account } from "@/lib/appwrite";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import {
@@ -43,6 +43,18 @@ export default function StudentProfile() {
     const fetchUser = async () => {
       try {
         const currentUser = await account.get();
+        // Check database to see if this user is actually an admin
+        const profile = await databases.getDocument(
+          DATABASE_ID,
+          COLLECTION_PROFILES,
+          currentUser.$id
+        );
+
+        if (profile.role === "admin") {
+          router.push("/admin"); // Redirect admins strictly to their dashboard
+          return;
+        }
+
         setUser(currentUser);
         setLoading(false);
       } catch (error) {

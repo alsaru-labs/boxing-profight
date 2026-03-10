@@ -4,16 +4,41 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [roleLoading, setRoleLoading] = useState(true);
 
   useEffect(() => {
+    // 1. Check Scroll State
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
     };
 
     window.addEventListener("scroll", handleScroll);
+
+    // 2. Fetch User Role for Dynamic Navbar Literal
+    const checkUserRole = async () => {
+      try {
+        const currentUser = await account.get();
+        const profile = await databases.getDocument(
+          DATABASE_ID,
+          COLLECTION_PROFILES,
+          currentUser.$id
+        );
+        setIsAdmin(profile.role === "admin");
+      } catch (error) {
+        // Not logged in or no session, keep default state
+        setIsAdmin(false);
+      } finally {
+        setRoleLoading(false);
+      }
+    };
+
+    checkUserRole();
+
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
@@ -51,10 +76,18 @@ export default function Navbar() {
 
         {/* Right Side Links & Button */}
         <div className="flex w-1/3 items-center justify-end space-x-2 md:space-x-10">
-          <div className="hidden md:flex items-center space-x-10">
-            <Link href="/perfil" className="text-2xl font-semibold text-white/80 hover:text-white transition-colors">
-              Perfil
-            </Link>
+          <div className="hidden md:flex items-center space-x-10 min-w-[150px] justify-end">
+            {roleLoading ? (
+              <div className="w-24 h-8 animate-pulse bg-white/10 rounded-md"></div>
+            ) : isAdmin ? (
+              <Link href="/admin" className="text-2xl font-semibold text-white/80 hover:text-white transition-colors">
+                Panel de Control
+              </Link>
+            ) : (
+              <Link href="/perfil" className="text-2xl font-semibold text-white/80 hover:text-white transition-colors">
+                Perfil
+              </Link>
+            )}
           </div>
           <Link
             href="/login"
