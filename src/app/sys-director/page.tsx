@@ -87,7 +87,7 @@ export default function AdminDashboard() {
       try {
         // 1. Get current logged in user
         const userData = await account.get();
-        
+
         // 2. Fetch their profile from the database to check role
         const profile = await databases.getDocument(
           DATABASE_ID,
@@ -161,32 +161,32 @@ export default function AdminDashboard() {
   const handleConfirmPayment = async (studentId: string, newStatus: boolean) => {
     try {
       setIsUpdating(true);
-      
+
       // Update in Appwrite Database
       await databases.updateDocument(
         DATABASE_ID,
         COLLECTION_PROFILES,
         studentId,
-        { 
+        {
           is_paid: newStatus,
-          payment_method: newStatus ? paymentMethod : null 
+          payment_method: newStatus ? paymentMethod : null
         }
       );
 
       // Update Local State for instant UI feedback
-      const updatedList = studentsList.map(s => 
+      const updatedList = studentsList.map(s =>
         s.$id === studentId ? { ...s, is_paid: newStatus, payment_method: newStatus ? paymentMethod : null } : s
       );
-      
+
       setStudentsList(updatedList);
-      
+
       // Recalculate quick stats locally
       const paidStudentsCount = updatedList.filter(s => s.is_paid === true).length;
       setMonthlyRevenue(paidStudentsCount * 55);
       setUnpaidCount(updatedList.length - paidStudentsCount);
 
       if (newStatus === true) {
-         setIsPaymentModalOpen(false); // Close Modal only when it was used to pay
+        setIsPaymentModalOpen(false); // Close Modal only when it was used to pay
       }
     } catch (error) {
       console.error("Error updating payment status:", error);
@@ -205,11 +205,11 @@ export default function AdminDashboard() {
 
   const handleSaveProfile = async () => {
     if (!selectedStudent) return;
-    
+
     // Front-end Validation for Phone Number
     // Allows empty strings (to remove phone), OR valid formats: e.g. 600123456, +34600123456, 0034600123456...
     const phoneRegex = /^(\+34|0034|34)?[6789]\d{8}$/;
-    
+
     if (editPhone.trim() !== "" && !phoneRegex.test(editPhone.trim())) {
       setEditPhoneError("Por favor, introduce un número válido (ej: 600123456 o +34600123456).");
       return; // Stop execution
@@ -217,26 +217,26 @@ export default function AdminDashboard() {
 
     // Reset error just in case
     setEditPhoneError("");
-    
+
     try {
       setIsUpdating(true);
-      
+
       // Update in Appwrite Database
       await databases.updateDocument(
         DATABASE_ID,
         COLLECTION_PROFILES,
         selectedStudent.$id,
-        { 
+        {
           phone: editPhone,
           level: editLevel
         }
       );
 
       // Update Local State for instant UI feedback
-      const updatedList = studentsList.map(s => 
+      const updatedList = studentsList.map(s =>
         s.$id === selectedStudent.$id ? { ...s, phone: editPhone, level: editLevel } : s
       );
-      
+
       setStudentsList(updatedList);
       setIsEditModalOpen(false);
     } catch (error) {
@@ -263,8 +263,8 @@ export default function AdminDashboard() {
           status: "Activa"
         }
       );
-      
-      setClassesList(prev => [...prev, createdClass].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+
+      setClassesList(prev => [...prev, createdClass].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
       setIsClassModalOpen(false);
     } catch (error) {
       console.error("Error creating class:", error);
@@ -275,7 +275,7 @@ export default function AdminDashboard() {
 
   const handleDeleteClass = async (classId: string) => {
     if (!window.confirm("¿Seguro que quieres borrar esta clase de forma permanente? Se cancelarán también todas las reservas de los alumnos.")) return;
-    
+
     try {
       // 1. Fetch all bookings associated with this class
       const relatedBookings = await databases.listDocuments(
@@ -285,14 +285,14 @@ export default function AdminDashboard() {
       );
 
       // 2. Delete all related bookings one by one (cascade delete effect)
-      const deleteBookingPromises = relatedBookings.documents.map(booking => 
+      const deleteBookingPromises = relatedBookings.documents.map(booking =>
         databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id)
       );
       await Promise.all(deleteBookingPromises);
 
       // 3. Delete the class itself
       await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
-      
+
       // 4. Update the UI state
       setClassesList(prev => prev.filter(c => c.$id !== classId));
     } catch (error: any) {
@@ -306,7 +306,7 @@ export default function AdminDashboard() {
       setIsFetchingAttendees(true);
       setSelectedClassForAttendees(classObj);
       setIsAttendeesModalOpen(true);
-      
+
       const bookingsData = await databases.listDocuments(
         DATABASE_ID,
         COLLECTION_BOOKINGS,
@@ -314,7 +314,7 @@ export default function AdminDashboard() {
       );
 
       const studentIds = bookingsData.documents.map(b => b.student_id);
-      
+
       // Filter out only the existing student profiles
       const attendees = studentsList.filter(student => studentIds.includes(student.$id));
       setAttendeesList(attendees);
@@ -340,26 +340,26 @@ export default function AdminDashboard() {
   const processedStudents = [...studentsList]
     .filter((student) => {
       // Search term
-      const matchesSearch = 
+      const matchesSearch =
         (student.name?.toLowerCase().includes(searchTerm.toLowerCase()) || "") ||
         (student.email?.toLowerCase().includes(searchTerm.toLowerCase()) || "");
-      
+
       // Payment filter
-      const matchesPayment = 
+      const matchesPayment =
         filterPayment === "todos" ? true :
-        filterPayment === "pagado" ? student.is_paid === true :
-        student.is_paid === false;
-      
+          filterPayment === "pagado" ? student.is_paid === true :
+            student.is_paid === false;
+
       // Level filter
       const matchesLevel =
         filterLevel === "todos" ? true :
-        (student.level || "Iniciación") === filterLevel;
+          (student.level || "Iniciación") === filterLevel;
 
       return matchesSearch && matchesPayment && matchesLevel;
     })
     .sort((a, b) => {
       if (!sortConfig) return 0;
-      
+
       let aValue = a[sortConfig.key];
       let bValue = b[sortConfig.key];
 
@@ -385,23 +385,23 @@ export default function AdminDashboard() {
   const slicedStudents = processedStudents.slice(0, visibleCount);
 
   // --- New Class Validation ---
-  const tzOffset = (new Date()).getTimezoneOffset() * 60000; 
+  const tzOffset = (new Date()).getTimezoneOffset() * 60000;
   const localTodayISO = new Date(Date.now() - tzOffset).toISOString().split('T')[0];
-  
+
   const isDateValid = newClass.date !== "" && newClass.date >= localTodayISO;
   const isCoachValid = newClass.coach.trim() !== "" && !/\d/.test(newClass.coach);
   const isTimeFormatValid = /^([01]?\d|2[0-3]):[0-5]\d\s*-\s*([01]?\d|2[0-3]):[0-5]\d$/.test(newClass.time.trim());
-  
+
   // Specific Time-in-past validation for today
   let isTimeFuture = true;
   if (isDateValid && isTimeFormatValid && newClass.date === localTodayISO) {
     const startTimeStr = newClass.time.split('-')[0].trim();
     const [startHours, startMinutes] = startTimeStr.split(':').map(Number);
-    
+
     // Create an artificial Date representing "today at class start time" in local time
     const classTimeToday = new Date();
     classTimeToday.setHours(startHours, startMinutes, 0, 0);
-    
+
     // Compare directly against current time
     if (classTimeToday <= new Date()) {
       isTimeFuture = false;
@@ -411,9 +411,9 @@ export default function AdminDashboard() {
   const isCapacityValid = newClass.capacity > 0;
 
   // Duplicate class validation (same discipline, date, and time)
-  const isDuplicate = classesList.some(cls => 
-    cls.name === newClass.name && 
-    cls.date.substring(0, 10) === newClass.date && 
+  const isDuplicate = classesList.some(cls =>
+    cls.name === newClass.name &&
+    cls.date.substring(0, 10) === newClass.date &&
     cls.time.trim() === newClass.time.trim()
   );
 
@@ -426,11 +426,11 @@ export default function AdminDashboard() {
       try {
         const startTime = cls.time.split('-')[0].trim();
         if (!startTime || !cls.date) return false;
-        
+
         // Use substring(0, 10) to safely strip "T00:00..." if Appwrite returns a full Datetime
         const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
         const [hours, minutes] = startTime.split(":").map(Number);
-        
+
         const classDateTime = new Date(year, month - 1, day, hours, minutes);
         return classDateTime > now;
       } catch (err) {
@@ -441,7 +441,7 @@ export default function AdminDashboard() {
       try {
         const aStart = a.time.split('-')[0].trim();
         const bStart = b.time.split('-')[0].trim();
-        
+
         const [aYear, aMonth, aDay] = a.date.substring(0, 10).split("-").map(Number);
         const [aHours, aMinutes] = aStart.split(":").map(Number);
         const aDate = new Date(aYear, aMonth - 1, aDay, aHours, aMinutes).getTime();
@@ -460,15 +460,15 @@ export default function AdminDashboard() {
     try {
       const startTime = cls.time.split('-')[0].trim();
       if (!startTime || !cls.date) return false;
-      
+
       const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
       const [hours, minutes] = startTime.split(":").map(Number);
-      
+
       const classDateTime = new Date(year, month - 1, day, hours, minutes);
-      
+
       // Remove classes in the past
       if (classDateTime < now) return false;
-      
+
       // Limit to max 7 days in the future
       const msIn7Days = 7 * 24 * 60 * 60 * 1000;
       if (classDateTime.getTime() > now.getTime() + msIn7Days) return false;
@@ -481,7 +481,7 @@ export default function AdminDashboard() {
     try {
       const aStart = a.time.split('-')[0].trim();
       const bStart = b.time.split('-')[0].trim();
-      
+
       const [aYear, aMonth, aDay] = a.date.substring(0, 10).split("-").map(Number);
       const [aHours, aMinutes] = aStart.split(":").map(Number);
       const aDate = new Date(aYear, aMonth - 1, aDay, aHours, aMinutes).getTime();
@@ -499,7 +499,7 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-black text-white font-sans flex flex-col md:flex-row">
       {/* Sidebar */}
-      <aside className="w-full md:w-64 bg-zinc-950 border-r border-white/10 p-6 flex flex-col justify-between hidden md:flex">
+      <aside className="w-full md:w-64 bg-zinc-950 border-r border-white/10 p-6 flex-col justify-between hidden md:flex h-screen sticky top-0">
         <div>
           <div className="flex items-center space-x-3 mb-12">
             <div className="w-10 h-10 relative">
@@ -512,7 +512,7 @@ export default function AdminDashboard() {
             </div>
             <span className="font-bold text-lg tracking-tight">PROFIGHT ADMIN</span>
           </div>
-          
+
           <nav className="space-y-2">
             <Link href="/">
               <Button variant="ghost" className="w-full justify-start text-white/50 hover:text-white hover:bg-white/5 mb-4">
@@ -520,18 +520,6 @@ export default function AdminDashboard() {
                 Volver a la Web
               </Button>
             </Link>
-            <Button variant="ghost" className="w-full justify-start text-white/80 hover:text-white bg-white/5">
-              <Users className="mr-3 h-5 w-5" />
-              Alumnos
-            </Button>
-            <Button variant="ghost" className="w-full justify-start text-white/50 hover:text-white hover:bg-white/5">
-              <BicepsFlexed className="mr-3 h-5 w-5" />
-              Clases
-            </Button>
-            <Button variant="ghost" className="w-full justify-start text-white/50 hover:text-white hover:bg-white/5">
-              <CreditCard className="mr-3 h-5 w-5" />
-              Pagos
-            </Button>
           </nav>
         </div>
 
@@ -622,7 +610,7 @@ export default function AdminDashboard() {
           {/* Table Header & Controls */}
           <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between mb-6 gap-4">
             <h2 className="text-2xl font-bold tracking-tight">Directorio de Alumnos</h2>
-            
+
             <div className="flex flex-col sm:flex-row w-full xl:w-auto gap-3 items-center">
               {/* Search */}
               <div className="relative w-full sm:w-64">
@@ -637,7 +625,7 @@ export default function AdminDashboard() {
               </div>
 
               {/* Filter Payment */}
-              <select 
+              <select
                 value={filterPayment}
                 onChange={(e) => setFilterPayment(e.target.value)}
                 className="bg-zinc-900 border border-white/10 text-white text-sm rounded-md focus:ring-emerald-500 block p-2 w-full sm:w-auto h-10"
@@ -648,7 +636,7 @@ export default function AdminDashboard() {
               </select>
 
               {/* Filter Level */}
-              <select 
+              <select
                 value={filterLevel}
                 onChange={(e) => setFilterLevel(e.target.value)}
                 className="bg-zinc-900 border border-white/10 text-white text-sm rounded-md focus:ring-emerald-500 block p-2 w-full sm:w-auto h-10"
@@ -661,8 +649,8 @@ export default function AdminDashboard() {
 
               {/* Reset Filters / Sorting Button */}
               {(searchTerm !== "" || filterPayment !== "todos" || filterLevel !== "todos" || sortConfig !== null) && (
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   onClick={() => {
                     setSearchTerm("");
                     setFilterPayment("todos");
@@ -727,18 +715,18 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       </TableCell>
-                      
+
                       {/* Contacto (Teléfono/WhatsApp) */}
                       <TableCell>
                         {student.phone ? (
-                          <a 
-                            href={`https://wa.me/${student.phone.replace(/[\s+]/g, '')}`} 
-                            target="_blank" 
+                          <a
+                            href={`https://wa.me/${student.phone.replace(/[\s+]/g, '')}`}
+                            target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center gap-2 text-white/80 hover:text-white transition-colors w-fit group"
                           >
-                            <svg 
-                              viewBox="0 0 24 24" 
+                            <svg
+                              viewBox="0 0 24 24"
                               className="w-4 h-4 text-[#25D366] group-hover:scale-110 transition-transform fill-current"
                             >
                               <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
@@ -753,11 +741,10 @@ export default function AdminDashboard() {
                       {/* Nivel de Experiencia */}
                       <TableCell>
                         <div className="flex items-center gap-1.5 text-white/70">
-                          <Signal className={`w-4 h-4 ${
-                            student.level === 'Profesional' ? 'text-purple-400' :
+                          <Signal className={`w-4 h-4 ${student.level === 'Profesional' ? 'text-purple-400' :
                             student.level === 'Media' ? 'text-amber-400' :
-                            'text-white/40' // Iniciación or Null
-                          }`} />
+                              'text-white/40' // Iniciación or Null
+                            }`} />
                           <span className="text-sm">{student.level || 'Iniciación'}</span>
                         </div>
                       </TableCell>
@@ -768,8 +755,8 @@ export default function AdminDashboard() {
                           <Badge
                             variant="outline"
                             className={
-                              student.is_paid 
-                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+                              student.is_paid
+                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                                 : "bg-red-500/10 text-red-400 border-red-500/20"
                             }
                           >
@@ -790,7 +777,7 @@ export default function AdminDashboard() {
 
                       {/* Fecha de Alta (Antigüedad) */}
                       <TableCell className="text-white/50 text-xs font-medium">
-                        {new Date(student.$createdAt).toLocaleDateString('es-ES', { month: 'short', year: 'numeric'})}
+                        {new Date(student.$createdAt).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
                       </TableCell>
 
                       {/* Acciones */}
@@ -805,14 +792,14 @@ export default function AdminDashboard() {
                               <DropdownMenuLabel>Gestión de Alumno</DropdownMenuLabel>
                             </DropdownMenuGroup>
                             <DropdownMenuSeparator className="bg-white/10" />
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               className="focus:bg-white/10 focus:text-white cursor-pointer hover:bg-white/5"
                               onClick={() => handleActionClick(student)}
                               disabled={isUpdating}
                             >
                               {student.is_paid ? "Marcar como pendiente" : "Registrar Pago"}
                             </DropdownMenuItem>
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               className="focus:bg-white/10 focus:text-white cursor-pointer hover:bg-white/5"
                               onClick={() => handleOpenEditModal(student)}
                               disabled={isUpdating}
@@ -834,11 +821,11 @@ export default function AdminDashboard() {
                 )}
               </TableBody>
             </Table>
-            
+
             {visibleCount < processedStudents.length && (
               <div className="w-full flex justify-center py-4 border-t border-white/10 bg-white/5">
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   onClick={() => setVisibleCount(prev => prev + 30)}
                   className="text-white hover:bg-white/10 flex items-center gap-2"
                 >
@@ -858,7 +845,7 @@ export default function AdminDashboard() {
               <h2 className="text-2xl font-bold tracking-tight">Horarios y Clases</h2>
               <p className="text-white/50 text-sm mt-1">Programa las próximas sesiones para que los alumnos puedan reservar.</p>
             </div>
-            <Button 
+            <Button
               onClick={() => setIsClassModalOpen(true)}
               className="bg-emerald-500 hover:bg-emerald-600 text-white whitespace-nowrap"
             >
@@ -891,13 +878,13 @@ export default function AdminDashboard() {
                             <MoreVertical className="h-4 w-4" />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10">
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               className="text-white focus:bg-white/10 cursor-pointer"
                               onClick={() => handleViewAttendees(cls)}
                             >
                               Ver Lista de Asistentes
                             </DropdownMenuItem>
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               className="text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer"
                               onClick={() => handleDeleteClass(cls.$id)}
                             >
@@ -920,7 +907,7 @@ export default function AdminDashboard() {
                           </p>
                         </div>
                       </div>
-                      
+
                       {/* Capacity Bar */}
                       <div>
                         <div className="flex justify-between text-xs mb-1.5 font-medium">
@@ -930,9 +917,9 @@ export default function AdminDashboard() {
                           <span className="text-white/40">{cls.capacity} Plazas</span>
                         </div>
                         <div className="h-1.5 w-full bg-black rounded-full overflow-hidden border border-white/5">
-                          <div 
-                            className={`h-full transition-all duration-500 ${isFull ? 'bg-red-500' : 'bg-emerald-500'}`} 
-                            style={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }} 
+                          <div
+                            className={`h-full transition-all duration-500 ${isFull ? 'bg-red-500' : 'bg-emerald-500'}`}
+                            style={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }}
                           />
                         </div>
                       </div>
@@ -966,26 +953,26 @@ export default function AdminDashboard() {
                 className="bg-black border-white/20 text-white focus-visible:ring-emerald-500"
               />
             </div>
-            
+
             <div className="grid gap-2">
               <Label className="text-white/80 mb-2">Método de Pago</Label>
               <div className="grid grid-cols-3 gap-2">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => setPaymentMethod("Efectivo")}
                   className={paymentMethod === "Efectivo" ? "bg-emerald-500 hover:bg-emerald-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
                 >
                   Efectivo
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => setPaymentMethod("Bizum")}
                   className={paymentMethod === "Bizum" ? "bg-cyan-500 hover:bg-cyan-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
                 >
                   Bizum
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => setPaymentMethod("Tarjeta")}
                   className={paymentMethod === "Tarjeta" ? "bg-purple-500 hover:bg-purple-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
                 >
@@ -998,7 +985,7 @@ export default function AdminDashboard() {
             <Button variant="ghost" onClick={() => setIsPaymentModalOpen(false)} className="text-white/50 hover:text-white bg-transparent">
               Cancelar
             </Button>
-            <Button 
+            <Button
               onClick={() => handleConfirmPayment(selectedStudent?.$id, true)}
               disabled={isUpdating}
               className="bg-white text-black hover:bg-neutral-200"
@@ -1038,27 +1025,27 @@ export default function AdminDashboard() {
                 <p className="text-red-400 text-xs mt-1 font-medium">{editPhoneError}</p>
               )}
             </div>
-            
+
             {/* Level */}
             <div className="grid gap-2">
               <Label className="text-white/80 mb-2">Nivel de Experiencia</Label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => setEditLevel("Iniciación")}
                   className={editLevel === "Iniciación" ? "bg-white/20 hover:bg-white/30 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
                 >
                   Iniciación
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => setEditLevel("Media")}
                   className={editLevel === "Media" ? "bg-amber-500 hover:bg-amber-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
                 >
                   Media
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => setEditLevel("Profesional")}
                   className={editLevel === "Profesional" ? "bg-purple-500 hover:bg-purple-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
                 >
@@ -1071,7 +1058,7 @@ export default function AdminDashboard() {
             <Button variant="ghost" onClick={() => setIsEditModalOpen(false)} className="text-white/50 hover:text-white bg-transparent">
               Cancelar
             </Button>
-            <Button 
+            <Button
               onClick={handleSaveProfile}
               disabled={isUpdating}
               className="bg-white text-black hover:bg-neutral-200"
@@ -1093,13 +1080,13 @@ export default function AdminDashboard() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label className="text-white/80">Disciplina</Label>
-                <select 
+                <select
                   value={newClass.name}
-                  onChange={(e) => setNewClass({...newClass, name: e.target.value})}
+                  onChange={(e) => setNewClass({ ...newClass, name: e.target.value })}
                   className="bg-black border border-white/20 text-white rounded-md p-2 text-sm focus:ring-emerald-500 w-full"
                 >
                   <option value="Boxeo">Boxeo</option>
@@ -1111,7 +1098,7 @@ export default function AdminDashboard() {
                 <Label className="text-white/80">Monitor</Label>
                 <Input
                   value={newClass.coach}
-                  onChange={(e) => setNewClass({...newClass, coach: e.target.value})}
+                  onChange={(e) => setNewClass({ ...newClass, coach: e.target.value })}
                   className={`bg-black text-white focus-visible:ring-emerald-500 ${!isCoachValid && newClass.coach !== "" ? "border-red-500" : "border-white/20"}`}
                 />
                 {!isCoachValid && newClass.coach !== "" && (
@@ -1129,11 +1116,11 @@ export default function AdminDashboard() {
                     type="date"
                     min={localTodayISO}
                     value={newClass.date}
-                    onChange={(e) => setNewClass({...newClass, date: e.target.value})}
+                    onChange={(e) => setNewClass({ ...newClass, date: e.target.value })}
                     className={`bg-black text-white focus-visible:ring-emerald-500 pl-10 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full cursor-pointer ${!isDateValid && newClass.date !== "" ? "border-red-500" : "border-white/20"}`}
                   />
-                  <CalendarDays 
-                    className="absolute left-3 top-2.5 h-5 w-5 text-emerald-500 pointer-events-none" 
+                  <CalendarDays
+                    className="absolute left-3 top-2.5 h-5 w-5 text-emerald-500 pointer-events-none"
                   />
                 </div>
                 {!isDateValid && newClass.date !== "" && (
@@ -1145,7 +1132,7 @@ export default function AdminDashboard() {
                 <Input
                   placeholder="Ej: 18:00 - 19:30"
                   value={newClass.time}
-                  onChange={(e) => setNewClass({...newClass, time: e.target.value})}
+                  onChange={(e) => setNewClass({ ...newClass, time: e.target.value })}
                   className={`bg-black text-white focus-visible:ring-emerald-500 ${(!isTimeFormatValid || !isTimeFuture) && newClass.time !== "" ? "border-red-500" : "border-white/20"}`}
                 />
                 {!isTimeFormatValid && newClass.time !== "" && (
@@ -1162,7 +1149,7 @@ export default function AdminDashboard() {
               <Input
                 type="number"
                 value={newClass.capacity}
-                onChange={(e) => setNewClass({...newClass, capacity: Number(e.target.value)})}
+                onChange={(e) => setNewClass({ ...newClass, capacity: Number(e.target.value) })}
                 className="bg-black border-white/20 text-white focus-visible:ring-emerald-500"
               />
             </div>
@@ -1179,7 +1166,7 @@ export default function AdminDashboard() {
             <Button variant="ghost" onClick={() => setIsClassModalOpen(false)} className="text-white/50 hover:text-white bg-transparent">
               Cancelar
             </Button>
-            <Button 
+            <Button
               onClick={handleCreateClass}
               disabled={isUpdating || !isNewClassFormValid}
               className="bg-emerald-500 text-white hover:bg-emerald-600"

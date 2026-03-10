@@ -220,7 +220,7 @@ export default function StudentProfile() {
       </div>
 
       {/* Sidebar Navigation */}
-      <aside className="w-full md:w-72 bg-zinc-950 border-r border-white/10 p-6 flex flex-col justify-between hidden md:flex z-10">
+      <aside className="w-full md:w-72 bg-zinc-950 border-r border-white/10 p-6 flex-col justify-between hidden md:flex z-10 h-screen sticky top-0">
         <div>
           <div className="flex items-center space-x-3 mb-10 w-full justify-between">
             <Link href="/" className="group flex items-center space-x-3 hover:text-white/80 transition-colors">
