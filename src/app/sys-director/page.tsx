@@ -273,7 +273,22 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleDeleteClass = async (classId: string) => {
+  const handleDeleteClass = async (classObj: any) => {
+    // 0. Prevent deleting past classes logically
+    try {
+      const startTime = classObj.time.split('-')[0].trim();
+      const [year, month, day] = classObj.date.substring(0, 10).split("-").map(Number);
+      const [hours, minutes] = startTime.split(":").map(Number);
+      const classDateTime = new Date(year, month - 1, day, hours, minutes);
+
+      if (classDateTime < new Date()) {
+        alert("No se puede cancelar una clase que ya ha ocurrido. Queda registrada en el historial.");
+        return;
+      }
+    } catch (e) {
+      // Allow passing if date parsing fails just in case, but usually shouldn't
+    }
+
     if (!window.confirm("¿Seguro que quieres borrar esta clase de forma permanente? Se cancelarán también todas las reservas de los alumnos.")) return;
 
     try {
@@ -281,7 +296,7 @@ export default function AdminDashboard() {
       const relatedBookings = await databases.listDocuments(
         DATABASE_ID,
         COLLECTION_BOOKINGS,
-        [Query.equal("class_id", classId), Query.limit(100)]
+        [Query.equal("class_id", classObj.$id), Query.limit(100)]
       );
 
       // 2. Delete all related bookings one by one (cascade delete effect)
@@ -291,10 +306,10 @@ export default function AdminDashboard() {
       await Promise.all(deleteBookingPromises);
 
       // 3. Delete the class itself
-      await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
+      await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
 
       // 4. Update the UI state
-      setClassesList(prev => prev.filter(c => c.$id !== classId));
+      setClassesList(prev => prev.filter(c => c.$id !== classObj.$id));
     } catch (error: any) {
       console.error("Error al borrar la clase:", error);
       alert(`No se pudo borrar la clase o sus reservas. Revisa si en Appwrite le diste el tick verde a 'Delete' en los Permisos tanto para Classes como Bookings. \n\nError: ${error?.message}`);
@@ -491,6 +506,46 @@ export default function AdminDashboard() {
       const bDate = new Date(bYear, bMonth - 1, bDay, bHours, bMinutes).getTime();
 
       return aDate - bDate;
+    } catch (err) {
+      return 0;
+    }
+  });
+
+  const recentPastClasses = [...classesList].filter(cls => {
+    try {
+      const startTime = cls.time.split('-')[0].trim();
+      if (!startTime || !cls.date) return false;
+
+      const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
+      const [hours, minutes] = startTime.split(":").map(Number);
+
+      const classDateTime = new Date(year, month - 1, day, hours, minutes);
+
+      // Only classes in the past
+      if (classDateTime >= now) return false;
+
+      // Limit to 48 hours in the past
+      const msIn48Hours = 2 * 24 * 60 * 60 * 1000;
+      if (classDateTime.getTime() < now.getTime() - msIn48Hours) return false;
+
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }).sort((a, b) => {
+    try {
+      const aStart = a.time.split('-')[0].trim();
+      const bStart = b.time.split('-')[0].trim();
+
+      const [aYear, aMonth, aDay] = a.date.substring(0, 10).split("-").map(Number);
+      const [aHours, aMinutes] = aStart.split(":").map(Number);
+      const aDate = new Date(aYear, aMonth - 1, aDay, aHours, aMinutes).getTime();
+
+      const [bYear, bMonth, bDay] = b.date.substring(0, 10).split("-").map(Number);
+      const [bHours, bMinutes] = bStart.split(":").map(Number);
+      const bDate = new Date(bYear, bMonth - 1, bDay, bHours, bMinutes).getTime();
+
+      return bDate - aDate; // Descending (most recent past first)
     } catch (err) {
       return 0;
     }
@@ -863,8 +918,19 @@ export default function AdminDashboard() {
             ) : (
               sortedClassesList.map((cls) => {
                 const isFull = cls.registeredCount >= cls.capacity;
+
+                // Determine if class has already happened
+                let isPastClass = false;
+                try {
+                  const startTime = cls.time.split('-')[0].trim();
+                  const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
+                  const [hours, minutes] = startTime.split(":").map(Number);
+                  const classDateTime = new Date(year, month - 1, day, hours, minutes);
+                  isPastClass = classDateTime < new Date();
+                } catch (e) { }
+
                 return (
-                  <Card key={cls.$id} className="bg-white/5 border-white/10 backdrop-blur-lg overflow-hidden group">
+                  <Card key={cls.$id} className={`bg-white/5 border-white/10 backdrop-blur-lg overflow-hidden group ${isPastClass ? 'opacity-70 grayscale-[0.2]' : ''}`}>
                     <CardHeader className="pb-3 border-b border-white/5 relative">
                       <div className="flex justify-between items-start">
                         <div>
@@ -884,12 +950,14 @@ export default function AdminDashboard() {
                             >
                               Ver Lista de Asistentes
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer"
-                              onClick={() => handleDeleteClass(cls.$id)}
-                            >
-                              Cancelar Clase
-                            </DropdownMenuItem>
+                            {!isPastClass && (
+                              <DropdownMenuItem
+                                className="text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer"
+                                onClick={() => handleDeleteClass(cls)}
+                              >
+                                Cancelar Clase
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -919,6 +987,90 @@ export default function AdminDashboard() {
                         <div className="h-1.5 w-full bg-black rounded-full overflow-hidden border border-white/5">
                           <div
                             className={`h-full transition-all duration-500 ${isFull ? 'bg-red-500' : 'bg-emerald-500'}`}
+                            style={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Recent Past Classes Section */}
+        <div className="space-y-4 pt-12 border-t border-white/10 pb-12">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-white/70">Historial Reciente</h2>
+              <p className="text-white/40 text-sm mt-1">Clases que han ocurrido en las últimas 48 horas.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {recentPastClasses.length === 0 ? (
+              <div className="col-span-full bg-white/5 border border-dashed border-white/10 rounded-xl p-8 text-center">
+                <History className="w-10 h-10 text-white/20 mx-auto mb-3" />
+                <p className="text-white/40 text-sm">No hay clases registradas en los últimos 2 días.</p>
+              </div>
+            ) : (
+              recentPastClasses.map((cls) => {
+                const isFull = cls.registeredCount >= cls.capacity;
+                return (
+                  <Card key={cls.$id} className="bg-black border-white/5 overflow-hidden group opacity-70 grayscale-[0.3]">
+                    <CardHeader className="pb-3 border-b border-white/5 relative">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <Badge className="mb-2 font-medium bg-white/10 text-white/60">
+                            {cls.name} (Finalizada)
+                          </Badge>
+                          <CardTitle className="text-lg font-bold text-white/80">{cls.coach}</CardTitle>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger className="h-8 w-8 flex justify-center items-center text-white/30 hover:text-white hover:bg-white/10 rounded transition-colors">
+                            <MoreVertical className="h-4 w-4" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10">
+                            <DropdownMenuItem
+                              className="text-white focus:bg-white/10 cursor-pointer"
+                              onClick={() => handleViewAttendees(cls)}
+                            >
+                              Ver Lista de Asistentes
+                            </DropdownMenuItem>
+                            <DropdownMenuItem disabled className="text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer opacity-50">
+                              Cancelar Clase (Expirado)
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-4 pb-4">
+                      <div className="flex justify-between items-center mb-4">
+                        <div className="text-sm">
+                          <p className="text-white/60 font-medium flex items-center gap-1.5 mb-1">
+                            <CalendarDays className="w-4 h-4 text-white/30" />
+                            {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                          </p>
+                          <p className="text-white/50 flex items-center gap-1.5">
+                            <ShieldCheck className="w-4 h-4 text-white/30" />
+                            {cls.time}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Capacity Bar */}
+                      <div>
+                        <div className="flex justify-between text-xs mb-1.5 font-medium">
+                          <span className={isFull ? 'text-white/60' : 'text-white/60'}>
+                            {cls.registeredCount} Asistentes
+                          </span>
+                          <span className="text-white/30">de {cls.capacity} Plazas</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-black rounded-full overflow-hidden border border-white/5">
+                          <div
+                            className={`h-full transition-all duration-500 bg-white/30`}
                             style={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }}
                           />
                         </div>

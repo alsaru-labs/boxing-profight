@@ -383,12 +383,26 @@ export default function StudentProfile() {
                 <CardContent className="pt-4">
                   <div className="space-y-4">
                     <div className="flex justify-between items-center border-b border-white/5 pb-3">
-                      <span className="text-white/60">Clases totales</span>
-                      <span className="text-2xl font-bold text-white">{userBookings.length}</span>
+                      <div className="flex flex-col">
+                        <span className="text-white/60">Clases completadas</span>
+                        <span className="text-[10px] text-white/40 uppercase tracking-wider">Ya pasadas</span>
+                      </div>
+                      <span className="text-3xl font-bold text-white">{pastClasses.length}</span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-white/60">Disponibilidad de Entrenamiento</span>
-                      <span className="text-xl font-bold text-emerald-400">Sin Límite</span>
+
+                    <div className="flex justify-between items-center border-b border-white/5 pb-3">
+                      <div className="flex flex-col">
+                        <span className="text-white/60">Reservas Activas</span>
+                        <span className="text-[10px] text-white/40 uppercase tracking-wider">Próximas</span>
+                      </div>
+                      <span className="text-2xl font-bold text-emerald-400">
+                        {userBookings.length - pastClasses.length}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-1">
+                      <span className="text-white/60">Disponibilidad</span>
+                      <span className="text-sm font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">Ilimitada</span>
                     </div>
                   </div>
                 </CardContent>
