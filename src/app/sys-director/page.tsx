@@ -399,6 +399,74 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleAutoGenerateWeekClasses = async () => {
+    if (!window.confirm("¿Seguro que quieres auto-generar las clases de la PRÓXIMA SEMANA? (L-V, Boxeo/K1 y Sparring los Miércoles)")) return;
+
+    setIsUpdating(true);
+    try {
+      // Get next Monday
+      const today = new Date();
+      const nextMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + ((1 + 7 - today.getDay()) % 7 || 7));
+
+      const classesToGenerate = [];
+
+      for (let i = 0; i < 5; i++) { // Monday to Friday (0 to 4)
+        const targetDate = new Date(nextMonday);
+        targetDate.setDate(nextMonday.getDate() + i);
+        const dayOfWeek = targetDate.getDay(); // 1 = Monday, ..., 3 = Wednesday
+
+        // Format to YYYY-MM-DD
+        targetDate.setMinutes(targetDate.getMinutes() - targetDate.getTimezoneOffset());
+        const dateStr = targetDate.toISOString().split('T')[0];
+
+        const isWednesday = dayOfWeek === 3;
+        const className = isWednesday ? "Sparring" : "Boxeo y K1";
+
+        // Morning Class: 10:00 - 11:00
+        classesToGenerate.push({
+          name: className,
+          date: dateStr,
+          time: "10:00 - 11:00",
+          coach: "Álex Pintor",
+          capacity: 30,
+          registeredCount: 0,
+          status: "Activa"
+        });
+
+        // 4 Afternoon Classes: 18h to 21h (18-19, 19-20, 20-21, 21-22)
+        // Adjusting request "de 18h a 21h en clases de 1h = 4 clases" (18:00, 19:00, 20:00, 21:00)
+        const afternoonHours = [18, 19, 20, 21];
+        for (const hour of afternoonHours) {
+          classesToGenerate.push({
+            name: className,
+            date: dateStr,
+            time: `${hour}:00 - ${hour + 1}:00`,
+            coach: "Álex Pintor",
+            capacity: 30,
+            registeredCount: 0,
+            status: "Activa"
+          });
+        }
+      }
+
+      // Create them concurrently but in chunks to avoid Appwrite rate limit just in case
+      const createdClasses: any[] = [];
+      for (const cls of classesToGenerate) {
+        const resp = await databases.createDocument(DATABASE_ID, COLLECTION_CLASSES, ID.unique(), cls);
+        createdClasses.push(resp);
+      }
+
+      setClassesList(prev => [...prev, ...createdClasses].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+      alert("¡Clases de la próxima semana generadas con éxito!");
+
+    } catch (err: any) {
+      console.error("Error auto generating classes:", err);
+      alert("Hubo un error al generar las clases automáticamente.");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleDeleteClass = async (classObj: any) => {
     // 0. Prevent deleting past classes logically
     try {
@@ -1027,12 +1095,24 @@ export default function AdminDashboard() {
               <h2 className="text-2xl font-bold tracking-tight">Horarios y Clases</h2>
               <p className="text-white/50 text-sm mt-1">Programa las próximas sesiones para que los alumnos puedan reservar.</p>
             </div>
-            <Button
-              onClick={() => setIsClassModalOpen(true)}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white whitespace-nowrap"
-            >
-              + Programar Clase
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button
+                variant="outline"
+                className="bg-zinc-900 border-white/10 text-white hover:bg-white/5 whitespace-nowrap"
+                onClick={handleAutoGenerateWeekClasses}
+                disabled={isUpdating}
+              >
+                {isUpdating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CalendarDays className="w-4 h-4 mr-2 text-blue-400" />}
+                Auto-Siguiente Semana
+              </Button>
+
+              <Button
+                onClick={() => setIsClassModalOpen(true)}
+                className="bg-emerald-500 hover:bg-emerald-600 text-white whitespace-nowrap"
+              >
+                + Programar Clase
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
