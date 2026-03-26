@@ -884,7 +884,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Dashboard Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
           <Card className="bg-white/5 border-white/10 backdrop-blur-lg">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-white/70">Alumnos Activos</CardTitle>
@@ -907,26 +907,6 @@ export default function AdminDashboard() {
               <p className="text-xs text-red-400 mt-1">
                 {unpaidCount > 0 ? `${unpaidCount} alumnos pendientes de pago` : "Todos al día"}
               </p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/5 border-white/10 backdrop-blur-lg">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-white/70">Próxima Clase</CardTitle>
-              <ShieldCheck className="h-4 w-4 text-white/50" />
-            </CardHeader>
-            <CardContent>
-              {nextClass ? (
-                <>
-                  <div className="text-2xl font-bold text-white">{nextClass.name} ({nextClass.time.split('-')[0].trim()})</div>
-                  <p className="text-xs text-emerald-400 mt-1">{nextClass.registeredCount} reservas confirmadas</p>
-                </>
-              ) : (
-                <>
-                  <div className="text-2xl font-bold text-white/50">Sin clases</div>
-                  <p className="text-xs text-white/30 mt-1">Programa una nueva clase</p>
-                </>
-              )}
             </CardContent>
           </Card>
         </div>
