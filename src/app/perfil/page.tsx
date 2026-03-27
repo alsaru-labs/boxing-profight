@@ -6,7 +6,7 @@ import { User, CreditCard, CalendarClock, History, Settings, LogOut, ArrowLeft, 
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS } from "@/lib/appwrite";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS, client } from "@/lib/appwrite";
 import { Query, ID } from "appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -45,87 +45,75 @@ export default function StudentProfile() {
   const [isProcessingBooking, setIsProcessingBooking] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchUser = async () => {
+    let unsubscribe: () => void;
+
+    const loadData = async () => {
       try {
         const currentUser = await account.get();
-        // Check database to see if this user is actually an admin
-        const profile = await databases.getDocument(
-          DATABASE_ID,
-          COLLECTION_PROFILES,
-          currentUser.$id
-        );
+        setUser(currentUser);
+
+        // Fetch all primary data
+        const [profile, bookingsData, classesData] = await Promise.all([
+          databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, currentUser.$id),
+          databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [Query.equal("student_id", currentUser.$id), Query.limit(100)]),
+          databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [Query.limit(100), Query.orderAsc("date")])
+        ]);
 
         if (profile.role === "admin") {
-          router.push("/sys-director"); // Redirect admins strictly to their obfuscated dashboard
+          router.push("/sys-director");
           return;
         }
 
-        // Fetch User Bookings from real DB table
-        const bookingsData = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTION_BOOKINGS,
-          [Query.equal("student_id", currentUser.$id), Query.limit(100)]
-        );
-
-        // Fetch All Classes
-        const classesData = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTION_CLASSES,
-          [Query.limit(100), Query.orderAsc("date")]
-        );
-
-        // Process Classes: Filter out past classes & limit to 7 days
         const now = new Date();
         const msIn7Days = 7 * 24 * 60 * 60 * 1000;
 
+        // Process Classes: Upcoming
         const validUpcomingClasses = classesData.documents.filter((cls: any) => {
           try {
-            const startTime = cls.time.split('-')[0].trim();
-            if (!startTime || !cls.date) return false;
-
             const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
+            const startTime = cls.time.split('-')[0].trim();
             const [hours, minutes] = startTime.split(":").map(Number);
             const classDateTime = new Date(year, month - 1, day, hours, minutes);
-
-            if (classDateTime < now) return false;
-            if (classDateTime.getTime() > now.getTime() + msIn7Days) return false;
-            return true;
-          } catch (err) {
-            return false;
-          }
+            return classDateTime >= now && classDateTime.getTime() <= now.getTime() + msIn7Days;
+          } catch { return false; }
         });
 
-        // Process Classes: Past attended classes
-        const pastClassesFiltered = classesData.documents.filter((cls: any) => {
+        // Process Classes: Past
+        const attendedClasses = classesData.documents.filter((cls: any) => {
           try {
-            const startTime = cls.time.split('-')[0].trim();
-            if (!startTime || !cls.date) return false;
-
             const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
+            const startTime = cls.time.split('-')[0].trim();
             const [hours, minutes] = startTime.split(":").map(Number);
             const classDateTime = new Date(year, month - 1, day, hours, minutes);
-
-            return classDateTime < now;
-          } catch (err) {
-            return false;
-          }
-        });
-
-        const attendedClasses = pastClassesFiltered.filter(cls => bookingsData.documents.some((b: any) => b.class_id === cls.$id));
+            return classDateTime < now && bookingsData.documents.some((b: any) => b.class_id === cls.$id);
+          } catch { return false; }
+        }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         setAvailableClasses(validUpcomingClasses);
-        setPastClasses(attendedClasses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        setPastClasses(attendedClasses);
         setUserBookings(bookingsData.documents);
         setProfileInfo(profile);
-        setUser(currentUser);
         setLoading(false);
+
+        // 🟢 TIEMPO REAL: Suscripción a cambios
+        unsubscribe = client.subscribe([
+          `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents.${currentUser.$id}`,
+          `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
+          `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`
+        ], (response) => {
+          loadData(); // Refrescamos todo si hay cambios en mis datos o en las clases generales
+        });
+
       } catch (error) {
-        // Redirige al login silenciosamente si no hay sesión
         router.push("/login?redirect=/perfil");
       }
     };
 
-    fetchUser();
+    loadData();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [router]);
 
   const handleBookClass = async (classObj: any) => {
