@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import Navbar from "@/components/Navbar";
 import ConfirmedClasses from "@/components/ConfirmedClasses";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { BookingList } from "./components/BookingList";
 
 export default function BookingsPage() {
     const router = useRouter();
@@ -249,76 +250,18 @@ export default function BookingsPage() {
             <main className="flex-1 max-w-7xl mx-auto w-full p-6 md:p-12 z-10 space-y-12">
 
                 <div>
-                    <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter mb-4">Reservar Clase.</h1>
-                    <p className="text-white/50 text-lg">Selecciona tu próxima sesión en el tatami.</p>
+                    <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter mb-4 uppercase">Reservar Clase.</h1>
+                    <p className="text-white/40 text-lg font-medium">Selecciona tu próxima sesión en el tatami.</p>
                 </div>
 
-                {/* Disponibles Para Reservar */}
-                <div className="space-y-6">
-                    <div className="flex justify-between items-center">
-                        <h3 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-                            <CalendarClock className="w-6 h-6 text-emerald-500" /> Clases Disponibles
-                        </h3>
-                        <span className="text-sm text-white/40 bg-white/5 px-3 py-1 rounded-full border border-white/10">Próximos 7 días</span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {availableClasses.filter(c => !userBookings.some((b: any) => b.class_id === c.$id)).length === 0 ? (
-                            <div className="col-span-full bg-white/5 border border-white/10 rounded-xl p-10 text-center text-white/50">
-                                <CalendarClock className="w-10 h-10 text-white/20 mx-auto mb-3" />
-                                No hay clases nuevas disponibles para reservar en los próximos 7 días.
-                            </div>
-                        ) : (
-                            availableClasses.filter(c => !userBookings.some((b: any) => b.class_id === c.$id)).map(cls => {
-                                const isFull = cls.registeredCount >= cls.capacity;
-                                return (
-                                    <Card key={cls.$id} className="bg-white/5 border-white/10 backdrop-blur-lg overflow-hidden group hover:border-white/20 transition-all hover:shadow-[0_0_30px_rgba(16,185,129,0.05)]">
-                                        <CardHeader className="pb-3 border-b border-white/5">
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <Badge className={`mb-3 font-medium px-3 py-1 border-0 ${cls.name === 'Boxeo' ? 'bg-amber-500/20 text-amber-500' : 'bg-red-500/20 text-red-500'}`}>
-                                                        {cls.name}
-                                                    </Badge>
-                                                    <CardTitle className="text-2xl font-bold text-white">{cls.coach}</CardTitle>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className="text-sm font-bold text-white block">
-                                                        {new Date(cls.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }).toUpperCase()}
-                                                    </span>
-                                                    <span className="text-sm text-white/50">{cls.time.split('-')[0].trim()}</span>
-                                                </div>
-                                            </div>
-                                        </CardHeader>
-                                        <CardContent className="pt-5 pb-5">
-                                            <div>
-                                                <div className="flex justify-between text-xs mb-2 font-medium">
-                                                    <span className={isFull ? 'text-red-400' : 'text-emerald-400'}>
-                                                        {cls.capacity - cls.registeredCount} / {cls.capacity} plazas libres
-                                                    </span>
-                                                </div>
-                                                <div className="h-2 w-full bg-black/50 rounded-full overflow-hidden border border-white/5 mb-6">
-                                                    <div
-                                                        className={`h-full transition-all duration-500 ease-out ${isFull ? 'bg-red-500' : 'bg-gradient-to-r from-emerald-500 to-emerald-400'}`}
-                                                        style={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }}
-                                                    />
-                                                </div>
-                                                <Button
-                                                    onClick={() => handleBookClass(cls)}
-                                                    disabled={isFull || isProcessingBooking === cls.$id || !profileInfo?.is_paid}
-                                                    className={`w-full font-bold h-12 text-base rounded-xl transition-all duration-300 ${isFull ? 'bg-red-500/20 text-red-400 hover:bg-red-500/20 cursor-not-allowed' : 'bg-white text-black hover:bg-emerald-500 hover:text-white hover:scale-[1.02] shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_25px_rgba(16,185,129,0.4)]'}`}
-                                                >
-                                                    {isProcessingBooking === cls.$id ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-                                                        !profileInfo?.is_paid ? "⚠️ Pago Pendiente" : isFull ? "Clase Llena" : "Reservar Plaza"
-                                                    )}
-                                                </Button>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                );
-                            })
-                        )}
-                    </div>
-                </div>
+                {/* Disponibles Para Reservar (Componentized & Grouped) */}
+                <BookingList 
+                    availableClasses={availableClasses}
+                    userBookings={userBookings}
+                    profileInfo={profileInfo}
+                    isProcessingBooking={isProcessingBooking}
+                    handleBookClass={handleBookClass}
+                />
 
                 {/* Mis Reservas (Ya confirmadas) */}
                 <ConfirmedClasses
