@@ -4,6 +4,7 @@ const webpush = require('web-push');
 module.exports = async function (context) {
     const { req, res, log, error } = context;
 
+
     // 1. Configurar Web Push con tus llaves VAPID
     webpush.setVapidDetails(
         'mailto:admin@profight.com',
