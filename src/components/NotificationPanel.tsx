@@ -127,6 +127,35 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
         }
     };
 
+    const handleMarkAllAsRead = async () => {
+        const unreadNotifs = notifications.filter(n => !readIds.includes(n.$id));
+        if (unreadNotifs.length === 0 || isMarking) return;
+
+        setIsMarking("all");
+        try {
+            // Create read entries for all unread
+            const promises = unreadNotifs.map(n => 
+                databases.createDocument(
+                    DATABASE_ID,
+                    COLLECTION_NOTIFICATIONS_READ,
+                    ID.unique(),
+                    {
+                        user_id: userId,
+                        notification_id: n.$id,
+                        read_at: new Date().toISOString()
+                    }
+                )
+            );
+            await Promise.all(promises);
+            const markedIds = unreadNotifs.map(n => n.$id);
+            setReadIds(prev => [...prev, ...markedIds]);
+        } catch (e) {
+            console.error("Error marking all as read:", e);
+        } finally {
+            setIsMarking(null);
+        }
+    };
+
     if (!isLoggedIn) return null;
 
     return (
@@ -168,16 +197,31 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
                         >
                             <div className="bg-zinc-950 border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)]">
                                 <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
-                                    <h3 className="font-bold text-lg text-white">Tablón de Anuncios</h3>
+                                    <div className="flex flex-col">
+                                        <h3 className="font-bold text-lg text-white">Tablón de Anuncios</h3>
+                                        {unreadCount > 0 && (
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleMarkAllAsRead();
+                                                }}
+                                                disabled={!!isMarking}
+                                                className="text-[10px] text-emerald-400 hover:text-emerald-300 font-black uppercase tracking-widest flex items-center gap-1.5 transition-colors mt-0.5"
+                                            >
+                                                {isMarking === "all" ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                                                Marcar todo como leído
+                                            </button>
+                                        )}
+                                    </div>
                                     <button
                                         onClick={() => setIsOpen(false)}
-                                        className="p-1 hover:bg-white/10 rounded-full transition-colors"
+                                        className="p-2 hover:bg-white/10 rounded-full transition-colors"
                                     >
                                         <X className="w-5 h-5 text-white/60" />
                                     </button>
                                 </div>
 
-                                <div className="max-h-[70vh] overflow-y-auto p-2 space-y-2">
+                                <div className="max-h-[70vh] overflow-y-auto p-2 space-y-2 custom-scrollbar">
                                     {/* Push Permission Button - Solo se muestra si NO está suscrito */}
                                     {!isSubscribed && (
                                         <div className="mb-2 p-3 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between gap-3 group hover:bg-white/10 transition-colors">

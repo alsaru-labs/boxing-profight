@@ -1021,7 +1021,7 @@ export default function AdminDashboard() {
           </div>
 
           <Card className="bg-zinc-900/50 border-white/10 backdrop-blur-lg shadow-2xl overflow-hidden">
-            <div className="max-h-[700px] overflow-y-auto">
+            <div className="max-h-[700px] overflow-y-auto custom-scrollbar">
               <Table>
                 <TableHeader className="bg-black/60 sticky top-0 z-10 backdrop-blur-md border-b border-white/10">
                 <TableRow className="border-white/10 hover:bg-transparent">
