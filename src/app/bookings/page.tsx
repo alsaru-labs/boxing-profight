@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { User, CalendarClock, LogOut, ArrowLeft, CheckCircle2, History, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -23,12 +23,14 @@ export default function BookingsPage() {
     const [availableClasses, setAvailableClasses] = useState<any[]>([]);
     const [userBookings, setUserBookings] = useState<any[]>([]);
     const [isProcessingBooking, setIsProcessingBooking] = useState<string | null>(null);
+    const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
         let unsubscribe: () => void;
 
-        const loadData = async () => {
+        const loadData = async (silent = false) => {
             try {
+                if (!silent) setLoading(true);
                 const currentUser = await account.get();
                 setUser(currentUser);
 
@@ -62,16 +64,22 @@ export default function BookingsPage() {
                 setLoading(false);
 
                 // 🟢 TIEMPO REAL: Suscripción a cambios
-                unsubscribe = client.subscribe([
-                    `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents.${currentUser.$id}`,
-                    `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
-                    `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`
-                ], (response) => {
-                    // Refrescamos los datos si algo cambia (pago, clases, mis reservas)
-                    loadData();
-                });
+                if (!unsubscribe) {
+                    unsubscribe = client.subscribe([
+                        `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents.${currentUser.$id}`,
+                        `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
+                        `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`
+                    ], (response) => {
+                        // Refrescamos los datos con un pequeño retraso para agrupar cambios
+                        if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+                        refreshTimeoutRef.current = setTimeout(() => {
+                            loadData(true);
+                        }, 800);
+                    });
+                }
 
-            } catch (error) {
+            } catch (error: any) {
+                if (error.code === 404) return;
                 router.push("/login?redirect=/bookings");
             }
         };
@@ -80,6 +88,7 @@ export default function BookingsPage() {
 
         return () => {
             if (unsubscribe) unsubscribe();
+            if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
         };
     }, [router]);
 
@@ -117,7 +126,9 @@ export default function BookingsPage() {
             ));
 
         } catch (err: any) {
-            alert("Error al intentar realizar la reserva. Inténtalo de nuevo.");
+            if (err.code !== 404) {
+                alert("Error al intentar realizar la reserva. Inténtalo de nuevo.");
+            }
             console.error(err);
         } finally {
             setIsProcessingBooking(null);
@@ -151,8 +162,10 @@ export default function BookingsPage() {
             ));
 
         } catch (err: any) {
-            alert("Error al cancelar la reserva.");
-            console.error(err);
+            if (err.code !== 404) {
+                alert("Error al cancelar la reserva.");
+                console.error(err);
+            }
         } finally {
             setIsProcessingBooking(null);
         }

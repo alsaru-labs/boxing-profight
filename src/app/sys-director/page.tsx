@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, ShieldCheck, Loader2, Home, MessageCircle, Signal, CalendarDays, Search, ArrowUpDown, Filter, X, ChevronDown, History } from "lucide-react";
+import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, ShieldCheck, Loader2, Home, MessageCircle, Signal, CalendarDays, Search, ArrowUpDown, Filter, X, ChevronDown, History as HistoryIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -44,6 +44,7 @@ import Navbar from "@/components/Navbar";
 export default function AdminDashboard() {
   const router = useRouter();
   const dateInputRef = useRef<HTMLInputElement>(null);
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [loading, setLoading] = useState(true);
   const [studentsList, setStudentsList] = useState<any[]>([]);
   const [totalStudents, setTotalStudents] = useState(0);
@@ -92,149 +93,88 @@ export default function AdminDashboard() {
   const [newAnnouncement, setNewAnnouncement] = useState({ title: "", content: "", type: "info" });
   const [isAnnouncementsLoading, setIsAnnouncementsLoading] = useState(false);
 
-  useEffect(() => {
-    const verifyAdmin = async () => {
-      try {
-        // 1. Get current logged in user
-        const userData = await account.get();
+  const loadDashboardData = async (silent = false) => {
+    try {
+      if (!silent) setLoading(true);
 
-        // 2. Fetch their profile from the database to check role
-        const profile = await databases.getDocument(
-          DATABASE_ID,
-          COLLECTION_PROFILES,
-          userData.$id
-        );
+      const [profilesData, classesData, announcementsData] = await Promise.all([
+        databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [Query.limit(500)]),
+        databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [Query.limit(100), Query.orderAsc("date")]),
+        databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS, [Query.orderDesc("createdAt"), Query.limit(20)])
+      ]);
+
+      const allStudents = profilesData.documents.filter((s: any) => s.role !== "admin");
+      setTotalStudents(allStudents.length);
+      setClassesList(classesData.documents);
+      setAnnouncements(announcementsData.documents);
+
+      const d = new Date();
+      const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+      try {
+        const revData = await databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [Query.equal("month", currentMonthStr), Query.limit(1)]);
+        if (revData.documents.length > 0) {
+          setMonthlyRevenue(revData.documents[0].amount);
+        } else {
+          setMonthlyRevenue(0);
+        }
+      } catch (e) {
+        console.error("Revenue fetch error:", e);
+      }
+
+      const paidStudentsCount = allStudents.filter((s: any) => s.is_paid === true).length;
+      setUnpaidCount(allStudents.length - paidStudentsCount);
+      setStudentsList(allStudents);
+      setLoading(false);
+    } catch (error) {
+      console.error("Dashboard load error:", error);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const initDashboard = async () => {
+      try {
+        const userData = await account.get();
+        let profile;
+        try {
+          profile = await databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, userData.$id);
+        } catch (e: any) {
+          if (e.code === 404) { router.push("/login"); return; }
+          throw e;
+        }
 
         if (profile.role !== "admin") {
-          throw new Error("No tienes permisos de administrador.");
+          router.push("/perfil");
+          return;
         }
 
-        // 3. Admin verified. Let's fetch all real data (Students and Classes parallel)
-        const [profilesData, classesData, announcementsData] = await Promise.all([
-          databases.listDocuments(
-            DATABASE_ID,
-            COLLECTION_PROFILES,
-            [Query.limit(500)]
-          ),
-          databases.listDocuments(
-            DATABASE_ID,
-            COLLECTION_CLASSES,
-            [Query.limit(100), Query.orderAsc("date")]
-          ),
-          databases.listDocuments(
-            DATABASE_ID,
-            COLLECTION_NOTIFICATIONS,
-            [Query.orderDesc("createdAt"), Query.limit(20)]
-          )
-        ]);
-
-        const allStudents = profilesData.documents.filter((s: any) => s.role !== "admin");
-
-        setTotalStudents(allStudents.length);
-        setClassesList(classesData.documents);
-        setAnnouncements(announcementsData.documents);
-
-        const d = new Date();
-        const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-
-        try {
-          // Check if current month revenue exists
-          const revData = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTION_REVENUE,
-            [Query.equal("month", currentMonthStr), Query.limit(1)]
-          );
-
-          if (revData.documents.length > 0) {
-            setMonthlyRevenue(revData.documents[0].amount);
-
-            // Standard Unpaid logic
-            const paidStudentsCount = allStudents.filter((s: any) => s.is_paid === true).length;
-            setUnpaidCount(allStudents.length - paidStudentsCount);
-            setStudentsList(allStudents);
-          } else {
-            // CURRENT MONTH NOT FOUND: Possible new month!
-            const anyPastRev = await databases.listDocuments(
-              DATABASE_ID,
-              COLLECTION_REVENUE,
-              [Query.limit(1)]
-            );
-
-            if (anyPastRev.documents.length > 0) {
-              // DETECTED ROLLOVER! Previous months exist, but current doesn't.
-              // Reset all paid students
-              const resetPromises = allStudents.filter(s => s.is_paid).map(s => {
-                s.is_paid = false;
-                s.payment_method = null;
-                return databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, s.$id, {
-                  is_paid: false,
-                  payment_method: null
-                });
-              });
-
-              await Promise.all(resetPromises);
-
-              // Create new month revenue
-              await databases.createDocument(DATABASE_ID, COLLECTION_REVENUE, ID.unique(), {
-                month: currentMonthStr,
-                amount: 0
-              });
-
-              setMonthlyRevenue(0);
-              setUnpaidCount(allStudents.length); // Everyone is unpaid now
-              setStudentsList([...allStudents]); // Update state with mutated allStudents
-            } else {
-              // FIRST TIME SETUP: No previous months exist. Do not reset.
-              const paidStudentsCount = allStudents.filter((s: any) => s.is_paid === true).length;
-              const initialRevenue = paidStudentsCount * 55;
-
-              await databases.createDocument(DATABASE_ID, COLLECTION_REVENUE, ID.unique(), {
-                month: currentMonthStr,
-                amount: initialRevenue
-              });
-
-              setMonthlyRevenue(initialRevenue);
-              setUnpaidCount(allStudents.length - paidStudentsCount);
-              setStudentsList(allStudents);
-            }
-          }
-        } catch (e) {
-          console.error("Revenue collection missing or permission error:", e);
-          const paidStudentsCount = allStudents.filter((s: any) => s.is_paid === true).length;
-          setMonthlyRevenue(paidStudentsCount * 55); // Fallback until table is created
-          setUnpaidCount(allStudents.length - paidStudentsCount);
-          setStudentsList(allStudents);
-        }
-
-        // If verified and data loaded, remove loading state
-        setLoading(false);
+        await loadDashboardData();
       } catch (error) {
-        // If they are not logged in or not an admin, kick them to login
         router.push("/login");
       }
     };
 
-    verifyAdmin();
+    initDashboard();
 
-    // 🟢 TIEMPO REAL: Suscripción a cambios globales del Dashboard
-    const unsubscribe = client.subscribe(
-      [
-        `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents`,
-        `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
-        `databases.${DATABASE_ID}.collections.${COLLECTION_REVENUE}.documents`,
-        `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`,
-        `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`
-      ],
-      (response) => {
-        // Al detectar CUALQUIER cambio en estos datos core, refrescamos la vista
-        if (response.events.some(e => e.includes(".create") || e.includes(".delete") || e.includes(".update"))) {
-          verifyAdmin();
-        }
+    const unsubscribe = client.subscribe([
+      `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents`,
+      `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
+      `databases.${DATABASE_ID}.collections.${COLLECTION_REVENUE}.documents`,
+      `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`,
+      `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`
+    ], (response) => {
+      if (response.events.some(e => e.includes(".create") || e.includes(".delete") || e.includes(".update"))) {
+        if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = setTimeout(() => {
+          loadDashboardData(true);
+        }, 800);
       }
-    );
+    });
 
     return () => {
-      unsubscribe();
+      if (unsubscribe) unsubscribe();
+      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
     };
   }, [router]);
 
@@ -351,8 +291,8 @@ export default function AdminDashboard() {
       if (newStatus === true) {
         setIsPaymentModalOpen(false); // Close Modal only when it was used to pay
       }
-    } catch (error) {
-      console.error("Error updating payment status:", error);
+    } catch (error: any) {
+      if (error.code !== 404) console.error("Error updating payment status:", error);
     } finally {
       setIsUpdating(false);
     }
@@ -600,8 +540,10 @@ export default function AdminDashboard() {
       // 4. Update the UI state
       setClassesList(prev => prev.filter(c => c.$id !== classObj.$id));
     } catch (error: any) {
-      console.error("Error al borrar la clase:", error);
-      alert(`No se pudo borrar la clase o sus reservas. Revisa si en Appwrite le diste el tick verde a 'Delete' en los Permisos tanto para Classes como Bookings. \n\nError: ${error?.message}`);
+      if (error.code !== 404) {
+        console.error("Error al borrar la clase:", error);
+        alert(`No se pudo borrar la clase o sus reservas. Revisa los permisos en Appwrite. \n\nError: ${error?.message}`);
+      }
     }
   };
 
@@ -964,7 +906,9 @@ export default function AdminDashboard() {
                           try {
                             await databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, a.$id);
                             setAnnouncements(announcements.filter(prev => prev.$id !== a.$id));
-                          } catch (e) { console.error(e); }
+                          } catch (e: any) {
+                            if (e.code !== 404) console.error("Error al borrar anuncio:", e);
+                          }
                         }}
                         className="text-white/20 hover:text-red-500 hover:bg-red-500/10 transition-colors"
                       >
@@ -1338,7 +1282,7 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {recentPastClasses.length === 0 ? (
               <div className="col-span-full bg-white/5 border border-dashed border-white/10 rounded-xl p-8 text-center">
-                <History className="w-10 h-10 text-white/20 mx-auto mb-3" />
+                <HistoryIcon className="w-10 h-10 text-white/20 mx-auto mb-3" />
                 <p className="text-white/40 text-sm">No hay clases registradas en los últimos 2 días.</p>
               </div>
             ) : (
