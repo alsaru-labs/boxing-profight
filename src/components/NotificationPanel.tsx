@@ -26,6 +26,14 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
     const [readIds, setReadIds] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [isMarking, setIsMarking] = useState<string | null>(null);
+    const [isSubscribed, setIsSubscribed] = useState(false);
+
+    useEffect(() => {
+        // Al montar o abrir, comprobamos si ya hay permiso concedido
+        if (typeof window !== "undefined" && "Notification" in window) {
+            setIsSubscribed(Notification.permission === "granted");
+        }
+    }, []);
 
     const fetchNotifications = async () => {
         if (!isLoggedIn || !userId) return;
@@ -106,7 +114,10 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
     if (!isLoggedIn) return null;
 
     return (
-        <div className="relative">
+        <div
+            className="relative"
+            onMouseLeave={() => setIsOpen(false)}
+        >
             {/* Bell Icon */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
@@ -137,7 +148,7 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
                             initial={{ opacity: 0, y: 10, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                            className="absolute right-0 mt-4 w-[90vw] md:w-[400px] z-50 overflow-hidden"
+                            className="fixed md:absolute inset-x-4 md:inset-x-auto md:right-0 top-24 md:top-full mt-2 md:mt-4 w-auto md:w-[400px] z-50 overflow-hidden"
                         >
                             <div className="bg-zinc-900/90 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
                                 <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
@@ -151,24 +162,29 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
                                 </div>
 
                                 <div className="max-h-[70vh] overflow-y-auto p-2 space-y-2">
-                                    {/* Push Permission Button */}
-                                    <div className="mb-2 p-3 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between gap-3 group hover:bg-white/10 transition-colors">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-emerald-500/10 rounded-full">
-                                                <Signal className="w-4 h-4 text-emerald-400" />
+                                    {/* Push Permission Button - Solo se muestra si NO está suscrito */}
+                                    {!isSubscribed && (
+                                        <div className="mb-2 p-3 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between gap-3 group hover:bg-white/10 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-emerald-500/10 rounded-full">
+                                                    <Signal className="w-4 h-4 text-emerald-400" />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-bold text-white">Notificaciones Móviles</span>
+                                                    <span className="text-[10px] text-white/40">Recibe avisos push en tiempo real</span>
+                                                </div>
                                             </div>
-                                            <div className="flex flex-col">
-                                                <span className="text-xs font-bold text-white">Notificaciones Móviles</span>
-                                                <span className="text-[10px] text-white/40">Recibe avisos push en tiempo real</span>
-                                            </div>
+                                            <button
+                                                onClick={async () => {
+                                                    const sub = await registerPushNotifications(userId);
+                                                    if (sub) setIsSubscribed(true);
+                                                }}
+                                                className="px-3 py-1.5 bg-white text-black text-[10px] font-black uppercase rounded-full hover:scale-105 active:scale-95 transition-all shadow-lg"
+                                            >
+                                                Activar
+                                            </button>
                                         </div>
-                                        <button
-                                            onClick={() => registerPushNotifications(userId)}
-                                            className="px-3 py-1.5 bg-white text-black text-[10px] font-black uppercase rounded-full hover:scale-105 active:scale-95 transition-all shadow-lg"
-                                        >
-                                            Activar
-                                        </button>
-                                    </div>
+                                    )}
 
                                     {loading && notifications.length === 0 ? (
                                         <div className="py-12 flex flex-col items-center justify-center text-white/40 italic">
