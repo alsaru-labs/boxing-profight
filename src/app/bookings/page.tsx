@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import Navbar from "@/components/Navbar";
 import ConfirmedClasses from "@/components/ConfirmedClasses";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
-import { BookingList } from "./components/BookingList";
+import { ClassGrid } from "@/components/ClassGrid";
 
 export default function BookingsPage() {
     const router = useRouter();
@@ -255,13 +255,15 @@ export default function BookingsPage() {
                 </div>
 
                 {/* Disponibles Para Reservar (Componentized & Grouped) */}
-                <BookingList 
-                    availableClasses={availableClasses}
-                    userBookings={userBookings}
-                    profileInfo={profileInfo}
-                    isProcessingBooking={isProcessingBooking}
-                    handleBookClass={handleBookClass}
-                />
+                <div className="space-y-12">
+                    <ClassGrid 
+                        classes={availableClasses}
+                        userBookings={userBookings}
+                        profileInfo={profileInfo}
+                        isProcessingBooking={isProcessingBooking}
+                        onBookClass={handleBookClass}
+                    />
+                </div>
 
                 {/* Mis Reservas (Ya confirmadas) */}
                 <ConfirmedClasses

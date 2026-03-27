@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { AdminTabs } from "./components/AdminTabs";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { ClassGrid } from "@/components/ClassGrid";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -146,7 +147,7 @@ export default function AdminDashboard() {
 
       const [profilesData, classesData, announcementsData] = await Promise.all([
         databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [Query.limit(500)]),
-        databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [Query.limit(100), Query.orderAsc("date")]),
+        databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [Query.limit(500), Query.orderAsc("date")]),
         databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS, [Query.orderDesc("createdAt"), Query.limit(20)])
       ]);
 
@@ -808,9 +809,9 @@ export default function AdminDashboard() {
       // Only classes in the past
       if (classDateTime >= now) return false;
 
-      // Limit to 48 hours in the past
-      const msIn48Hours = 2 * 24 * 60 * 60 * 1000;
-      if (classDateTime.getTime() < now.getTime() - msIn48Hours) return false;
+      // Limit to 30 days in the past (to avoid overwhelming but show a good history)
+      const msIn30Days = 30 * 24 * 60 * 60 * 1000;
+      if (classDateTime.getTime() < now.getTime() - msIn30Days) return false;
 
       return true;
     } catch (err) {
@@ -1265,184 +1266,33 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {classesList.length === 0 ? (
-              <div className="col-span-full bg-white/5 border border-white/10 rounded-xl p-8 text-center">
-                <CalendarDays className="w-12 h-12 text-white/20 mx-auto mb-3" />
-                <h3 className="text-lg font-medium text-white mb-1">No hay clases programadas</h3>
-                <p className="text-white/50 text-sm">Empieza creando una clase de Boxeo o K1 para esta semana.</p>
-              </div>
-            ) : (
-              sortedClassesList.map((cls) => {
-                const isFull = cls.registeredCount >= cls.capacity;
-
-                // Determine if class has already happened
-                let isPastClass = false;
-                try {
-                  const startTime = cls.time.split('-')[0].trim();
-                  const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
-                  const [hours, minutes] = startTime.split(":").map(Number);
-                  const classDateTime = new Date(year, month - 1, day, hours, minutes);
-                  isPastClass = classDateTime < new Date();
-                } catch (e) { }
-
-                return (
-                  <Card key={cls.$id} className={`bg-white/5 border-white/10 backdrop-blur-lg overflow-hidden group ${isPastClass ? 'opacity-70 grayscale-[0.2]' : ''}`}>
-                    <CardHeader className="pb-3 border-b border-white/5 relative">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <Badge className={`mb-2 font-medium ${cls.name === 'Boxeo' ? 'bg-amber-500/20 text-amber-500 hover:bg-amber-500/30' : 'bg-red-500/20 text-red-500 hover:bg-red-500/30'}`}>
-                            {cls.name}
-                          </Badge>
-                          <CardTitle className="text-xl font-bold text-white">{cls.coach}</CardTitle>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger className="h-8 w-8 flex justify-center items-center text-white/50 hover:text-white hover:bg-white/10 rounded transition-colors">
-                            <MoreVertical className="h-4 w-4" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10">
-                            <DropdownMenuItem
-                              className="text-white focus:bg-white/10 cursor-pointer"
-                              onClick={() => handleViewAttendees(cls)}
-                            >
-                              Ver Lista de Asistentes
-                            </DropdownMenuItem>
-                            {!isPastClass && (
-                              <DropdownMenuItem
-                                className="text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer"
-                                onClick={() => handleDeleteClass(cls)}
-                              >
-                                Cancelar Clase
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-4 pb-4">
-                      <div className="flex justify-between items-center mb-4">
-                        <div className="text-sm">
-                          <p className="text-white font-medium flex items-center gap-1.5 mb-1">
-                            <CalendarDays className="w-4 h-4 text-white/50" />
-                            {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                          </p>
-                          <p className="text-white/70 flex items-center gap-1.5">
-                            <ShieldCheck className="w-4 h-4 text-white/50" />
-                            {cls.time}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Capacity Bar */}
-                      <div>
-                        <div className="flex justify-between text-xs mb-1.5 font-medium">
-                          <span className={isFull ? 'text-red-400' : 'text-emerald-400'}>
-                            {cls.registeredCount} Reservas
-                          </span>
-                          <span className="text-white/40">{cls.capacity} Plazas</span>
-                        </div>
-                        <div className="h-1.5 w-full bg-black rounded-full overflow-hidden border border-white/5">
-                          <div
-                            className={`h-full transition-all duration-500 ${isFull ? 'bg-red-500' : 'bg-emerald-500'}`}
-                            style={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })
-            )}
+          <div className="space-y-12">
+            <ClassGrid 
+              isAdmin 
+              classes={sortedClassesList}
+              onViewAttendees={handleViewAttendees}
+              onCancelClass={handleDeleteClass}
+            />
           </div>
         </div>
 
-        {/* Recent Past Classes Section */}
-        <div className="space-y-4 pt-12 border-t border-white/10 pb-12">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+        {/* Recent Past Classes Section (History) */}
+        <div className="space-y-4 pt-16 border-t border-white/10 pb-12">
             <div>
               <h2 className="text-2xl font-bold tracking-tight text-white/70">Historial Reciente</h2>
               <p className="text-white/40 text-sm mt-1">Clases que han ocurrido en las últimas 48 horas.</p>
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {recentPastClasses.length === 0 ? (
-              <div className="col-span-full bg-white/5 border border-dashed border-white/10 rounded-xl p-8 text-center">
-                <HistoryIcon className="w-10 h-10 text-white/20 mx-auto mb-3" />
-                <p className="text-white/40 text-sm">No hay clases registradas en los últimos 2 días.</p>
-              </div>
-            ) : (
-              recentPastClasses.map((cls) => {
-                const isFull = cls.registeredCount >= cls.capacity;
-                return (
-                  <Card key={cls.$id} className="bg-black border-white/5 overflow-hidden group opacity-70 grayscale-[0.3]">
-                    <CardHeader className="pb-3 border-b border-white/5 relative">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <Badge className="mb-2 font-medium bg-white/10 text-white/60">
-                            {cls.name} (Finalizada)
-                          </Badge>
-                          <CardTitle className="text-lg font-bold text-white/80">{cls.coach}</CardTitle>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger className="h-8 w-8 flex justify-center items-center text-white/30 hover:text-white hover:bg-white/10 rounded transition-colors">
-                            <MoreVertical className="h-4 w-4" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10">
-                            <DropdownMenuItem
-                              className="text-white focus:bg-white/10 cursor-pointer"
-                              onClick={() => handleViewAttendees(cls)}
-                            >
-                              Ver Lista de Asistentes
-                            </DropdownMenuItem>
-                            <DropdownMenuItem disabled className="text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer opacity-50">
-                              Cancelar Clase (Expirado)
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-4 pb-4">
-                      <div className="flex justify-between items-center mb-4">
-                        <div className="text-sm">
-                          <p className="text-white/60 font-medium flex items-center gap-1.5 mb-1">
-                            <CalendarDays className="w-4 h-4 text-white/30" />
-                            {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                          </p>
-                          <p className="text-white/50 flex items-center gap-1.5">
-                            <ShieldCheck className="w-4 h-4 text-white/30" />
-                            {cls.time}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Capacity Bar */}
-                      <div>
-                        <div className="flex justify-between text-xs mb-1.5 font-medium">
-                          <span className={isFull ? 'text-white/60' : 'text-white/60'}>
-                            {cls.registeredCount} Asistentes
-                          </span>
-                          <span className="text-white/30">de {cls.capacity} Plazas</span>
-                        </div>
-                        <div className="h-1.5 w-full bg-black rounded-full overflow-hidden border border-white/5">
-                          <div
-                            className={`h-full transition-all duration-500 bg-white/30`}
-                            style={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })
-            )}
-          </div>
+          
+          <ClassGrid 
+            isAdmin
+            isHistory
+            classes={recentPastClasses}
+            onViewAttendees={handleViewAttendees}
+          />
         </div>
-
-          </TabsContent>
-        </Tabs>
-      </main>
+      </TabsContent>
+    </Tabs>
+  </main>
 
       {/* Payment Confirmation Modal */}
       <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
