@@ -6,7 +6,7 @@ import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, Shiel
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS, COLLECTION_REVENUE, COLLECTION_PAYMENTS, COLLECTION_NOTIFICATIONS } from "@/lib/appwrite";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS, COLLECTION_REVENUE, COLLECTION_PAYMENTS, COLLECTION_NOTIFICATIONS, client } from "@/lib/appwrite";
 import { Query, ID } from "appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -215,6 +215,26 @@ export default function AdminDashboard() {
     };
 
     verifyAdmin();
+
+    // 🟢 TIEMPO REAL: Suscripción a cambios globales del Dashboard
+    const unsubscribe = client.subscribe(
+      [
+        `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents`,
+        `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
+        `databases.${DATABASE_ID}.collections.${COLLECTION_REVENUE}.documents`,
+        `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`
+      ],
+      (response) => {
+        // Al detectar CUALQUIER cambio en estos datos core, refrescamos la vista
+        if (response.events.some(e => e.includes(".create") || e.includes(".delete") || e.includes(".update"))) {
+          verifyAdmin();
+        }
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
   }, [router]);
 
   const handleLogout = async () => {

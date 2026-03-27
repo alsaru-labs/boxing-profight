@@ -116,7 +116,7 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
           ) : isLoggedIn ? (
             <div className="flex items-center gap-2 sm:gap-4">
               {/* Notificaciones Reales */}
-              {!(isAdmin && pathname === "/sys-director") && (
+              {!isAdmin && (
                 <NotificationPanel userId={userId} isLoggedIn={isLoggedIn} />
               )}
 

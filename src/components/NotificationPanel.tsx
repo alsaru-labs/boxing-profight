@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Bell, X, Info, AlertTriangle, CheckCircle2, Loader2, Signal } from "lucide-react";
-import { databases, DATABASE_ID, COLLECTION_NOTIFICATIONS, COLLECTION_NOTIFICATIONS_READ } from "@/lib/appwrite";
+import { databases, DATABASE_ID, COLLECTION_NOTIFICATIONS, COLLECTION_NOTIFICATIONS_READ, client } from "@/lib/appwrite";
 import { Query, ID } from "appwrite";
 import { motion, AnimatePresence } from "framer-motion";
 import { registerPushNotifications } from "@/lib/push-notifications";
@@ -69,9 +69,25 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
 
     useEffect(() => {
         fetchNotifications();
-        // Refresh every 5 minutes or on open
-        const interval = setInterval(fetchNotifications, 5 * 60 * 1000);
-        return () => clearInterval(interval);
+
+        // 🟢 SUSCRIPCIÓN EN TIEMPO REAL (Appwrite Realtime)
+        // Escucha cambios en anuncios y en el estado de lectura
+        const unsubscribe = client.subscribe(
+            [
+                `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`,
+                `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS_READ}.documents`
+            ],
+            (response) => {
+                // Si alguien crea o borra un anuncio, o lo marca como leído desde otro sitio...
+                if (response.events.some(e => e.includes(".create") || e.includes(".delete") || e.includes(".update"))) {
+                    fetchNotifications();
+                }
+            }
+        );
+
+        return () => {
+            unsubscribe();
+        };
     }, [userId, isLoggedIn]);
 
     const unreadCount = notifications.filter(n => !readIds.includes(n.$id)).length;
@@ -150,7 +166,7 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
                             exit={{ opacity: 0, y: 10, scale: 0.95 }}
                             className="fixed md:absolute inset-x-4 md:inset-x-auto md:right-0 top-24 md:top-full mt-2 md:mt-4 w-auto md:w-[400px] z-50 overflow-hidden"
                         >
-                            <div className="bg-zinc-900/90 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
+                            <div className="bg-zinc-950 border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)]">
                                 <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
                                     <h3 className="font-bold text-lg text-white">Tablón de Anuncios</h3>
                                     <button
