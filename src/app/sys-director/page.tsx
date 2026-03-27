@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, ShieldCheck, Loader2, Home, MessageCircle, Signal, CalendarDays, Search, ArrowUpDown, Filter, X, ChevronDown, History as HistoryIcon } from "lucide-react";
+import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, ShieldCheck, Loader2, Home, MessageCircle, Signal, CalendarDays, Search, ArrowUpDown, Filter, X, ChevronDown, History as HistoryIcon, Plus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -19,6 +19,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { AdminTabs } from "./components/AdminTabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -793,21 +795,14 @@ export default function AdminDashboard() {
       <Navbar isHome={false} />
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto w-full p-6 md:p-12 z-10 px-6">
+      <main className="flex-1 w-full max-w-[1400px] mx-auto pt-4 md:pt-6 lg:pt-8 px-6 md:px-8 lg:px-12 pb-12 z-10">
 
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-10">
-          <div>
-            <h1 className="text-3xl md:text-5xl font-bold tracking-tight mb-2">Panel de Control</h1>
-            <p className="text-white/50 text-lg">Gestiona tus alumnos, clases y pagos actuales.</p>
-          </div>
-          <Button
-            onClick={() => setIsNewStudentModalOpen(true)}
-            className="bg-white text-black hover:bg-neutral-200 shadow-lg"
-          >
-            <Users className="w-4 h-4 mr-2" />
-            + Nuevo Alumno
-          </Button>
-        </div>
+
+
+        <Tabs defaultValue="general" className="w-full">
+          <AdminTabs />
+
+          <TabsContent value="tablon" className="space-y-10 focus-visible:outline-none">
 
         {/* Notificaciones / Tablón (Admin View) */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-10">
@@ -921,30 +916,43 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </div>
+      </TabsContent>
+
+      <TabsContent value="general" className="space-y-10 focus-visible:outline-none">
 
         {/* Dashboard Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-          <Card className="bg-white/5 border-white/10 backdrop-blur-lg">
+          <Card className="bg-zinc-900/50 border-white/10 backdrop-blur-lg group hover:border-emerald-500/30 transition-all duration-300">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-white/70">Alumnos Activos</CardTitle>
-              <Users className="h-4 w-4 text-white/50" />
+              <CardTitle className="text-xs font-black text-white/40 uppercase tracking-widest">Alumnos Activos</CardTitle>
+              <Users className="h-4 w-4 text-emerald-500" />
             </CardHeader>
-            <CardContent>
-              <div className="text-4xl font-bold text-white">{totalStudents}</div>
+            <CardContent className="flex items-end justify-between">
+              <div>
+                <div className="text-5xl font-black text-white leading-none">{totalStudents}</div>
+                <p className="text-[10px] text-white/20 uppercase font-bold tracking-widest mt-3">Alumnos totales</p>
+              </div>
+              <Button
+                onClick={() => setIsNewStudentModalOpen(true)}
+                className="bg-white text-black hover:bg-emerald-500 hover:text-white font-black rounded-xl h-14 w-14 p-0 shadow-2xl transition-all hover:scale-110 active:scale-95 group-hover:shadow-emerald-500/10"
+                title="Nuevo Alumno"
+              >
+                <Plus className="w-7 h-7" />
+              </Button>
             </CardContent>
           </Card>
 
-          <Card className="bg-white/5 border-white/10 backdrop-blur-lg">
+          <Card className="bg-zinc-900/50 border-white/10 backdrop-blur-lg group hover:border-blue-500/30 transition-all duration-300">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-white/70 capitalize">
-                Ingresos en {new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(new Date())}
+              <CardTitle className="text-xs font-black text-white/40 uppercase tracking-widest leading-relaxed">
+                Ingresos {new Intl.DateTimeFormat('es-ES', { month: 'short' }).format(new Date())}
               </CardTitle>
-              <CreditCard className="h-4 w-4 text-white/50" />
+              <CreditCard className="h-4 w-4 text-blue-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-4xl font-bold text-white">{monthlyRevenue}€</div>
-              <p className="text-xs text-red-400 mt-1">
-                {unpaidCount > 0 ? `${unpaidCount} alumnos pendientes de pago` : "Todos al día"}
+              <div className="text-5xl font-black text-white leading-none">{monthlyRevenue}€</div>
+              <p className={`text-[10px] uppercase font-bold tracking-widest mt-3 ${unpaidCount > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                {unpaidCount > 0 ? `${unpaidCount} Pendientes de pago` : "Todo al día"}
               </p>
             </CardContent>
           </Card>
@@ -1149,6 +1157,9 @@ export default function AdminDashboard() {
             )}
           </Card>
         </div>
+      </TabsContent>
+
+      <TabsContent value="clases" className="space-y-10 focus-visible:outline-none">
 
         {/* Classes Section */}
         <div className="space-y-4 mt-16 pb-12">
@@ -1353,6 +1364,8 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+          </TabsContent>
+        </Tabs>
       </main>
 
       {/* Payment Confirmation Modal */}
