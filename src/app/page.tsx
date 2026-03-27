@@ -23,7 +23,7 @@ export default function Home() {
         <div className="absolute top-[30%] right-[-20%] w-[80%] h-[80%] bg-gradient-to-tl from-red-900/10 via-neutral-800/20 to-transparent rounded-full blur-[120px]" />
       </div>
 
-      <Navbar />
+      <Navbar isHome={true} />
 
       <main className="relative z-20 flex flex-col items-center justify-center pt-40 md:pt-56 px-6 md:px-24">
 
@@ -169,8 +169,8 @@ export default function Home() {
                         <span className="text-sm font-medium text-white/50">Disponibilidad en vivo</span>
                         <div className="flex items-center space-x-2">
                           <span className={`w-3 h-3 rounded-full ${cls.slots === 'Verde' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]' :
-                              cls.slots === 'Amarillo' ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.8)]' :
-                                'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]'
+                            cls.slots === 'Amarillo' ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.8)]' :
+                              'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]'
                             }`} />
                           <span className="text-sm font-medium text-white/70">
                             {cls.slots === 'Verde' ? 'Disponible' : cls.slots === 'Amarillo' ? 'Últimas plazas' : 'Completo'}

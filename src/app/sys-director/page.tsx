@@ -39,8 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-
+import Navbar from "@/components/Navbar";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -815,59 +814,11 @@ export default function AdminDashboard() {
     (newStudentForm.phone.trim() === "" || /^(\+34|0034|34)?[6789]\d{8}$/.test(newStudentForm.phone.trim()));
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans flex flex-col md:flex-row">
-      {/* Sidebar */}
-      <aside className="w-full md:w-64 bg-zinc-950 border-r border-white/10 p-6 flex-col justify-between hidden md:flex h-screen sticky top-0">
-        <div>
-          <div className="flex items-center space-x-3 mb-12">
-            <div className="w-10 h-10 relative">
-              <Image
-                src="/logo_boxing_profight.webp"
-                alt="PROFIGHT Logo"
-                fill
-                className="rounded-full object-cover border border-white/20"
-              />
-            </div>
-            <span className="font-bold text-lg tracking-tight">PROFIGHT ADMIN</span>
-          </div>
-
-          <nav className="space-y-2">
-            <Link href="/">
-              <Button variant="ghost" className="w-full justify-start text-white/50 hover:text-white hover:bg-white/5 mb-4">
-                <Home className="mr-3 h-5 w-5" />
-                Volver a la Web
-              </Button>
-            </Link>
-          </nav>
-        </div>
-
-        <div className="pt-8 border-t border-white/10">
-          <button onClick={handleLogout} className="inline-flex w-full items-center justify-start rounded-lg px-3 py-2 text-sm font-medium transition-colors text-red-500 hover:text-red-400 hover:bg-red-500/10">
-            <LogOut className="mr-3 h-5 w-5" />
-            Cerrar Sesión Segura
-          </button>
-        </div>
-      </aside>
+    <div className="dark min-h-screen bg-black text-white font-sans flex flex-col relative w-full">
+      <Navbar isHome={false} />
 
       {/* Main Content */}
-      <main className="flex-1 p-6 md:p-12 overflow-y-auto">
-        {/* Mobile Header */}
-        <div className="md:hidden flex items-center justify-between mb-8 pb-4 border-b border-white/10">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 relative">
-              <Image
-                src="/logo_boxing_profight.webp"
-                alt="PROFIGHT Logo"
-                fill
-                className="rounded-full object-cover border border-white/20"
-              />
-            </div>
-            <span className="font-bold text-sm tracking-tight">PROFIGHT ADMIN</span>
-          </div>
-          <button onClick={handleLogout} className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-medium transition-colors text-red-500 hover:bg-muted/50">
-            Salir
-          </button>
-        </div>
+      <main className="flex-1 max-w-7xl mx-auto w-full p-6 md:p-12 z-10 px-6">
 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-10">
           <div>

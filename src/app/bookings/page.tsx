@@ -10,6 +10,8 @@ import { Query, ID } from "appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import Navbar from "@/components/Navbar";
+import ConfirmedClasses from "@/components/ConfirmedClasses";
 
 export default function BookingsPage() {
     const router = useRouter();
@@ -177,31 +179,7 @@ export default function BookingsPage() {
                 <div className="absolute top-[-20%] right-[-10%] w-[80%] h-[80%] bg-gradient-to-bl from-emerald-900/20 via-zinc-900/40 to-black rounded-full blur-[120px]" />
             </div>
 
-            <nav className="w-full border-b border-white/10 z-10 bg-zinc-950/50 backdrop-blur-xl">
-                <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-                    <Link href="/" className="group flex items-center space-x-3 hover:text-white/80 transition-colors">
-                        <ArrowLeft className="h-5 w-5 text-white/50 group-hover:-translate-x-1 group-hover:text-white transition-all" />
-                        <span className="font-semibold tracking-tight">Inicio</span>
-                    </Link>
-                    <div className="flex items-center space-x-6">
-                        <Link href="/perfil" className="text-white/60 hover:text-white font-medium text-sm transition-colors flex items-center gap-2">
-                            <User className="w-4 h-4" />
-                            Mi Perfil
-                        </Link>
-                        <Button
-                            variant="ghost"
-                            onClick={async () => {
-                                await account.deleteSession("current");
-                                router.push("/login");
-                            }}
-                            className="text-white/50 hover:text-white hover:bg-white/5"
-                        >
-                            <LogOut className="w-4 h-4 mr-2" />
-                            Salir
-                        </Button>
-                    </div>
-                </div>
-            </nav>
+            <Navbar isHome={false} />
 
             {/* Main Panel */}
             <main className="flex-1 max-w-7xl mx-auto w-full p-6 md:p-12 z-10 space-y-12">
@@ -279,39 +257,12 @@ export default function BookingsPage() {
                 </div>
 
                 {/* Mis Reservas (Ya confirmadas) */}
-                <div className="space-y-6 pt-10 border-t border-white/10">
-                    <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                        <CheckCircle2 className="w-6 h-6 text-white/40" /> Mis Reservas Confirmadas
-                    </h3>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {availableClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).length === 0 ? (
-                            <div className="col-span-full border border-white/5 bg-white/5 rounded-xl p-6 text-white/30 text-sm italic">
-                                Aún no te has apuntado a ninguna clase esta semana.
-                            </div>
-                        ) : (
-                            availableClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).map(cls => (
-                                <div key={cls.$id} className="bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors border border-emerald-500/20 rounded-xl p-5 flex items-center justify-between group">
-                                    <div>
-                                        <Badge className="bg-emerald-500/20 text-emerald-400 font-medium mb-2 border-0 rounded-sm">
-                                            {cls.name} • Plaza Confirmada
-                                        </Badge>
-                                        <p className="text-white font-bold text-lg">{new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-                                        <p className="text-white/60">{cls.time} - {cls.coach}</p>
-                                    </div>
-                                    <Button
-                                        variant="ghost"
-                                        onClick={() => handleCancelBooking(cls)}
-                                        disabled={isProcessingBooking === cls.$id}
-                                        className="text-red-400 hover:text-red-500 hover:bg-red-500/10 px-4 h-10"
-                                    >
-                                        {isProcessingBooking === cls.$id ? <Loader2 className="w-5 h-5 animate-spin" /> : "Cancelar Plaza"}
-                                    </Button>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
+                <ConfirmedClasses
+                    availableClasses={availableClasses}
+                    userBookings={userBookings}
+                    isProcessingBooking={isProcessingBooking}
+                    handleCancelBooking={handleCancelBooking}
+                />
 
             </main>
         </div>

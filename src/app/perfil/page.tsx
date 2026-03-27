@@ -29,6 +29,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Navbar from "@/components/Navbar";
+import ConfirmedClasses from "@/components/ConfirmedClasses";
 
 export default function StudentProfile() {
   const router = useRouter();
@@ -213,85 +215,16 @@ export default function StudentProfile() {
   const initials = user?.name ? user.name.substring(0, 2).toUpperCase() : "US";
 
   return (
-    <div className="dark min-h-screen bg-black text-white font-sans flex flex-col md:flex-row relative">
+    <div className="dark min-h-screen bg-black text-white font-sans flex flex-col relative w-full">
       {/* Background glow effects */}
       <div className="absolute inset-0 z-0 opacity-80 mix-blend-screen pointer-events-none overflow-hidden">
         <div className="absolute top-[-20%] right-[-10%] w-[80%] h-[80%] bg-gradient-to-bl from-zinc-800/40 via-stone-900/20 to-black rounded-full blur-[100px]" />
       </div>
 
-      {/* Sidebar Navigation */}
-      <aside className="w-full md:w-72 bg-zinc-950 border-r border-white/10 p-6 flex-col justify-between hidden md:flex z-10 h-screen sticky top-0">
-        <div>
-          <div className="flex items-center space-x-3 mb-10 w-full justify-between">
-            <Link href="/" className="group flex items-center space-x-3 hover:text-white/80 transition-colors">
-              <ArrowLeft className="h-5 w-5 text-white/50 group-hover:text-white transition-colors" />
-              <span className="font-semibold text-lg tracking-tight">Volver al Tatami</span>
-            </Link>
-          </div>
-
-          <div className="flex flex-col items-center justify-center text-center mb-10 pb-8 border-b border-white/10">
-            <Avatar className="h-24 w-24 border-2 border-white/20 mb-4 shadow-2xl">
-              <AvatarImage src="" />
-              <AvatarFallback className="bg-gradient-to-br from-zinc-700 to-black text-white text-2xl font-bold">{initials}</AvatarFallback>
-            </Avatar>
-            <h2 className="text-xl font-bold tracking-tight">{user?.name || "Usuario"}</h2>
-            <p className="text-white/50 text-sm mt-1">{user?.email}</p>
-          </div>
-
-          <nav className="space-y-2">
-            <Button variant="ghost" className="w-full justify-start text-white bg-white/10">
-              <User className="mr-3 h-5 w-5 text-white/70" />
-              Mi Perfil
-            </Button>
-            {/* Si quisieras tener navegación lateral la tendrías aquí */}
-          </nav>
-        </div>
-
-        <div className="pt-8 border-t border-white/10">
-          <button
-            onClick={async () => {
-              await account.deleteSession("current");
-              router.push("/login");
-            }}
-            className="inline-flex w-full items-center justify-start rounded-lg px-3 py-2 text-sm font-medium transition-colors text-white/50 hover:text-white hover:bg-white/5"
-          >
-            <LogOut className="mr-3 h-5 w-5" />
-            Cerrar Sesión
-          </button>
-        </div>
-      </aside>
+      <Navbar isHome={false} />
 
       {/* Main Panel */}
-      <main className="flex-1 p-6 md:p-12 overflow-y-auto z-10">
-        {/* Mobile Header elements */}
-        <div className="md:hidden flex items-center justify-between mb-8 pb-4 border-b border-white/10">
-          <Link href="/" className="flex items-center space-x-2 text-white/70">
-            <ArrowLeft className="h-5 w-5" />
-            <span className="font-semibold text-sm">Inicio</span>
-          </Link>
-          <DropdownMenu>
-            <DropdownMenuTrigger className="outline-none focus:outline-none">
-              <div className="flex items-center gap-3 cursor-pointer">
-                <span className="font-bold text-sm">{user?.name || "Usuario"}</span>
-                <Avatar className="h-8 w-8 border border-white/20">
-                  <AvatarFallback className="bg-zinc-800 text-white text-xs">{initials}</AvatarFallback>
-                </Avatar>
-              </div>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10 text-white rounded-xl">
-              <DropdownMenuItem
-                onClick={async () => {
-                  await account.deleteSession("current");
-                  router.push("/login");
-                }}
-                className="text-red-400 focus:bg-white/5 focus:text-red-400 cursor-pointer py-2 px-3"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Cerrar Sesión
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+      <main className="flex-1 w-full max-w-7xl mx-auto p-6 md:p-12 z-10 px-6">
 
         <div className="mb-10">
           <h1 className="text-3xl md:text-5xl font-bold tracking-tight mb-2">Mi Área Personal</h1>
@@ -304,13 +237,13 @@ export default function StudentProfile() {
               value="overview"
               className="py-3 text-base font-semibold w-full md:w-auto rounded-xl text-white/60 hover:text-white hover:bg-white/10 data-active:bg-white data-active:text-black dark:data-active:bg-white dark:data-active:text-black data-active:hover:bg-neutral-200 data-active:hover:text-black dark:data-active:hover:bg-neutral-200 dark:data-active:hover:text-black data-active:shadow-[0_0_20px_rgba(255,255,255,0.15)] transition-all"
             >
-              Resumen de Alumno
+              Datos Generales
             </TabsTrigger>
             <TabsTrigger
               value="classes"
               className="py-3 text-base font-semibold w-full md:w-auto rounded-xl text-white/60 hover:text-white hover:bg-white/10 data-active:bg-white data-active:text-black dark:data-active:bg-white dark:data-active:text-black data-active:hover:bg-neutral-200 data-active:hover:text-black dark:data-active:hover:bg-neutral-200 dark:data-active:hover:text-black data-active:shadow-[0_0_20px_rgba(255,255,255,0.15)] transition-all"
             >
-              Mis Clases y Reservas
+              Datos de las clases
             </TabsTrigger>
             <TabsTrigger
               value="settings"
@@ -407,112 +340,18 @@ export default function StudentProfile() {
 
           {/* TAB: Clases */}
           <TabsContent value="classes" className="space-y-12 focus:outline-none focus:ring-0">
-            {/* Disponibles Para Reservar */}
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-                  <CalendarClock className="w-6 h-6 text-emerald-500" /> Clases Disponibles
-                </h3>
-                <span className="text-sm text-white/40">Próximos 7 días</span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {availableClasses.filter(c => !userBookings.some((b: any) => b.class_id === c.$id)).length === 0 ? (
-                  <div className="col-span-full bg-white/5 border border-white/10 rounded-xl p-8 text-center text-white/50">
-                    No hay clases nuevas disponibles para reservar en los próximos 7 días.
-                  </div>
-                ) : (
-                  availableClasses.filter(c => !userBookings.some((b: any) => b.class_id === c.$id)).map(cls => {
-                    const isFull = cls.registeredCount >= cls.capacity;
-                    return (
-                      <Card key={cls.$id} className="bg-white/5 border-white/10 backdrop-blur-lg overflow-hidden group hover:border-white/20 transition-colors">
-                        <CardHeader className="pb-3 border-b border-white/5">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <Badge className={`mb-2 font-medium ${cls.name === 'Boxeo' ? 'bg-amber-500/20 text-amber-500 hover:bg-amber-500/30' : 'bg-red-500/20 text-red-500 hover:bg-red-500/30'}`}>
-                                {cls.name}
-                              </Badge>
-                              <CardTitle className="text-xl font-bold text-white">{cls.coach}</CardTitle>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-sm font-bold text-white block">
-                                {new Date(cls.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }).toUpperCase()}
-                              </span>
-                              <span className="text-xs text-white/50">{cls.time.split('-')[0].trim()}</span>
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="pt-4 pb-4">
-                          <div>
-                            <div className="flex justify-between text-xs mb-1.5 font-medium">
-                              <span className={isFull ? 'text-red-400' : 'text-emerald-400'}>
-                                {cls.capacity - cls.registeredCount} plazas libres
-                              </span>
-                              <span className="text-white/40">Max {cls.capacity}</span>
-                            </div>
-                            <div className="h-1.5 w-full bg-black rounded-full overflow-hidden border border-white/5 mb-6">
-                              <div
-                                className={`h-full transition-all duration-500 ${isFull ? 'bg-red-500' : 'bg-emerald-500'}`}
-                                style={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }}
-                              />
-                            </div>
-                            <Button
-                              onClick={() => handleBookClass(cls)}
-                              disabled={isFull || isProcessingBooking === cls.$id || !profileInfo?.is_paid}
-                              className={`w-full font-bold ${isFull ? 'bg-red-500/20 text-red-400 hover:bg-red-500/20 cursor-not-allowed' : 'bg-white text-black hover:bg-emerald-500 hover:text-white'}`}
-                            >
-                              {isProcessingBooking === cls.$id ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                                !profileInfo?.is_paid ? "Pago Pendiente" : isFull ? "Clase Llena" : "Reservar Plaza"
-                              )}
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
             {/* Mis Reservas (Ya confirmadas) */}
-            <div className="space-y-4 pt-8 border-t border-white/10">
-              <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-white/40" /> Mis Reservas Confirmadas
-              </h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {availableClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).length === 0 ? (
-                  <div className="col-span-full text-white/30 text-sm italic">
-                    Aún no te has apuntado a ninguna clase esta semana.
-                  </div>
-                ) : (
-                  availableClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).map(cls => (
-                    <div key={cls.$id} className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 flex items-center justify-between">
-                      <div>
-                        <Badge className="bg-emerald-500/20 text-emerald-400 font-medium mb-1 border-0 rounded-sm">
-                          {cls.name} • Confirmada
-                        </Badge>
-                        <p className="text-white font-bold">{new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-                        <p className="text-white/60 text-sm">{cls.time} - {cls.coach}</p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        onClick={() => handleCancelBooking(cls)}
-                        disabled={isProcessingBooking === cls.$id}
-                        className="text-red-400 hover:text-red-500 hover:bg-red-500/10 px-3"
-                      >
-                        {isProcessingBooking === cls.$id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Cancelar"}
-                      </Button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+            <ConfirmedClasses
+              availableClasses={availableClasses}
+              userBookings={userBookings}
+              isProcessingBooking={isProcessingBooking}
+              handleCancelBooking={handleCancelBooking}
+            />
 
             {/* Historial de Asistencia */}
             <div className="space-y-4 pt-8 border-t border-white/10">
               <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                <History className="w-5 h-5 text-white/40" /> Historial de Asistencia
+                <History className="w-5 h-5 text-white/40" /> Historial de clases
               </h3>
               <Card className="bg-transparent border-white/5 overflow-hidden">
                 <Table>
