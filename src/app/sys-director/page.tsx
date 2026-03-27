@@ -6,7 +6,7 @@ import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, Shiel
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS, COLLECTION_REVENUE, COLLECTION_PAYMENTS } from "@/lib/appwrite";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS, COLLECTION_REVENUE, COLLECTION_PAYMENTS, COLLECTION_NOTIFICATIONS } from "@/lib/appwrite";
 import { Query, ID } from "appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -86,6 +86,12 @@ export default function AdminDashboard() {
   const [attendeesList, setAttendeesList] = useState<any[]>([]);
   const [isFetchingAttendees, setIsFetchingAttendees] = useState(false);
 
+  // Announcements States
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [isCreatingAnnouncement, setIsCreatingAnnouncement] = useState(false);
+  const [newAnnouncement, setNewAnnouncement] = useState({ title: "", content: "", type: "info" });
+  const [isAnnouncementsLoading, setIsAnnouncementsLoading] = useState(false);
+
   useEffect(() => {
     const verifyAdmin = async () => {
       try {
@@ -104,7 +110,7 @@ export default function AdminDashboard() {
         }
 
         // 3. Admin verified. Let's fetch all real data (Students and Classes parallel)
-        const [profilesData, classesData] = await Promise.all([
+        const [profilesData, classesData, announcementsData] = await Promise.all([
           databases.listDocuments(
             DATABASE_ID,
             COLLECTION_PROFILES,
@@ -114,6 +120,11 @@ export default function AdminDashboard() {
             DATABASE_ID,
             COLLECTION_CLASSES,
             [Query.limit(100), Query.orderAsc("date")]
+          ),
+          databases.listDocuments(
+            DATABASE_ID,
+            COLLECTION_NOTIFICATIONS,
+            [Query.orderDesc("createdAt"), Query.limit(20)]
           )
         ]);
 
@@ -121,6 +132,7 @@ export default function AdminDashboard() {
 
         setTotalStudents(allStudents.length);
         setClassesList(classesData.documents);
+        setAnnouncements(announcementsData.documents);
 
         const d = new Date();
         const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -832,6 +844,117 @@ export default function AdminDashboard() {
             <Users className="w-4 h-4 mr-2" />
             + Nuevo Alumno
           </Button>
+        </div>
+
+        {/* Notificaciones / Tablón (Admin View) */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-10">
+          <Card className="bg-white/5 border-white/10 backdrop-blur-lg xl:col-span-1">
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center gap-2">
+                <MessageCircle className="w-5 h-5 text-emerald-400" /> Crear Anuncio
+              </CardTitle>
+              <CardDescription className="text-white/40">Notifica a todos los alumnos.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-xs text-white/60 uppercase">Título</Label>
+                <Input
+                  value={newAnnouncement.title}
+                  onChange={(e) => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })}
+                  placeholder="Ej: Festivo el Lunes"
+                  className="bg-black/40 border-white/10"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-white/60 uppercase">Mensaje</Label>
+                <textarea
+                  value={newAnnouncement.content}
+                  onChange={(e) => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })}
+                  placeholder="Escribe el aviso aquí..."
+                  className="w-full bg-black/40 border border-white/10 rounded-md p-3 text-sm min-h-[100px] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-white/60 uppercase">Importancia</Label>
+                <select
+                  value={newAnnouncement.type}
+                  onChange={(e) => setNewAnnouncement({ ...newAnnouncement, type: e.target.value })}
+                  className="w-full bg-black/40 border border-white/10 rounded-md p-2 text-sm text-white outline-none"
+                >
+                  <option value="info">Info (Azul)</option>
+                  <option value="warning">Aviso (Ambar)</option>
+                  <option value="success">Éxito (Verde)</option>
+                </select>
+              </div>
+              <Button
+                onClick={async () => {
+                  if (!newAnnouncement.title || !newAnnouncement.content) return;
+                  setIsCreatingAnnouncement(true);
+                  try {
+                    const res = await databases.createDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, ID.unique(), {
+                      title: newAnnouncement.title,
+                      content: newAnnouncement.content,
+                      type: newAnnouncement.type,
+                      createdAt: new Date().toISOString()
+                    });
+                    setAnnouncements([res, ...announcements]);
+                    setNewAnnouncement({ title: "", content: "", type: "info" });
+                  } catch (e) { console.error(e); } finally { setIsCreatingAnnouncement(false); }
+                }}
+                disabled={isCreatingAnnouncement || !newAnnouncement.title || !newAnnouncement.content}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+              >
+                {isCreatingAnnouncement ? <Loader2 className="w-4 h-4 animate-spin" /> : "Publicar Anuncio"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white/5 border-white/10 backdrop-blur-lg xl:col-span-2">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-xl">Anuncios Recientes</CardTitle>
+                <CardDescription className="text-white/40">Los alumnos verán esto en su campanita.</CardDescription>
+              </div>
+              <Badge variant="outline" className="text-white/50 border-white/10">{announcements.length}</Badge>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                {announcements.length === 0 ? (
+                  <div className="py-12 text-center text-white/20 italic text-sm">No has publicado ningún anuncio todavía.</div>
+                ) : (
+                  announcements.map((a) => (
+                    <div key={a.$id} className="bg-black/40 border border-white/5 rounded-xl p-4 flex justify-between items-start group">
+                      <div className="min-w-0 flex-1 mr-4">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${a.type === 'warning' ? 'bg-amber-500/20 text-amber-500' : a.type === 'success' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-blue-500/20 text-blue-500'
+                            }`}>
+                            {a.type}
+                          </span>
+                          <span className="text-[10px] text-white/30">{new Date(a.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <h4 className="font-bold text-white truncate">{a.title}</h4>
+                        <p className="text-sm text-white/50 line-clamp-2">{a.content}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={async () => {
+                          if (!confirm("¿Borrar este anuncio? Los alumnos dejarán de verlo.")) return;
+                          try {
+                            await databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, a.$id);
+                            setAnnouncements(announcements.filter(prev => prev.$id !== a.$id));
+                          } catch (e) { console.error(e); }
+                        }}
+                        className="text-white/20 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Dashboard Stats Cards */}

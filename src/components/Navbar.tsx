@@ -1,11 +1,11 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
-import { Bell, LogOut, User, ShieldCheck, CalendarDays } from "lucide-react";
+import { User, ShieldCheck, CalendarDays, LogOut, Loader2 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -13,21 +13,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import NotificationPanel from "./NotificationPanel";
 
 export default function Navbar({ isHome = false }: { isHome?: boolean }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [userId, setUserId] = useState("");
+  const [profileName, setProfileName] = useState("Usuario");
   const [roleLoading, setRoleLoading] = useState(true);
-  const [profileName, setProfileName] = useState("");
 
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
     };
 
-    // Only bind scroll events eagerly if we are on Home page
     if (isHome) {
       window.addEventListener("scroll", handleScroll);
     }
@@ -36,6 +38,7 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
       try {
         const currentUser = await account.get();
         setIsLoggedIn(true);
+        setUserId(currentUser.$id);
         const profile = await databases.getDocument(
           DATABASE_ID,
           COLLECTION_PROFILES,
@@ -71,12 +74,11 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
     return name.split(" ").map(n => n[0]).join("").toUpperCase().substring(0, 2);
   };
 
-  // Visual appearance now completely unified
   const styleClass = "px-5 py-3 md:px-12 backdrop-blur-xl bg-black/40 shadow-[0_10px_40px_rgba(0,0,0,0.3)]";
 
   const positionClass = isHome
-    ? "absolute md:fixed top-0 left-0 right-0 z-50 transition-all duration-300" // Overlay for home
-    : "relative w-full z-50 mb-6 md:mb-12"; // Flow in internal views
+    ? "absolute md:fixed top-0 left-0 right-0 z-50 transition-all duration-300"
+    : "relative w-full z-50 mb-6 md:mb-12";
 
   const sizeClass = "h-20 md:h-24";
 
@@ -113,14 +115,10 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
             <div className="w-10 h-10 rounded-full bg-white/10 animate-pulse"></div>
           ) : isLoggedIn ? (
             <div className="flex items-center gap-2 sm:gap-4">
-              {/* Notificaciones Mock */}
-              <button className="relative p-2.5 rounded-full hover:bg-white/10 transition-colors flex items-center justify-center text-white/80 hover:text-white">
-                <Bell className="w-6 h-6 md:w-5 md:h-5" />
-                <span className="absolute top-1.5 right-2 flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-              </button>
+              {/* Notificaciones Reales */}
+              {!(isAdmin && pathname === "/sys-director") && (
+                <NotificationPanel userId={userId} isLoggedIn={isLoggedIn} />
+              )}
 
               <DropdownMenu>
                 <DropdownMenuTrigger className="outline-none focus:outline-none">
