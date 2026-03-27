@@ -21,6 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { AdminTabs } from "./components/AdminTabs";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,6 +69,50 @@ export default function AdminDashboard() {
 
   // New Student Modal States
   const [isNewStudentModalOpen, setIsNewStudentModalOpen] = useState(false);
+  
+  // Custom Modal State
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    variant: "info" | "success" | "warning" | "danger";
+    onConfirm: () => void | Promise<void>;
+    showCancel?: boolean;
+    confirmText?: string;
+  }>({
+    isOpen: false,
+    title: "",
+    description: "",
+    variant: "info",
+    onConfirm: () => {},
+  });
+
+  const showAlert = (title: string, description: string, variant: "info" | "success" | "warning" | "danger" = "info") => {
+    setModalConfig({
+        isOpen: true,
+        title,
+        description,
+        variant,
+        onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false })),
+        showCancel: false,
+        confirmText: "Entendido"
+    });
+  };
+
+  const showConfirm = (title: string, description: string, onConfirm: () => void | Promise<void>, variant: "info" | "success" | "warning" | "danger" = "warning") => {
+    setModalConfig({
+        isOpen: true,
+        title,
+        description,
+        variant,
+        onConfirm: async () => {
+            await onConfirm();
+            setModalConfig(prev => ({ ...prev, isOpen: false }));
+        },
+        showCancel: true,
+        confirmText: "Confirmar"
+    });
+  };
   const [newStudentForm, setNewStudentForm] = useState({ name: "", email: "", phone: "", level: "Iniciación" });
   const [newStudentFormError, setNewStudentFormError] = useState("");
 
@@ -400,10 +445,10 @@ export default function AdminDashboard() {
       setUnpaidCount(prev => prev + 1);
       setIsNewStudentModalOpen(false);
       setNewStudentForm({ name: "", email: "", phone: "", level: "Iniciación" });
-      alert("Alumno registrado correctamente.");
+      showAlert("Éxito", "Alumno registrado correctamente.", "success");
     } catch (err) {
       console.error("Error creating student:", err);
-      alert("Hubo un error al registrar el alumno.");
+      showAlert("Error", "Hubo un error al registrar el alumno.", "danger");
     } finally {
       setIsUpdating(false);
     }
@@ -437,72 +482,69 @@ export default function AdminDashboard() {
   };
 
   const handleAutoGenerateWeekClasses = async () => {
-    if (!window.confirm("¿Seguro que quieres auto-generar las clases de la PRÓXIMA SEMANA? (L-V, Boxeo/K1 y Sparring los Miércoles)")) return;
+    showConfirm(
+      "Generar Clases",
+      "¿Seguro que quieres auto-generar las clases de la PRÓXIMA SEMANA? (L-V, Boxeo y K1, Sparring los Miércoles)",
+      async () => {
+        setIsUpdating(true);
+        try {
+          const today = new Date();
+          const nextMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + ((1 + 7 - today.getDay()) % 7 || 7));
+          const classesToGenerate: any[] = [];
 
-    setIsUpdating(true);
-    try {
-      // Get next Monday
-      const today = new Date();
-      const nextMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + ((1 + 7 - today.getDay()) % 7 || 7));
+          for (let i = 0; i < 5; i++) {
+            const targetDate = new Date(nextMonday);
+            targetDate.setDate(nextMonday.getDate() + i);
+            const dayOfWeek = targetDate.getDay();
+            targetDate.setMinutes(targetDate.getMinutes() - targetDate.getTimezoneOffset());
+            const dateStr = targetDate.toISOString().split('T')[0];
 
-      const classesToGenerate = [];
+            const isWednesday = dayOfWeek === 3;
+            const className = isWednesday ? "Sparring" : "Boxeo y K1";
 
-      for (let i = 0; i < 5; i++) { // Monday to Friday (0 to 4)
-        const targetDate = new Date(nextMonday);
-        targetDate.setDate(nextMonday.getDate() + i);
-        const dayOfWeek = targetDate.getDay(); // 1 = Monday, ..., 3 = Wednesday
+            classesToGenerate.push({
+              name: className,
+              date: dateStr,
+              time: "10:00 - 11:00",
+              coach: "Álex Pintor",
+              capacity: 30,
+              registeredCount: 0,
+              status: "Activa"
+            });
 
-        // Format to YYYY-MM-DD
-        targetDate.setMinutes(targetDate.getMinutes() - targetDate.getTimezoneOffset());
-        const dateStr = targetDate.toISOString().split('T')[0];
+            const afternoonHours = [18, 19, 20, 21];
+            for (const hour of afternoonHours) {
+              classesToGenerate.push({
+                name: className,
+                date: dateStr,
+                time: `${hour}:00 - ${hour + 1}:00`,
+                coach: "Álex Pintor",
+                capacity: 30,
+                registeredCount: 0,
+                status: "Activa"
+              });
+            }
+          }
 
-        const isWednesday = dayOfWeek === 3;
-        const className = isWednesday ? "Sparring" : "Boxeo y K1";
+          const createdClasses: any[] = [];
+          for (const cls of classesToGenerate) {
+            const resp = await databases.createDocument(DATABASE_ID, COLLECTION_CLASSES, ID.unique(), cls);
+            createdClasses.push(resp);
+          }
 
-        // Morning Class: 10:00 - 11:00
-        classesToGenerate.push({
-          name: className,
-          date: dateStr,
-          time: "10:00 - 11:00",
-          coach: "Álex Pintor",
-          capacity: 30,
-          registeredCount: 0,
-          status: "Activa"
-        });
-
-        // 4 Afternoon Classes: 18h to 21h (18-19, 19-20, 20-21, 21-22)
-        // Adjusting request "de 18h a 21h en clases de 1h = 4 clases" (18:00, 19:00, 20:00, 21:00)
-        const afternoonHours = [18, 19, 20, 21];
-        for (const hour of afternoonHours) {
-          classesToGenerate.push({
-            name: className,
-            date: dateStr,
-            time: `${hour}:00 - ${hour + 1}:00`,
-            coach: "Álex Pintor",
-            capacity: 30,
-            registeredCount: 0,
-            status: "Activa"
-          });
+          const updatedClasses = [...classesList, ...createdClasses].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+          setClassesList(updatedClasses);
+          showAlert("Éxito", "¡Clases de la próxima semana generadas con éxito!", "success");
+        } catch (err: any) {
+          console.error("Error auto generating classes:", err);
+          showAlert("Error", "Hubo un error al generar las clases automáticamente.", "danger");
+        } finally {
+          setIsUpdating(false);
         }
       }
-
-      // Create them concurrently but in chunks to avoid Appwrite rate limit just in case
-      const createdClasses: any[] = [];
-      for (const cls of classesToGenerate) {
-        const resp = await databases.createDocument(DATABASE_ID, COLLECTION_CLASSES, ID.unique(), cls);
-        createdClasses.push(resp);
-      }
-
-      setClassesList(prev => [...prev, ...createdClasses].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
-      alert("¡Clases de la próxima semana generadas con éxito!");
-
-    } catch (err: any) {
-      console.error("Error auto generating classes:", err);
-      alert("Hubo un error al generar las clases automáticamente.");
-    } finally {
-      setIsUpdating(false);
-    }
+    );
   };
+
 
   const handleDeleteClass = async (classObj: any) => {
     // 0. Prevent deleting past classes logically
@@ -513,40 +555,49 @@ export default function AdminDashboard() {
       const classDateTime = new Date(year, month - 1, day, hours, minutes);
 
       if (classDateTime < new Date()) {
-        alert("No se puede cancelar una clase que ya ha ocurrido. Queda registrada en el historial.");
+        showAlert("Acción Prohibida", "No se puede cancelar una clase que ya ha ocurrido. Queda registrada en el historial.", "warning");
         return;
       }
     } catch (e) {
-      // Allow passing if date parsing fails just in case, but usually shouldn't
+      // Allow passing if date parsing fails
     }
 
-    if (!window.confirm("¿Seguro que quieres borrar esta clase de forma permanente? Se cancelarán también todas las reservas de los alumnos.")) return;
-
-    try {
-      // 1. Fetch all bookings associated with this class
-      const relatedBookings = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_BOOKINGS,
-        [Query.equal("class_id", classObj.$id), Query.limit(100)]
-      );
-
-      // 2. Delete all related bookings one by one (cascade delete effect)
-      const deleteBookingPromises = relatedBookings.documents.map(booking =>
-        databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id)
-      );
-      await Promise.all(deleteBookingPromises);
-
-      // 3. Delete the class itself
-      await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
-
-      // 4. Update the UI state
-      setClassesList(prev => prev.filter(c => c.$id !== classObj.$id));
-    } catch (error: any) {
-      if (error.code !== 404) {
-        console.error("Error al borrar la clase:", error);
-        alert(`No se pudo borrar la clase o sus reservas. Revisa los permisos en Appwrite. \n\nError: ${error?.message}`);
-      }
-    }
+    showConfirm(
+        "Borrar Clase", 
+        "¿Seguro que quieres borrar esta clase de forma permanente? Se cancelarán también todas las reservas de los alumnos.",
+        async () => {
+            try {
+              setIsUpdating(true);
+              // 1. Fetch all bookings associated with this class
+              const relatedBookings = await databases.listDocuments(
+                DATABASE_ID,
+                COLLECTION_BOOKINGS,
+                [Query.equal("class_id", classObj.$id), Query.limit(100)]
+              );
+        
+              // 2. Delete all related bookings
+              const deleteBookingPromises = relatedBookings.documents.map(booking =>
+                databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id)
+              );
+              await Promise.all(deleteBookingPromises);
+        
+              // 3. Delete the class itself
+              await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
+        
+              // 4. Update the UI state
+              setClassesList(prev => prev.filter(c => c.$id !== classObj.$id));
+              showAlert("Éxito", "Clase eliminada correctamente.", "success");
+            } catch (error: any) {
+              if (error.code !== 404) {
+                console.error("Error al borrar la clase:", error);
+                showAlert("Error", "No se pudo borrar la clase o sus reservas.", "danger");
+              }
+            } finally {
+              setIsUpdating(false);
+            }
+        },
+        "danger"
+    );
   };
 
   const handleViewAttendees = async (classObj: any) => {
@@ -568,7 +619,7 @@ export default function AdminDashboard() {
       setAttendeesList(attendees);
     } catch (error) {
       console.error("Error fetching attendees:", error);
-      alert("Error verificando asitentes.");
+      showAlert("Error", "No se ha podido verificar la lista de asistentes en este momento.", "danger");
     } finally {
       setIsFetchingAttendees(false);
     }
@@ -845,22 +896,35 @@ export default function AdminDashboard() {
                 </select>
               </div>
               <Button
-                onClick={async () => {
+                onClick={() => {
                   if (!newAnnouncement.title || !newAnnouncement.content) return;
-                  setIsCreatingAnnouncement(true);
-                  try {
-                    const res = await databases.createDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, ID.unique(), {
-                      title: newAnnouncement.title,
-                      content: newAnnouncement.content,
-                      type: newAnnouncement.type,
-                      createdAt: new Date().toISOString()
-                    });
-                    setAnnouncements([res, ...announcements]);
-                    setNewAnnouncement({ title: "", content: "", type: "info" });
-                  } catch (e) { console.error(e); } finally { setIsCreatingAnnouncement(false); }
+                  showConfirm(
+                    "Confirmar Publicación",
+                    "¿Estás seguro de que quieres publicar este anuncio? Todos los alumnos recibirán una notificación en su panel.",
+                    async () => {
+                      setIsCreatingAnnouncement(true);
+                      try {
+                        const res = await databases.createDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, ID.unique(), {
+                          title: newAnnouncement.title,
+                          content: newAnnouncement.content,
+                          type: newAnnouncement.type,
+                          createdAt: new Date().toISOString()
+                        });
+                        setAnnouncements([res, ...announcements]);
+                        setNewAnnouncement({ title: "", content: "", type: "info" });
+                        showAlert("Éxito", "Anuncio publicado correctamente.", "success");
+                      } catch (e) { 
+                        console.error(e); 
+                        showAlert("Error", "No se pudo publicar el anuncio.", "danger");
+                      } finally { 
+                        setIsCreatingAnnouncement(false); 
+                      }
+                    },
+                    "warning"
+                  );
                 }}
                 disabled={isCreatingAnnouncement || !newAnnouncement.title || !newAnnouncement.content}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-10"
               >
                 {isCreatingAnnouncement ? <Loader2 className="w-4 h-4 animate-spin" /> : "Publicar Anuncio"}
               </Button>
@@ -876,7 +940,7 @@ export default function AdminDashboard() {
               <Badge variant="outline" className="text-white/50 border-white/10">{announcements.length}</Badge>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                 {announcements.length === 0 ? (
                   <div className="py-12 text-center text-white/20 italic text-sm">No has publicado ningún anuncio todavía.</div>
                 ) : (
@@ -896,14 +960,24 @@ export default function AdminDashboard() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={async () => {
-                          if (!confirm("¿Borrar este anuncio? Los alumnos dejarán de verlo.")) return;
-                          try {
-                            await databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, a.$id);
-                            setAnnouncements(announcements.filter(prev => prev.$id !== a.$id));
-                          } catch (e: any) {
-                            if (e.code !== 404) console.error("Error al borrar anuncio:", e);
-                          }
+                        onClick={() => {
+                          showConfirm(
+                            "Borrar Anuncio",
+                            "¿Seguro que quieres borrar este anuncio? Los alumnos dejarán de verlo en su tablón y campanita.",
+                            async () => {
+                              try {
+                                await databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, a.$id);
+                                setAnnouncements(announcements.filter(prev => prev.$id !== a.$id));
+                                showAlert("Éxito", "Anuncio eliminado correctamente.", "success");
+                              } catch (e: any) {
+                                if (e.code !== 404) {
+                                    console.error("Error al borrar anuncio:", e);
+                                    showAlert("Error", "No se ha podido borrar el anuncio.", "danger");
+                                }
+                              }
+                            },
+                            "danger"
+                          );
                         }}
                         className="text-white/20 hover:text-red-500 hover:bg-red-500/10 transition-colors"
                       >
@@ -1419,7 +1493,11 @@ export default function AdminDashboard() {
             </div>
           </div>
           <DialogFooter className="mt-4 border-t border-white/10 pt-4">
-            <Button variant="ghost" onClick={() => setIsPaymentModalOpen(false)} className="text-white/50 hover:text-white bg-transparent">
+            <Button
+              variant="ghost" 
+              onClick={() => setIsPaymentModalOpen(false)} 
+              className="bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white font-medium"
+            >
               Cancelar
             </Button>
             <Button
@@ -1492,7 +1570,11 @@ export default function AdminDashboard() {
             </div>
           </div>
           <DialogFooter className="mt-4 border-t border-white/10 pt-4">
-            <Button variant="ghost" onClick={() => setIsEditModalOpen(false)} className="text-white/50 hover:text-white bg-transparent">
+            <Button 
+              variant="ghost" 
+              onClick={() => setIsEditModalOpen(false)} 
+              className="bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white font-medium"
+            >
               Cancelar
             </Button>
             <Button
@@ -1600,7 +1682,11 @@ export default function AdminDashboard() {
 
           </div>
           <DialogFooter className="mt-4 border-t border-white/10 pt-4">
-            <Button variant="ghost" onClick={() => setIsClassModalOpen(false)} className="text-white/50 hover:text-white bg-transparent">
+            <Button 
+              variant="ghost" 
+              onClick={() => setIsClassModalOpen(false)} 
+              className="bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white font-medium"
+            >
               Cancelar
             </Button>
             <Button
@@ -1746,8 +1832,8 @@ export default function AdminDashboard() {
             <div className="pt-4 flex flex-col sm:flex-row gap-3">
               <Button
                 type="button"
-                variant="outline"
-                className="flex-1 bg-transparent border-white/10 text-white hover:bg-white/5"
+                variant="ghost"
+                className="flex-1 bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white font-medium"
                 onClick={() => setIsNewStudentModalOpen(false)}
                 disabled={isUpdating}
               >
@@ -1765,6 +1851,16 @@ export default function AdminDashboard() {
           </form>
         </DialogContent>
       </Dialog>
+      <ConfirmModal 
+        isOpen={modalConfig.isOpen}
+        onOpenChange={(open) => setModalConfig(prev => ({ ...prev, isOpen: open }))}
+        title={modalConfig.title}
+        description={modalConfig.description}
+        variant={modalConfig.variant}
+        onConfirm={modalConfig.onConfirm}
+        showCancel={modalConfig.showCancel}
+        confirmText={modalConfig.confirmText}
+      />
     </div>
   );
 }

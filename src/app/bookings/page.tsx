@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Navbar from "@/components/Navbar";
 import ConfirmedClasses from "@/components/ConfirmedClasses";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 export default function BookingsPage() {
     const router = useRouter();
@@ -24,6 +25,50 @@ export default function BookingsPage() {
     const [userBookings, setUserBookings] = useState<any[]>([]);
     const [isProcessingBooking, setIsProcessingBooking] = useState<string | null>(null);
     const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Custom Modal State
+    const [modalConfig, setModalConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        description: string;
+        variant: "info" | "success" | "warning" | "danger";
+        onConfirm: () => void | Promise<void>;
+        showCancel?: boolean;
+        confirmText?: string;
+    }>({
+        isOpen: false,
+        title: "",
+        description: "",
+        variant: "info",
+        onConfirm: () => {},
+    });
+
+    const showAlert = (title: string, description: string, variant: "info" | "success" | "warning" | "danger" = "info") => {
+        setModalConfig({
+            isOpen: true,
+            title,
+            description,
+            variant,
+            onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false })),
+            showCancel: false,
+            confirmText: "Entendido"
+        });
+    };
+
+    const showConfirm = (title: string, description: string, onConfirm: () => void | Promise<void>, variant: "info" | "success" | "warning" | "danger" = "warning") => {
+        setModalConfig({
+            isOpen: true,
+            title,
+            description,
+            variant,
+            onConfirm: async () => {
+                await onConfirm();
+                setModalConfig(prev => ({ ...prev, isOpen: false }));
+            },
+            showCancel: true,
+            confirmText: "Confirmar"
+        });
+    };
 
     useEffect(() => {
         let unsubscribe: () => void;
@@ -93,82 +138,94 @@ export default function BookingsPage() {
     }, [router]);
 
     const handleBookClass = async (classObj: any) => {
-        try {
-            setIsProcessingBooking(classObj.$id);
-
-            // 1. Verify class still has space in DB acting as single truth
-            const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
-            if (freshClass.registeredCount >= freshClass.capacity) {
-                alert("¡Lo sentimos! Las plazas para esta clase se acaban de llenar.");
-                return;
-            }
-
-            // 2. Increment Registered Count locally and remotely
-            await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id, {
-                registeredCount: freshClass.registeredCount + 1
-            });
-
-            // 3. Save directly to Bookings Collection table
-            const newBooking = await databases.createDocument(
-                DATABASE_ID,
-                COLLECTION_BOOKINGS,
-                ID.unique(),
-                {
-                    student_id: user.$id,
-                    class_id: classObj.$id
+        showConfirm(
+            "Confirmar Reserva", 
+            `¿Quieres reservar tu plaza para la clase de ${classObj.name} con ${classObj.coach}?`,
+            async () => {
+                try {
+                    setIsProcessingBooking(classObj.$id);
+        
+                    // 1. Verify class still has space in DB acting as single truth
+                    const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
+                    if (freshClass.registeredCount >= freshClass.capacity) {
+                        showAlert("Clase Llena", "¡Lo sentimos! Las plazas para esta clase se acaban de llenar.", "warning");
+                        return;
+                    }
+        
+                    // 2. Increment Registered Count locally and remotely
+                    await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id, {
+                        registeredCount: freshClass.registeredCount + 1
+                    });
+        
+                    // 3. Save directly to Bookings Collection table
+                    const newBooking = await databases.createDocument(
+                        DATABASE_ID,
+                        COLLECTION_BOOKINGS,
+                        ID.unique(),
+                        {
+                            student_id: user.$id,
+                            class_id: classObj.$id
+                        }
+                    );
+        
+                    // 4. Update UI State without reloading
+                    setUserBookings(prev => [...prev, newBooking]);
+                    setAvailableClasses(prev => prev.map(c =>
+                        c.$id === classObj.$id ? { ...c, registeredCount: c.registeredCount + 1 } : c
+                    ));
+                    showAlert("¡Reserva Éxitosa!", "Tu plaza ha quedado confirmada. ¡Nos vemos en el tatami!", "success");
+                } catch (err: any) {
+                    if (err.code !== 404) {
+                        showAlert("Error", "No se ha podido realizar la reserva. Inténtalo de nuevo.", "danger");
+                    }
+                    console.error(err);
+                } finally {
+                    setIsProcessingBooking(null);
                 }
-            );
-
-            // 4. Update UI State without reloading
-            setUserBookings(prev => [...prev, newBooking]);
-            setAvailableClasses(prev => prev.map(c =>
-                c.$id === classObj.$id ? { ...c, registeredCount: c.registeredCount + 1 } : c
-            ));
-
-        } catch (err: any) {
-            if (err.code !== 404) {
-                alert("Error al intentar realizar la reserva. Inténtalo de nuevo.");
-            }
-            console.error(err);
-        } finally {
-            setIsProcessingBooking(null);
-        }
+            },
+            "info"
+        );
     };
 
     const handleCancelBooking = async (classObj: any) => {
-        if (!window.confirm("¿Seguro que quieres cancelar tu plaza en esta clase?")) return;
-
-        try {
-            setIsProcessingBooking(classObj.$id);
-
-            // Find the specific booking document id for this class and user
-            const bookingToCancel = userBookings.find((b: any) => b.class_id === classObj.$id);
-            if (!bookingToCancel) return;
-
-            const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
-
-            // Free the slot
-            await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id, {
-                registeredCount: Math.max(0, freshClass.registeredCount - 1)
-            });
-
-            // Remove from Bookings collection database
-            await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, bookingToCancel.$id);
-
-            // Update UI 
-            setUserBookings(prev => prev.filter((b: any) => b.$id !== bookingToCancel.$id));
-            setAvailableClasses(prev => prev.map(c =>
-                c.$id === classObj.$id ? { ...c, registeredCount: Math.max(0, c.registeredCount - 1) } : c
-            ));
-
-        } catch (err: any) {
-            if (err.code !== 404) {
-                alert("Error al cancelar la reserva.");
-                console.error(err);
-            }
-        } finally {
-            setIsProcessingBooking(null);
-        }
+        showConfirm(
+            "Cancelar Reserva", 
+            "¿Seguro que quieres cancelar tu plaza en esta clase? Esta acción permitirá que otro compañero asista.",
+            async () => {
+                try {
+                    setIsProcessingBooking(classObj.$id);
+            
+                    // Find the specific booking document id for this class and user
+                    const bookingToCancel = userBookings.find((b: any) => b.class_id === classObj.$id);
+                    if (!bookingToCancel) return;
+            
+                    const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
+            
+                    // Free the slot
+                    await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id, {
+                        registeredCount: Math.max(0, freshClass.registeredCount - 1)
+                    });
+            
+                    // Remove from Bookings collection database
+                    await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, bookingToCancel.$id);
+            
+                    // Update UI 
+                    setUserBookings(prev => prev.filter((b: any) => b.$id !== bookingToCancel.$id));
+                    setAvailableClasses(prev => prev.map(c =>
+                        c.$id === classObj.$id ? { ...c, registeredCount: Math.max(0, c.registeredCount - 1) } : c
+                    ));
+                    showAlert("Éxito", "Reserva cancelada correctamente.", "success");
+                } catch (err: any) {
+                    if (err.code !== 404) {
+                        showAlert("Error", "No se ha podido cancelar la reserva.", "danger");
+                        console.error(err);
+                    }
+                } finally {
+                    setIsProcessingBooking(null);
+                }
+            },
+            "danger"
+        );
     };
 
     if (loading) {
@@ -272,6 +329,16 @@ export default function BookingsPage() {
                 />
 
             </main>
+            <ConfirmModal 
+                isOpen={modalConfig.isOpen}
+                onOpenChange={(open) => setModalConfig(prev => ({ ...prev, isOpen: open }))}
+                title={modalConfig.title}
+                description={modalConfig.description}
+                variant={modalConfig.variant}
+                onConfirm={modalConfig.onConfirm}
+                showCancel={modalConfig.showCancel}
+                confirmText={modalConfig.confirmText}
+            />
         </div>
     );
 }
