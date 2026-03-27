@@ -222,7 +222,8 @@ export default function AdminDashboard() {
         `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents`,
         `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
         `databases.${DATABASE_ID}.collections.${COLLECTION_REVENUE}.documents`,
-        `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`
+        `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`,
+        `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`
       ],
       (response) => {
         // Al detectar CUALQUIER cambio en estos datos core, refrescamos la vista
