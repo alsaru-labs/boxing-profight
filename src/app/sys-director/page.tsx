@@ -1020,9 +1020,10 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <Card className="bg-white/5 border-white/10 backdrop-blur-lg shadow-2xl overflow-hidden">
-            <Table>
-              <TableHeader className="bg-white/5">
+          <Card className="bg-zinc-900/50 border-white/10 backdrop-blur-lg shadow-2xl overflow-hidden">
+            <div className="max-h-[700px] overflow-y-auto">
+              <Table>
+                <TableHeader className="bg-black/60 sticky top-0 z-10 backdrop-blur-md border-b border-white/10">
                 <TableRow className="border-white/10 hover:bg-transparent">
                   <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('name')}>
                     <div className="flex items-center gap-1">Alumno <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
@@ -1142,6 +1143,7 @@ export default function AdminDashboard() {
                 )}
               </TableBody>
             </Table>
+          </div>
 
             {visibleCount < processedStudents.length && (
               <div className="w-full flex justify-center py-4 border-t border-white/10 bg-white/5">
