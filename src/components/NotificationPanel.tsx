@@ -92,11 +92,8 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
 
     const unreadCount = notifications.filter(n => !readIds.includes(n.$id)).length;
 
-    // Filter visible notifications: Unread + Read in the last 48h
+    // Filter visible notifications: Strictly last 48h
     const visibleNotifications = notifications.filter(n => {
-        const isUnread = !readIds.includes(n.$id);
-        if (isUnread) return true;
-
         const createdDate = new Date(n.createdAt);
         const fortyEightHoursAgo = new Date();
         fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
