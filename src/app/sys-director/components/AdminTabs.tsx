@@ -10,5 +10,5 @@ export function AdminTabs() {
     { value: "tablon", label: "Tablón", icon: MessageCircle },
   ];
 
-  return <NavigationTabs tabs={tabs} className="mb-8" />;
+  return <NavigationTabs tabs={tabs} className="mb-4" />;
 }

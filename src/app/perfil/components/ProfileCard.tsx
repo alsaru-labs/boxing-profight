@@ -32,27 +32,10 @@ export function ProfileCard({ user, profileInfo, initials }: ProfileCardProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-4 p-3 rounded-xl bg-white/5 border border-white/5">
-            <div className="bg-white/10 p-2 rounded-lg"><Mail className="w-5 h-5 text-emerald-400" /></div>
-            <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-[10px] text-white/30 uppercase font-black tracking-widest">Email</span>
-              <span className="text-sm font-medium truncate" title={user?.email}>{user?.email}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-4 p-3 rounded-xl bg-white/5 border border-white/5">
-            <div className="bg-white/10 p-2 rounded-lg"><Phone className="w-5 h-5 text-emerald-400" /></div>
-            <div className="flex flex-col">
-              <span className="text-[10px] text-white/30 uppercase font-black tracking-widest">Teléfono</span>
-              <span className="text-sm font-medium">{profileInfo?.phone || "No registrado"}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Subscription Status inside profile card */}
-        <div className="pt-6 border-t border-white/5">
+        {/* Subscription Status - Main Info at Top */}
+        <div className="pb-6 border-b border-white/5">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Estado de Membresía</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Membresía Activa</span>
             {profileInfo?.is_paid ? (
               <Badge className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)] px-3 py-1.5 flex items-center gap-1.5 text-[10px] font-black tracking-widest uppercase">
                 <CheckCircle2 className="w-3.5 h-3.5" /> PAGADO
@@ -64,8 +47,29 @@ export function ProfileCard({ user, profileInfo, initials }: ProfileCardProps) {
             )}
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black">55€</span>
-            <span className="text-white/40 text-xs italic">/ mes</span>
+            <span className="text-3xl font-black">55€</span>
+            <span className="text-white/40 text-xs italic font-medium">/ cuota mensual</span>
+          </div>
+        </div>
+
+        {/* Contact Details */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-4 p-3 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/5 transition-colors group">
+            <div className="bg-white/5 p-2 rounded-lg group-hover:bg-emerald-500/10 transition-colors"><Phone className="w-5 h-5 text-emerald-400" /></div>
+            <div className="flex flex-col">
+              <span className="text-[10px] text-white/30 uppercase font-black tracking-widest">Teléfono</span>
+              <span className="text-sm font-bold">{profileInfo?.phone || "No registrado"}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 p-3 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/5 transition-colors group">
+            <div className="bg-white/5 p-2 rounded-lg group-hover:bg-emerald-500/10 transition-colors">
+              <div className="w-5 h-5 flex items-center justify-center font-black text-[8px] text-emerald-400 border border-emerald-500/30 rounded-full">@</div>
+            </div>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-[10px] text-white/30 uppercase font-black tracking-widest">Email Principal</span>
+              <span className="text-sm font-bold truncate" title={user?.email}>{user?.email}</span>
+            </div>
           </div>
         </div>
       </CardContent>

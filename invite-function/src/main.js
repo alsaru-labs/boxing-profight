@@ -97,29 +97,66 @@ module.exports = async function (context) {
 
         const html = `
         <!DOCTYPE html>
-        <html>
+        <html lang="es">
         <head>
-            <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #000; color: #fff; margin: 0; padding: 0; }
-                .container { max-width: 600px; margin: 40px auto; padding: 40px; border-radius: 24px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px); }
-                .logo { font-size: 24px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase; color: #10b981; margin-bottom: 30px; }
-                h1 { font-size: 32px; font-weight: 800; margin-bottom: 20px; letter-spacing: -0.5px; }
-                p { color: rgba(255, 255, 255, 0.6); line-height: 1.6; font-size: 16px; margin-bottom: 30px; }
-                .button { display: inline-block; padding: 18px 36px; background: #fff; color: #000; font-weight: 900; text-decoration: none; border-radius: 12px; transition: all 0.3s; }
-                .footer { margin-top: 40px; font-size: 12px; color: rgba(255, 255, 255, 0.3); border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 20px; }
-            </style>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Bienvenido a Boxing Profight</title>
         </head>
-        <body>
-            <div class="container">
-                <div class="logo">BOXING PROFIGHT</div>
-                <h1>Bienvenido, ${profile.name}</h1>
-                <p>Tu plaza en el ring está lista. Solo falta que configures tu acceso personal a la plataforma para empezar a reservar tus sesiones.</p>
-                <a href="${setPasswordUrl}" class="button">ESTABLECER CONTRASEÑA</a>
-                <p style="margin-top: 30px; font-size: 14px;">Este enlace caduca en 48 horas por motivos de seguridad.</p>
-                <div class="footer">
-                    &copy; ${new Date().getFullYear()} Boxing Profight Management. Acceso exclusivo para alumnos.
-                </div>
-            </div>
+        <body style="margin: 0; padding: 0; background-color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+            <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #000000; padding: 40px 20px;">
+                <tr>
+                    <td align="center">
+                        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #0c0c0c; border: 1px solid #1a1a1a; border-radius: 32px; overflow: hidden; border-collapse: separate;">
+                            <!-- Header / Logo -->
+                            <tr>
+                                <td align="center" style="padding: 48px 40px 20px 40px;">
+                                    <img src="https://boxingprofight.com/logo_boxing_profight.webp" alt="Boxing Profight" width="100" style="display: block; border-radius: 16px;">
+                                </td>
+                            </tr>
+                            
+                            <!-- Main Content -->
+                            <tr>
+                                <td align="center" style="padding: 0 48px 48px 48px;">
+                                    <h1 style="color: #ffffff; font-size: 32px; font-weight: 800; margin: 0 0 20px 0; letter-spacing: -1px; text-transform: uppercase;">
+                                        ¡Bienvenido, ${profile.name}!
+                                    </h1>
+                                    <p style="color: #a1a1aa; font-size: 16px; line-height: 1.6; margin: 0 0 32px 0;">
+                                        Tu plaza en el ring está lista. Solo falta que configures tu acceso personal a la plataforma para empezar a reservar tus sesiones y llevar tu entrenamiento al máximo nivel.
+                                    </p>
+                                    
+                                    <!-- Action Button -->
+                                    <table border="0" cellspacing="0" cellpadding="0">
+                                        <tr>
+                                            <td align="center" bgcolor="#ffffff" style="border-radius: 16px;">
+                                                <a href="${setPasswordUrl}" target="_blank" style="display: inline-block; padding: 20px 40px; color: #000000; font-size: 14px; font-weight: 900; text-decoration: none; letter-spacing: 1px; text-transform: uppercase;">
+                                                    ESTABLECER CONTRASEÑA
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    
+                                    <p style="color: #3f3f46; font-size: 12px; margin: 32px 0 0 0; font-weight: 500;">
+                                        Este enlace caduca automáticamente en 48 horas.
+                                    </p>
+                                </td>
+                            </tr>
+                            
+                            <!-- Footer -->
+                            <tr>
+                                <td align="center" style="background-color: #080808; padding: 24px 48px; border-top: 1px solid #1a1a1a;">
+                                    <p style="color: #52525b; font-size: 11px; margin: 0; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">
+                                        &copy; ${new Date().getFullYear()} Boxing Profight Management
+                                    </p>
+                                    <p style="color: #27272a; font-size: 10px; margin: 4px 0 0 0;">
+                                        Acceso exclusivo para miembros registrados.
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
         </body>
         </html>
         `;

@@ -21,7 +21,7 @@ export function NavigationTabs({ tabs, className = "" }: NavigationTabsProps) {
         <TabsTrigger 
           key={tab.value}
           value={tab.value} 
-          className="flex-1 rounded-xl px-2 sm:px-8 py-3.5 data-[state=active]:bg-white data-[state=active]:text-black font-black transition-all flex items-center justify-center gap-2 text-[10px] sm:text-sm whitespace-nowrap uppercase tracking-tighter sm:tracking-normal"
+          className="flex-1 rounded-xl px-2 sm:px-8 py-2.5 data-[state=active]:bg-white data-[state=active]:text-black font-black transition-all flex items-center justify-center gap-2 text-[10px] sm:text-sm whitespace-nowrap uppercase tracking-tighter sm:tracking-normal"
         >
           {tab.icon && <tab.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
           <span>{tab.label}</span>

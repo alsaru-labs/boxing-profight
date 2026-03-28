@@ -23,6 +23,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { AdminTabs } from "./components/AdminTabs";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { ClassGrid } from "@/components/ClassGrid";
+import { StudentDirectory } from "./components/StudentDirectory";
 import { LITERALS } from "@/constants/literals";
 import {
   DropdownMenu,
@@ -122,13 +123,6 @@ export default function AdminDashboard() {
   const [newStudentPhoneError, setNewStudentPhoneError] = useState("");
   const [editLastName, setEditLastName] = useState("");
 
-  // Table Fitler & Sort States
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterPayment, setFilterPayment] = useState("todos"); // "todos", "pagado", "pendiente"
-  const [filterLevel, setFilterLevel] = useState("todos"); // "todos", "Iniciación", "Media", "Profesional"
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
-  const [visibleCount, setVisibleCount] = useState(30);
-
   // Classes States
   const [classesList, setClassesList] = useState<any[]>([]);
   const [isClassModalOpen, setIsClassModalOpen] = useState(false);
@@ -156,7 +150,24 @@ export default function AdminDashboard() {
         databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS, [Query.orderDesc("createdAt"), Query.limit(20)])
       ]);
 
-      const allStudents = profilesData.documents.filter((s: any) => s.role !== "admin");
+      const allStudentsFromDB = profilesData.documents.filter((s: any) => s.role !== "admin");
+      
+      // Simular alumnos adicionales para probar el scroll (solicitado por el usuario)
+      const dummyStudents = Array.from({ length: 12 }, (_, i) => ({
+        $id: `dummy-${i}`,
+        user_id: `dummy-u-${i}`,
+        name: `Alumno Prueba ${i + 1}`,
+        last_name: "Test",
+        email: `test${i + 1}@example.com`,
+        phone: "+34 600 000 000",
+        level: i % 3 === 0 ? "Iniciación" : i % 3 === 1 ? "Media" : "Profesional",
+        is_paid: i % 2 === 0,
+        $createdAt: new Date().toISOString(),
+        role: "student"
+      }));
+
+      const allStudents = [...allStudentsFromDB, ...dummyStudents];
+      
       setTotalStudents(allStudents.length);
       setClassesList(classesData.documents);
       setAnnouncements(announcementsData.documents);
@@ -649,54 +660,6 @@ export default function AdminDashboard() {
     );
   }
 
-  // Filter and Sort Processing
-  const processedStudents = [...studentsList]
-    .filter((student) => {
-      // Search term
-      const matchesSearch =
-        (student.name?.toLowerCase().includes(searchTerm.toLowerCase()) || "") ||
-        (student.email?.toLowerCase().includes(searchTerm.toLowerCase()) || "");
-
-      // Payment filter
-      const matchesPayment =
-        filterPayment === "todos" ? true :
-          filterPayment === "pagado" ? student.is_paid === true :
-            student.is_paid === false;
-
-      // Level filter
-      const matchesLevel =
-        filterLevel === "todos" ? true :
-          (student.level || "Iniciación") === filterLevel;
-
-      return matchesSearch && matchesPayment && matchesLevel;
-    })
-    .sort((a, b) => {
-      if (!sortConfig) return 0;
-
-      let aValue = a[sortConfig.key];
-      let bValue = b[sortConfig.key];
-
-      // Handle nulls/undefined for level
-      if (sortConfig.key === "level") {
-        aValue = a.level || "Iniciación";
-        bValue = b.level || "Iniciación";
-      }
-
-      if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
-      if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
-      return 0;
-    });
-
-  const handleSort = (key: string) => {
-    let direction: "asc" | "desc" = "asc";
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") {
-      direction = "desc";
-    }
-    setSortConfig({ key, direction });
-  };
-
-  const slicedStudents = processedStudents.slice(0, visibleCount);
-
   // --- New Class Validation ---
   const tzOffset = (new Date()).getTimezoneOffset() * 60000;
   const localTodayISO = new Date(Date.now() - tzOffset).toISOString().split('T')[0];
@@ -1051,390 +1014,16 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
-        {/* Students Table Section */}
-        <div className="space-y-4">
-          {/* Table Header & Controls */}
-          <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between mb-6 gap-4">
-            <h2 className="text-2xl font-bold tracking-tight">{LITERALS.DASHBOARD.STUDENTS_DIRECTORY}</h2>
-
-            <div className="flex flex-col sm:flex-row w-full xl:w-auto gap-3 items-center">
-              {/* Search */}
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-white/50" />
-                <Input
-                  type="text"
-                  placeholder="Buscar alumno o email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 bg-white/5 border-white/10 text-white focus-visible:ring-emerald-500 w-full rounded-md"
-                />
-              </div>
-
-              {/* Filter Payment */}
-              <select
-                value={filterPayment}
-                onChange={(e) => setFilterPayment(e.target.value)}
-                className="bg-zinc-900 border border-white/10 text-white text-sm rounded-md focus:ring-emerald-500 block p-2 w-full sm:w-auto h-10"
-              >
-                <option value="todos">{LITERALS.DASHBOARD.FILTER_ALL_PAYMENTS}</option>
-                <option value="pagado">{LITERALS.DASHBOARD.FILTER_PAID}</option>
-                <option value="pendiente">{LITERALS.DASHBOARD.FILTER_PENDING}</option>
-              </select>
-
-              {/* Filter Level */}
-              <select
-                value={filterLevel}
-                onChange={(e) => setFilterLevel(e.target.value)}
-                className="bg-zinc-900 border border-white/10 text-white text-sm rounded-md focus:ring-emerald-500 block p-2 w-full sm:w-auto h-10"
-              >
-                <option value="todos">Todos los Niveles</option>
-                <option value="Iniciación">Iniciación</option>
-                <option value="Media">Media</option>
-                <option value="Profesional">Profesional</option>
-              </select>
-
-              {/* Reset Filters / Sorting Button */}
-              {(searchTerm !== "" || filterPayment !== "todos" || filterLevel !== "todos" || sortConfig !== null) && (
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setSearchTerm("");
-                    setFilterPayment("todos");
-                    setFilterLevel("todos");
-                    setSortConfig(null);
-                    setVisibleCount(30);
-                  }}
-                  className="h-10 text-red-400 hover:text-red-300 hover:bg-red-500/10 whitespace-nowrap px-3"
-                >
-                  <X className="w-4 h-4 mr-1.5" />
-                  Limpiar Filtros
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <Card className="bg-zinc-900/50 border-white/10 backdrop-blur-lg shadow-2xl overflow-hidden">
-            <div className="max-h-[700px] overflow-y-auto custom-scrollbar">
-              {/* Desktop Table View */}
-              <div className="hidden sm:block">
-                <Table>
-                  <TableHeader className="bg-black/60 sticky top-0 z-10 backdrop-blur-md border-b border-white/10">
-                    <TableRow className="border-white/10 hover:bg-transparent">
-                      <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('name')}>
-                        <div className="flex items-center gap-1">Alumno <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
-                      </TableHead>
-                      <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('is_paid')}>
-                        <div className="flex items-center gap-1">Estado de Pago <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
-                      </TableHead>
-                      <TableHead className="text-white/70">Contacto</TableHead>
-                      <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('level')}>
-                        <div className="flex items-center gap-1">Nivel <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
-                      </TableHead>
-                      <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors hidden md:table-cell" onClick={() => handleSort('$createdAt')}>
-                        <div className="flex items-center gap-1">Alta <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
-                      </TableHead>
-                      <TableHead className="text-right text-white/70"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {slicedStudents.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center h-24 text-white/50">
-                          No hay alumnos registrados todavía en la Base de Datos.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      slicedStudents.map((student) => (
-                        <TableRow key={student.$id} className="border-white/10 hover:bg-white/5 transition-colors">
-                          <TableCell className="font-medium">
-                            <div className="flex items-center space-x-3">
-                              <div>
-                                <p className="text-white font-medium">{student.name} {student.last_name || ""}</p>
-                                <p className="text-white/50 text-xs text-nowrap">{student.email}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-
-                          <TableCell>
-                            <Badge
-                              variant="outline"
-                              className={
-                                student.is_paid
-                                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                                  : "bg-red-500/10 text-red-400 border-red-500/20"
-                              }
-                            >
-                              {student.is_paid ? "Pagado" : "No Pagado"}
-                            </Badge>
-                          </TableCell>
-
-                          <TableCell>
-                            {student.phone ? (
-                              <a
-                                href={`https://wa.me/${student.phone.replace(/\+/g, '').replace(/\s/g, '')}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 text-white/70 hover:text-[#25D366] transition-colors group"
-                              >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  width="16"
-                                  height="16"
-                                  viewBox="0 0 24 24"
-                                  className="w-4 h-4 text-[#25D366] group-hover:scale-110 transition-transform fill-current"
-                                >
-                                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                                </svg>
-                                <span className="text-sm font-medium">{student.phone}</span>
-                              </a>
-                            ) : (
-                              <span className="text-white/30 text-xs italic">No indicado</span>
-                            )}
-                          </TableCell>
-
-                          <TableCell>
-                            <Badge variant="outline" className={`
-                              ${student.level === 'Iniciación' ? 'border-amber-500/30 text-amber-500' : ''}
-                              ${student.level === 'Media' ? 'border-blue-500/30 text-blue-400' : ''}
-                              ${student.level === 'Profesional' ? 'border-red-500/30 text-red-500' : ''}
-                              bg-black/40 shadow-inner px-2.5 py-1 text-[10px] font-black tracking-widest uppercase
-                            `}>
-                              <Signal className="w-3 h-3 mr-1" />
-                              {student.level || "Iniciación"}
-                            </Badge>
-                          </TableCell>
-
-                          <TableCell className="text-white/50 text-xs font-medium hidden md:table-cell">
-                            {new Date(student.$createdAt).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
-                          </TableCell>
-
-                          <TableCell className="text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger className="h-9 w-9 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 rounded-xl transition-all border border-transparent hover:border-white/10 outline-none focus:ring-2 focus:ring-emerald-500/50">
-                                <span className="sr-only">Abrir menú</span>
-                                <MoreVertical className="h-4 w-4" />
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="bg-zinc-900/95 backdrop-blur-xl border-white/10 text-white min-w-[200px] p-2 rounded-2xl shadow-2xl">
-                                <DropdownMenuGroup className="p-1">
-                                  <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-white/30 px-2 py-1.5">Gestión de Alumno</DropdownMenuLabel>
-                                  <DropdownMenuItem
-                                    className="group flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-white/70 focus:bg-white/10 focus:text-white cursor-pointer transition-colors"
-                                    onClick={() => handleActionClick(student)}
-                                    disabled={isUpdating}
-                                  >
-                                    {student.is_paid ? (
-                                      <><CalendarX className="w-4 h-4 text-red-400 group-hover:scale-110 transition-transform" /> <span className="text-red-400">Marcar como Pendiente</span></>
-                                    ) : (
-                                      <><ShieldCheck className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" /> <span className="text-emerald-400">Registrar Pago Hoy</span></>
-                                    )}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-white/70 focus:bg-white/10 focus:text-white cursor-pointer transition-colors"
-                                    onClick={() => handleOpenEditModal(student)}
-                                    disabled={isUpdating}
-                                  >
-                                    <UserCog className="w-4 h-4 text-blue-400" />
-                                    <span>Editar Alumno</span>
-                                  </DropdownMenuItem>
-                                </DropdownMenuGroup>
-                                <DropdownMenuSeparator className="bg-white/5 mx-1" />
-                                <DropdownMenuGroup className="p-1">
-                                  <DropdownMenuItem
-                                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-red-400 focus:bg-red-500/20 focus:text-red-400 cursor-pointer transition-colors"
-                                    onClick={() => {
-                                      showConfirm(
-                                        "Dar de baja",
-                                        `¿Seguro que quieres eliminar a ${student.name}? Esta acción es irreversible.`,
-                                        async () => {
-                                          try {
-                                            setIsUpdating(true);
-                                            const result = await deleteStudentAccount(student.$id, student.user_id);
-                                            
-                                            if (result.success) {
-                                              setStudentsList(prev => prev.filter(s => s.$id !== student.$id));
-                                              showAlert("Éxito", "Alumno dado de baja y cuenta eliminada correctamente.", "success");
-                                            } else {
-                                              showAlert("Error", result.error || "No se ha podido eliminar al alumno.", "danger");
-                                            }
-                                          } catch (err) {
-                                            showAlert("Error", "Error de red al intentar dar de baja al alumno.", "danger");
-                                          } finally {
-                                            setIsUpdating(false);
-                                          }
-                                        },
-                                        "danger"
-                                      );
-                                    }}
-                                    disabled={isUpdating}
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                    <span>Eliminar Cuenta</span>
-                                  </DropdownMenuItem>
-                                </DropdownMenuGroup>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {/* Mobile Card View */}
-              <div className="sm:hidden grid grid-cols-1 divide-y divide-white/5">
-                {slicedStudents.length === 0 ? (
-                  <div className="p-8 text-center text-white/50 italic">
-                    No hay alumnos registrados.
-                  </div>
-                ) : (
-                  slicedStudents.map((student) => (
-                    <div key={student.$id} className="p-4 space-y-4 hover:bg-white/[0.02] transition-colors relative">
-                      {/* Top Header: Name/Email + Action Button */}
-                      <div className="flex justify-between items-start pr-10">
-                        <div className="min-w-0">
-                          <h3 className="text-white font-bold truncate leading-tight">
-                            {student.name} {student.last_name || ""}
-                          </h3>
-                          <p className="text-white/40 text-[10px] truncate mt-0.5">
-                            {student.email}
-                          </p>
-                        </div>
-                        
-                        {/* Pinned Action Button */}
-                        <div className="absolute right-3 top-4">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger className="h-9 w-9 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 rounded-xl transition-all border border-white/5 bg-black/20 outline-none">
-                              <MoreVertical className="h-4 w-4" />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="bg-zinc-900/95 backdrop-blur-xl border-white/10 text-white min-w-[200px] p-2 rounded-2xl shadow-2xl">
-                              <DropdownMenuGroup className="p-1">
-                                <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-white/30 px-2 py-1.5">Gestión de Alumno</DropdownMenuLabel>
-                                <DropdownMenuItem
-                                  className="group flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-white/70 focus:bg-white/10 focus:text-white cursor-pointer transition-colors"
-                                  onClick={() => handleActionClick(student)}
-                                  disabled={isUpdating}
-                                >
-                                  {student.is_paid ? (
-                                    <><CalendarX className="w-4 h-4 text-red-400 group-hover:scale-110 transition-transform" /> <span className="text-red-400">Pendiente</span></>
-                                  ) : (
-                                    <><ShieldCheck className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" /> <span className="text-emerald-400">Registrar Pago</span></>
-                                  )}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-white/70 focus:bg-white/10 focus:text-white cursor-pointer transition-colors"
-                                  onClick={() => handleOpenEditModal(student)}
-                                  disabled={isUpdating}
-                                >
-                                  <UserCog className="w-4 h-4 text-blue-400" />
-                                  <span>Editar Alumno</span>
-                                </DropdownMenuItem>
-                              </DropdownMenuGroup>
-                              <DropdownMenuSeparator className="bg-white/5 mx-1" />
-                              <DropdownMenuGroup className="p-1">
-                                <DropdownMenuItem
-                                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-red-400 focus:bg-red-500/20 focus:text-red-400 cursor-pointer transition-colors"
-                                  onClick={() => {
-                                    showConfirm(
-                                      "Dar de baja",
-                                      `¿Seguro que quieres eliminar a ${student.name}? Esta acción es irreversible.`,
-                                      async () => {
-                                        try {
-                                          setIsUpdating(true);
-                                          const result = await deleteStudentAccount(student.$id, student.user_id);
-                                          
-                                          if (result.success) {
-                                            setStudentsList(prev => prev.filter(s => s.$id !== student.$id));
-                                            showAlert("Éxito", "Alumno dado de baja y cuenta eliminada correctamente.", "success");
-                                          } else {
-                                            showAlert("Error", result.error || "No se ha podido eliminar al alumno.", "danger");
-                                          }
-                                        } catch (err) {
-                                          showAlert("Error", "Error de red al intentar dar de baja al alumno.", "danger");
-                                        } finally {
-                                          setIsUpdating(false);
-                                        }
-                                      },
-                                      "danger"
-                                    );
-                                  }}
-                                  disabled={isUpdating}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                  <span>Eliminar Cuenta</span>
-                                </DropdownMenuItem>
-                              </DropdownMenuGroup>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-
-                      {/* Middle: Badges Row */}
-                      <div className="flex flex-wrap gap-2">
-                        <Badge
-                          variant="outline"
-                          className={`text-[9px] px-2 py-0.5 font-black uppercase tracking-tighter ${
-                            student.is_paid
-                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                              : "bg-red-500/10 text-red-400 border-red-500/20"
-                          }`}
-                        >
-                          {student.is_paid ? "Pagado" : "Pendiente"}
-                        </Badge>
-                        <Badge variant="outline" className={`
-                          ${student.level === 'Iniciación' ? 'border-amber-500/30 text-amber-500' : ''}
-                          ${student.level === 'Media' ? 'border-blue-500/30 text-blue-400' : ''}
-                          ${student.level === 'Profesional' ? 'border-red-500/30 text-red-500' : ''}
-                          bg-black/40 px-2 py-0.5 text-[9px] font-black tracking-tighter uppercase
-                        `}>
-                          {student.level || "Iniciación"}
-                        </Badge>
-                      </div>
-
-                      {/* Bottom Footer: WhatsApp Button */}
-                      <div className="flex items-center justify-between pt-2 border-t border-white/[0.03]">
-                        {student.phone ? (
-                          <a
-                            href={`https://wa.me/${student.phone.replace(/\+/g, '').replace(/\s/g, '')}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg bg-[#25D366]/10 text-[#25D366] text-xs font-bold border border-[#25D366]/20"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              className="fill-current"
-                            >
-                              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                            </svg>
-                            WhatsApp
-                          </a>
-                        ) : (
-                          <div className="text-[10px] text-white/20 italic">Sin contacto</div>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {visibleCount < processedStudents.length && (
-                <div className="w-full flex justify-center py-4 border-t border-white/10 bg-white/5">
-                  <Button
-                    variant="ghost"
-                    onClick={() => setVisibleCount(prev => prev + 30)}
-                    className="text-white hover:bg-white/10 flex items-center gap-2"
-                  >
-                    <ChevronDown className="w-4 h-4" />
-                    Cargar más alumnos ({processedStudents.length - visibleCount} restantes)
-                  </Button>
-                </div>
-              )}
-            </div>
-          </Card>
-        </div>
+        <StudentDirectory 
+          studentsList={studentsList}
+          isUpdating={isUpdating}
+          handleActionClick={handleActionClick}
+          handleOpenEditModal={handleOpenEditModal}
+          deleteStudentAccount={deleteStudentAccount}
+          setStudentsList={setStudentsList}
+          showAlert={showAlert}
+          showConfirm={showConfirm}
+        />
       </TabsContent>
 
       <TabsContent value="clases" className="space-y-10 focus-visible:outline-none">
