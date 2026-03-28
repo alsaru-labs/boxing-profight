@@ -5,27 +5,43 @@ const { Resend } = require('resend');
 module.exports = async function (context) {
     const { req, res, log, error } = context;
 
+    // Ensure profile is an object (Appwrite events can send strings or objects depending on the runtime/header)
+    let profile;
+    try {
+        profile = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    } catch (e) {
+        error("Failed to parse request body: " + e.message);
+        return res.json({ success: false, message: 'Invalid JSON payload' }, 400);
+    }
+
     // 1. Initial Checks
     if (req.method !== 'POST') {
         return res.json({ success: false, message: 'Only POST allowed' });
     }
 
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    const client = new sdk.Client()
-        .setEndpoint(process.env.APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1')
-        .setProject(process.env.APPWRITE_PROJECT_ID)
-        .setKey(process.env.APPWRITE_API_KEY);
-
-    const users = new sdk.Users(client);
-    const databases = new sdk.Databases(client);
-
-    // document is the newly created profile
-    const profile = req.body;
-
     if (!profile || !profile.email || profile.role !== 'alumno') {
         log("Not a student profile or missing email. Skipping.");
         return res.json({ success: true, message: 'Skipped: Not a student' });
     }
+
+    // Load Environment Variables
+    const projectID = process.env.APPWRITE_PROJECT_ID || process.env.APPWRITE_FUNCTION_PROJECT_ID;
+    const endpoint = process.env.APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1';
+    const apiKey = process.env.APPWRITE_API_KEY;
+
+    if (!projectID || !apiKey) {
+        error("Missing required Appwrite configuration (Project ID or API Key)");
+        return res.json({ success: false, message: 'Server configuration error' }, 500);
+    }
+
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const client = new sdk.Client()
+        .setEndpoint(endpoint)
+        .setProject(projectID)
+        .setKey(apiKey);
+
+    const users = new sdk.Users(client);
+    const databases = new sdk.Databases(client);
 
     try {
         log(`Processing invitation for: ${profile.name} <${profile.email}>`);
@@ -55,7 +71,7 @@ module.exports = async function (context) {
         // 4. Save Token to Database
         await databases.createDocument(
             process.env.DATABASE_ID,
-            process.env.COLLECTION_TOKENS_ID, // Use env for collection ID
+            process.env.COLLECTION_TOKENS_ID,
             sdk.ID.unique(),
             {
                 token: token,
@@ -66,7 +82,7 @@ module.exports = async function (context) {
 
         // 5. Send Email via Resend
         const setPasswordUrl = `${process.env.PUBLIC_DOMAIN}/set-password?token=${token}`;
-
+        
         const html = `
         <!DOCTYPE html>
         <html>
@@ -78,7 +94,7 @@ module.exports = async function (context) {
                 h1 { font-size: 32px; font-weight: 800; margin-bottom: 20px; letter-spacing: -0.5px; }
                 p { color: rgba(255, 255, 255, 0.6); line-height: 1.6; font-size: 16px; margin-bottom: 30px; }
                 .button { display: inline-block; padding: 18px 36px; background: #fff; color: #000; font-weight: 900; text-decoration: none; border-radius: 12px; transition: all 0.3s; }
-                .footer { margin-top: 40px; font-size: 12px; color: rgba(255, 255, 255, 0.3); border-top: 1px solid rgba(255, 255, 255, 0.05); pt-20: 20px; }
+                .footer { margin-top: 40px; font-size: 12px; color: rgba(255, 255, 255, 0.3); border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 20px; }
             </style>
         </head>
         <body>
@@ -111,5 +127,3 @@ module.exports = async function (context) {
         return res.json({ success: false, error: err.message }, 500);
     }
 };
-
-
