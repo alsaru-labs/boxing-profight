@@ -66,7 +66,7 @@ module.exports = async function (context) {
 
         // 5. Send Email via Resend
         const setPasswordUrl = `${process.env.PUBLIC_DOMAIN}/set-password?token=${token}`;
-        
+
         const html = `
         <!DOCTYPE html>
         <html>
@@ -111,3 +111,5 @@ module.exports = async function (context) {
         return res.json({ success: false, error: err.message }, 500);
     }
 };
+
+
