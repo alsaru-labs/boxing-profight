@@ -14,6 +14,7 @@ import Navbar from "@/components/Navbar";
 import ConfirmedClasses from "@/components/ConfirmedClasses";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { ClassGrid } from "@/components/ClassGrid";
+import { LITERALS } from "@/constants/literals";
 
 export default function BookingsPage() {
     const router = useRouter();
@@ -41,7 +42,7 @@ export default function BookingsPage() {
         title: "",
         description: "",
         variant: "info",
-        onConfirm: () => {},
+        onConfirm: () => { },
     });
 
     const showAlert = (title: string, description: string, variant: "info" | "success" | "warning" | "danger" = "info") => {
@@ -140,24 +141,24 @@ export default function BookingsPage() {
 
     const handleBookClass = async (classObj: any) => {
         showConfirm(
-            "Confirmar Reserva", 
-            `¿Quieres reservar tu plaza para la clase de ${classObj.name} con ${classObj.coach}?`,
+            LITERALS.BOOKINGS.CONFIRM_RESERVATION_TITLE, 
+            LITERALS.BOOKINGS.CONFIRM_RESERVATION_DESC(classObj.name, classObj.coach),
             async () => {
                 try {
                     setIsProcessingBooking(classObj.$id);
-        
+
                     // 1. Verify class still has space in DB acting as single truth
                     const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
                     if (freshClass.registeredCount >= freshClass.capacity) {
                         showAlert("Clase Llena", "¡Lo sentimos! Las plazas para esta clase se acaban de llenar.", "warning");
                         return;
                     }
-        
+
                     // 2. Increment Registered Count locally and remotely
                     await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id, {
                         registeredCount: freshClass.registeredCount + 1
                     });
-        
+
                     // 3. Save directly to Bookings Collection table
                     const newBooking = await databases.createDocument(
                         DATABASE_ID,
@@ -168,7 +169,7 @@ export default function BookingsPage() {
                             class_id: classObj.$id
                         }
                     );
-        
+
                     // 4. Update UI State without reloading
                     setUserBookings(prev => [...prev, newBooking]);
                     setAvailableClasses(prev => prev.map(c =>
@@ -190,26 +191,26 @@ export default function BookingsPage() {
 
     const handleCancelBooking = async (classObj: any) => {
         showConfirm(
-            "Cancelar Reserva", 
-            "¿Seguro que quieres cancelar tu plaza en esta clase? Esta acción permitirá que otro compañero asista.",
+            LITERALS.BOOKINGS.CANCEL_RESERVATION_TITLE, 
+            LITERALS.BOOKINGS.CANCEL_RESERVATION_DESC,
             async () => {
                 try {
                     setIsProcessingBooking(classObj.$id);
-            
+
                     // Find the specific booking document id for this class and user
                     const bookingToCancel = userBookings.find((b: any) => b.class_id === classObj.$id);
                     if (!bookingToCancel) return;
-            
+
                     const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
-            
+
                     // Free the slot
                     await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id, {
                         registeredCount: Math.max(0, freshClass.registeredCount - 1)
                     });
-            
+
                     // Remove from Bookings collection database
                     await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, bookingToCancel.$id);
-            
+
                     // Update UI 
                     setUserBookings(prev => prev.filter((b: any) => b.$id !== bookingToCancel.$id));
                     setAvailableClasses(prev => prev.map(c =>
@@ -250,13 +251,13 @@ export default function BookingsPage() {
             <main className="flex-1 max-w-7xl mx-auto w-full p-6 md:p-12 z-10 space-y-12">
 
                 <div>
-                    <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter mb-4 uppercase">Reservar Clase.</h1>
-                    <p className="text-white/40 text-lg font-medium">Selecciona tu próxima sesión en el tatami.</p>
+                    <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter mb-4 uppercase">{LITERALS.BOOKINGS.TITLE}</h1>
+                    <p className="text-white/40 text-lg font-medium">{LITERALS.BOOKINGS.SUBTITLE}</p>
                 </div>
 
                 {/* Disponibles Para Reservar (Componentized & Grouped) */}
                 <div className="space-y-12">
-                    <ClassGrid 
+                    <ClassGrid
                         classes={availableClasses}
                         userBookings={userBookings}
                         profileInfo={profileInfo}
@@ -274,7 +275,7 @@ export default function BookingsPage() {
                 />
 
             </main>
-            <ConfirmModal 
+            <ConfirmModal
                 isOpen={modalConfig.isOpen}
                 onOpenChange={(open) => setModalConfig(prev => ({ ...prev, isOpen: open }))}
                 title={modalConfig.title}

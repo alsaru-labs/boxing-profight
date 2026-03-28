@@ -6,6 +6,7 @@ import { databases, DATABASE_ID, COLLECTION_NOTIFICATIONS, COLLECTION_NOTIFICATI
 import { Query, ID } from "appwrite";
 import { motion, AnimatePresence } from "framer-motion";
 import { registerPushNotifications } from "@/lib/push-notifications";
+import { LITERALS } from "@/constants/literals";
 
 interface Notification {
     $id: string;
@@ -195,7 +196,7 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
                             <div className="bg-zinc-950 border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)]">
                                 <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
                                     <div className="flex flex-col">
-                                        <h3 className="font-bold text-lg text-white">Tablón de Anuncios</h3>
+                                        <h3 className="font-bold text-lg text-white">{LITERALS.DASHBOARD.ANNOUNCEMENTS.PANEL_TITLE}</h3>
                                         {unreadCount > 0 && (
                                             <button 
                                                 onClick={(e) => {
@@ -206,7 +207,7 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
                                                 className="text-[10px] text-emerald-400 hover:text-emerald-300 font-black uppercase tracking-widest flex items-center gap-1.5 transition-colors mt-0.5"
                                             >
                                                 {isMarking === "all" ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                                                Marcar todo como leído
+                                                {LITERALS.DASHBOARD.ANNOUNCEMENTS.MARK_ALL_READ}
                                             </button>
                                         )}
                                     </div>
@@ -250,7 +251,7 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
                                         </div>
                                     ) : visibleNotifications.length === 0 ? (
                                         <div className="py-12 text-center text-white/40 italic">
-                                            No hay anuncios recientes.
+                                            {LITERALS.DASHBOARD.ANNOUNCEMENTS.EMPTY_STATE}
                                         </div>
                                     ) : (
                                         visibleNotifications.map((n) => {

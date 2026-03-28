@@ -23,6 +23,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { AdminTabs } from "./components/AdminTabs";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { ClassGrid } from "@/components/ClassGrid";
+import { LITERALS } from "@/constants/literals";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -861,9 +862,9 @@ export default function AdminDashboard() {
           <Card className="bg-white/5 border-white/10 backdrop-blur-lg xl:col-span-1">
             <CardHeader>
               <CardTitle className="text-xl flex items-center gap-2">
-                <MessageCircle className="w-5 h-5 text-emerald-400" /> Crear Anuncio
+                <MessageCircle className="w-5 h-5 text-emerald-400" /> {LITERALS.DASHBOARD.ANNOUNCEMENTS.CREATE_TITLE}
               </CardTitle>
-              <CardDescription className="text-white/40">Notifica a todos los alumnos.</CardDescription>
+              <CardDescription className="text-white/40">{LITERALS.DASHBOARD.ANNOUNCEMENTS.DESCRIPTION}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -999,13 +1000,13 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
           <Card className="bg-zinc-900/50 border-white/10 backdrop-blur-lg group hover:border-emerald-500/30 transition-all duration-300">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-black text-white/40 uppercase tracking-widest">Alumnos Activos</CardTitle>
+              <CardTitle className="text-xs font-black text-white/40 uppercase tracking-widest">{LITERALS.DASHBOARD.ACTIVE_STUDENTS}</CardTitle>
               <Users className="h-4 w-4 text-emerald-500" />
             </CardHeader>
             <CardContent className="flex items-end justify-between">
               <div>
                 <div className="text-5xl font-black text-white leading-none">{totalStudents}</div>
-                <p className="text-[10px] text-white/20 uppercase font-bold tracking-widest mt-3">Alumnos totales</p>
+                <p className="text-[10px] text-white/20 uppercase font-bold tracking-widest mt-3">{LITERALS.DASHBOARD.TOTAL_STUDENTS}</p>
               </div>
               <Button
                 onClick={() => setIsNewStudentModalOpen(true)}
@@ -1020,14 +1021,17 @@ export default function AdminDashboard() {
           <Card className="bg-zinc-900/50 border-white/10 backdrop-blur-lg group hover:border-blue-500/30 transition-all duration-300">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-xs font-black text-white/40 uppercase tracking-widest leading-relaxed">
-                Ingresos {new Intl.DateTimeFormat('es-ES', { month: 'short' }).format(new Date())}
+                {(() => {
+                  const m = new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(new Date());
+                  return LITERALS.DASHBOARD.MONTHLY_REVENUE(m.charAt(0).toUpperCase() + m.slice(1));
+                })()}
               </CardTitle>
               <CreditCard className="h-4 w-4 text-blue-400" />
             </CardHeader>
             <CardContent>
               <div className="text-5xl font-black text-white leading-none">{monthlyRevenue}€</div>
               <p className={`text-[10px] uppercase font-bold tracking-widest mt-3 ${unpaidCount > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                {unpaidCount > 0 ? `${unpaidCount} Pendientes de pago` : "Todo al día"}
+                {unpaidCount > 0 ? `${unpaidCount} ${LITERALS.DASHBOARD.PENDING_PAYMENT}` : LITERALS.DASHBOARD.ALL_UP_TO_DATE}
               </p>
             </CardContent>
           </Card>
@@ -1037,7 +1041,7 @@ export default function AdminDashboard() {
         <div className="space-y-4">
           {/* Table Header & Controls */}
           <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between mb-6 gap-4">
-            <h2 className="text-2xl font-bold tracking-tight">Directorio de Alumnos</h2>
+            <h2 className="text-2xl font-bold tracking-tight">{LITERALS.DASHBOARD.STUDENTS_DIRECTORY}</h2>
 
             <div className="flex flex-col sm:flex-row w-full xl:w-auto gap-3 items-center">
               {/* Search */}
@@ -1058,9 +1062,9 @@ export default function AdminDashboard() {
                 onChange={(e) => setFilterPayment(e.target.value)}
                 className="bg-zinc-900 border border-white/10 text-white text-sm rounded-md focus:ring-emerald-500 block p-2 w-full sm:w-auto h-10"
               >
-                <option value="todos">Todos los Pagos</option>
-                <option value="pagado">Pagados</option>
-                <option value="pendiente">Pendientes</option>
+                <option value="todos">{LITERALS.DASHBOARD.FILTER_ALL_PAYMENTS}</option>
+                <option value="pagado">{LITERALS.DASHBOARD.FILTER_PAID}</option>
+                <option value="pendiente">{LITERALS.DASHBOARD.FILTER_PENDING}</option>
               </select>
 
               {/* Filter Level */}
@@ -1243,8 +1247,8 @@ export default function AdminDashboard() {
           {/* Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
             <div>
-              <h2 className="text-2xl font-bold tracking-tight">Horarios y Clases</h2>
-              <p className="text-white/50 text-sm mt-1">Programa las próximas sesiones para que los alumnos puedan reservar.</p>
+              <h2 className="text-2xl font-bold tracking-tight">{LITERALS.DASHBOARD.CLASSES.TITLE}</h2>
+              <p className="text-white/50 text-sm mt-1">{LITERALS.DASHBOARD.CLASSES.DESCRIPTION}</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
@@ -1254,14 +1258,14 @@ export default function AdminDashboard() {
                 disabled={isUpdating}
               >
                 {isUpdating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CalendarDays className="w-4 h-4 mr-2 text-blue-400" />}
-                Auto-Siguiente Semana
+                {LITERALS.DASHBOARD.CLASSES.AUTO_GENERATE}
               </Button>
 
               <Button
                 onClick={() => setIsClassModalOpen(true)}
                 className="bg-emerald-500 hover:bg-emerald-600 text-white whitespace-nowrap"
               >
-                + Programar Clase
+                {LITERALS.DASHBOARD.CLASSES.SCHEDULE_BUTTON}
               </Button>
             </div>
           </div>
@@ -1279,8 +1283,8 @@ export default function AdminDashboard() {
         {/* Recent Past Classes Section (History) */}
         <div className="space-y-4 pt-16 border-t border-white/10 pb-12">
             <div>
-              <h2 className="text-2xl font-bold tracking-tight text-white/70">Historial Reciente</h2>
-              <p className="text-white/40 text-sm mt-1">Clases que han ocurrido en las últimas 48 horas.</p>
+              <h2 className="text-2xl font-bold tracking-tight text-white/70">{LITERALS.DASHBOARD.CLASSES.HISTORY_TITLE}</h2>
+              <p className="text-white/40 text-sm mt-1">{LITERALS.DASHBOARD.CLASSES.HISTORY_DESCRIPTION}</p>
             </div>
           
           <ClassGrid 

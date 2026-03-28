@@ -6,12 +6,13 @@ import { CalendarClock, ChevronDown, Loader2, Info, MoreVertical, Eye, Trash2, C
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-    DropdownMenu, 
-    DropdownMenuContent, 
-    DropdownMenuItem, 
-    DropdownMenuTrigger 
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+import { LITERALS } from "@/constants/literals";
 
 interface ClassGridProps {
     classes: any[];
@@ -37,8 +38,8 @@ export function ClassGrid({
     userBookings = []
 }: ClassGridProps) {
     // Filter out classes if student is already booked
-    const displayClasses = isAdmin 
-        ? classes 
+    const displayClasses = isAdmin
+        ? classes
         : classes.filter(c => !userBookings.some((b: any) => b.class_id === c.$id));
 
     // Group by date
@@ -53,7 +54,7 @@ export function ClassGrid({
     const sortedDates = Object.keys(groupedByDate).sort((a, b) => {
         return isHistory ? b.localeCompare(a) : a.localeCompare(b);
     });
-    
+
     // State for progressive loading
     const [daysToView, setDaysToView] = useState(2);
     const visibleDates = sortedDates.slice(0, daysToView);
@@ -67,9 +68,9 @@ export function ClassGrid({
         const yesterday = new Date();
         yesterday.setDate(today.getDate() - 1);
 
-        if (date.toDateString() === today.toDateString()) return "Hoy";
-        if (date.toDateString() === tomorrow.toDateString()) return "Mañana";
-        if (date.toDateString() === yesterday.toDateString()) return "Ayer";
+        if (date.toDateString() === today.toDateString()) return LITERALS.COMMON.TODAY;
+        if (date.toDateString() === tomorrow.toDateString()) return LITERALS.COMMON.TOMORROW;
+        if (date.toDateString() === yesterday.toDateString()) return LITERALS.COMMON.YESTERDAY;
 
         return date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
     };
@@ -79,37 +80,34 @@ export function ClassGrid({
             {!isAdmin && (
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <h3 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
-                        <CalendarClock className="w-7 h-7 text-emerald-500" /> Clases Disponibles
+                        <CalendarClock className="w-7 h-7 text-emerald-500" /> {LITERALS.CLASS_GRID.TITLE}
                     </h3>
-                    <div className="flex items-center gap-2 text-sm text-white/40 bg-white/5 px-4 py-2 rounded-full border border-white/10 italic">
-                        <Info className="w-4 h-4" /> Mostrando disponibilidad para los próximos 7 días
-                    </div>
                 </div>
             )}
 
             {displayClasses.length === 0 ? (
-                <motion.div 
+                <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="col-span-full border border-dashed border-white/5 bg-white/[0.02] rounded-2xl p-16 text-center text-white/20"
                 >
                     <CalendarClock className="w-12 h-12 mx-auto mb-4 opacity-10" />
                     <p className="text-lg font-medium">
-                        {isHistory 
-                          ? "No hay historial reciente de clases registradas." 
-                          : "No hay plazas nuevas disponibles para reservar en este momento."}
+                        {isHistory
+                            ? LITERALS.CLASS_CARD.HISTORY_EMPTY_STATE
+                            : LITERALS.BOOKINGS.EMPTY_STATE}
                     </p>
                     <p className="text-sm text-white/40 mt-2">
-                        {isHistory 
-                          ? "Las clases aparecerán aquí una vez hayan finalizado." 
-                          : "Vuelve a consultar más tarde para nuevas sesiones."}
+                        {isHistory
+                            ? LITERALS.CLASS_CARD.HISTORY_EMPTY_SUB
+                            : LITERALS.CLASS_CARD.EMPTY_SUB}
                     </p>
                 </motion.div>
             ) : (
                 <div className="space-y-16">
                     <AnimatePresence mode="popLayout">
                         {visibleDates.map((dateKey) => (
-                            <motion.div 
+                            <motion.div
                                 key={dateKey}
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -126,7 +124,7 @@ export function ClassGrid({
                                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                                     {groupedByDate[dateKey].map((cls) => {
                                         const isFull = cls.registeredCount >= cls.capacity;
-                                        
+
                                         // Determine if class has passed (for admin grayscale)
                                         let isPastClass = false;
                                         try {
@@ -138,8 +136,8 @@ export function ClassGrid({
                                         } catch (e) { }
 
                                         return (
-                                            <Card 
-                                                key={cls.$id} 
+                                            <Card
+                                                key={cls.$id}
                                                 className={`bg-white/5 border-white/10 backdrop-blur-lg overflow-hidden group transition-all duration-500 hover:shadow-[0_0_40px_rgba(16,185,129,0.08)] ${isAdmin ? 'hover:border-white/20' : 'hover:border-emerald-500/30'} ${isAdmin && isPastClass ? 'opacity-60 grayscale-[0.3]' : ''}`}
                                             >
                                                 <CardHeader className="pb-3 border-b border-white/5 relative">
@@ -161,7 +159,7 @@ export function ClassGrid({
                                                                     <span className="text-lg font-black text-white block leading-none">
                                                                         {cls.time.split('-')[0].trim()}
                                                                     </span>
-                                                                    <span className="text-[10px] text-white/30 font-bold uppercase tracking-tighter">Comienzo</span>
+                                                                    <span className="text-[10px] text-white/30 font-bold uppercase tracking-tighter">{LITERALS.CLASS_CARD.START_TIME}</span>
                                                                 </div>
                                                             )}
                                                             {isAdmin && (
@@ -177,12 +175,12 @@ export function ClassGrid({
                                                                             >
                                                                                 <div className="flex items-center gap-2">
                                                                                     <Trash2 className="w-4 h-4" /> 
-                                                                                    <span>Cancelar Clase</span>
+                                                                                    <span>{LITERALS.CLASS_CARD.CANCEL_CLASS}</span>
                                                                                 </div>
-                                                                                <Badge className="bg-red-500/10 text-[8px] text-red-500 border-0 p-0.5 px-1.5 font-black uppercase">Peligro</Badge>
+                                                                                <Badge className="bg-red-500/10 text-[8px] text-red-500 border-0 p-0.5 px-1.5 font-black uppercase">{LITERALS.CLASS_CARD.DANGER_BADGE}</Badge>
                                                                             </DropdownMenuItem>
                                                                         ) : (
-                                                                            <div className="px-4 py-3 text-xs text-white/30 italic font-medium"> No hay acciones disponibles para clases pasadas </div>
+                                                                            <div className="px-4 py-3 text-xs text-white/30 italic font-medium"> {LITERALS.CLASS_CARD.PAST_CLASS_INFO} </div>
                                                                         )}
                                                                     </DropdownMenuContent>
                                                                 </DropdownMenu>
@@ -209,9 +207,9 @@ export function ClassGrid({
 
                                                         <div className="flex justify-between text-xs mb-2 font-bold uppercase tracking-wider">
                                                             <span className={isFull ? 'text-red-400' : 'text-emerald-400'}>
-                                                                {isFull ? 'Completa' : `${cls.capacity - cls.registeredCount} plazas libres`}
+                                                                {isFull ? LITERALS.CLASS_CARD.FULL : LITERALS.CLASS_CARD.FREE_SPACES(cls.capacity - cls.registeredCount)}
                                                             </span>
-                                                            <span className="text-white/20">{cls.capacity} TOTAL</span>
+                                                            <span className="text-white/20">{LITERALS.CLASS_CARD.TOTAL_CAPACITY(cls.capacity)}</span>
                                                         </div>
                                                         <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5 mb-6">
                                                             <motion.div
@@ -226,18 +224,17 @@ export function ClassGrid({
                                                             <Button
                                                                 onClick={() => onBookClass?.(cls)}
                                                                 disabled={isFull || isProcessingBooking === cls.$id || !profileInfo?.is_paid}
-                                                                className={`w-full font-black h-14 text-sm uppercase tracking-widest rounded-xl transition-all duration-300 ${
-                                                                    isFull 
-                                                                    ? 'bg-red-500/10 text-red-500/50 border border-red-500/20 cursor-not-allowed shadow-none' 
+                                                                className={`w-full font-black h-14 text-sm uppercase tracking-widest rounded-xl transition-all duration-300 ${isFull
+                                                                    ? 'bg-red-500/10 text-red-500/50 border border-red-500/20 cursor-not-allowed shadow-none'
                                                                     : !profileInfo?.is_paid
-                                                                    ? 'bg-amber-500/10 text-amber-500/50 border border-amber-500/20 cursor-not-allowed shadow-none'
-                                                                    : 'bg-white text-black hover:bg-emerald-500 hover:text-white hover:scale-[1.02] shadow-[0_10px_20px_rgba(0,0,0,0.2)] hover:shadow-[0_15px_30px_rgba(16,185,129,0.3)] active:scale-95'
-                                                                }`}
+                                                                        ? 'bg-amber-500/10 text-amber-500/50 border border-amber-500/20 cursor-not-allowed shadow-none'
+                                                                        : 'bg-white text-black hover:bg-emerald-500 hover:text-white hover:scale-[1.02] shadow-[0_10px_20px_rgba(0,0,0,0.2)] hover:shadow-[0_15px_30px_rgba(16,185,129,0.3)] active:scale-95'
+                                                                    }`}
                                                             >
                                                                 {isProcessingBooking === cls.$id ? (
                                                                     <Loader2 className="w-6 h-6 animate-spin" />
                                                                 ) : (
-                                                                    !profileInfo?.is_paid ? "⚠️ Pago Pendiente" : isFull ? "Sin Plazas" : "Reservar Mi Sitio"
+                                                                    !profileInfo?.is_paid ? LITERALS.CLASS_CARD.PENDING_PAYMENT : isFull ? LITERALS.CLASS_CARD.NO_SPACES : LITERALS.CLASS_CARD.RESERVE_BUTTON
                                                                 )}
                                                             </Button>
                                                         )}
@@ -248,7 +245,7 @@ export function ClassGrid({
                                                                 variant="outline"
                                                                 className="w-full bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-white/20 font-black h-12 uppercase tracking-widest text-[10px] rounded-xl transition-all"
                                                             >
-                                                                Ver Listado
+                                                                {LITERALS.CLASS_CARD.VIEW_ATTENDEES}
                                                             </Button>
                                                         )}
                                                     </div>
@@ -263,12 +260,12 @@ export function ClassGrid({
 
                     {hasMore && (
                         <div className="flex justify-center pt-8">
-                            <Button 
+                            <Button
                                 onClick={() => setDaysToView(prev => prev + 1)}
                                 variant="outline"
                                 className="bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-white/20 px-10 h-14 rounded-2xl font-black uppercase tracking-widest transition-all group"
                             >
-                                {isHistory ? "Ver historial del " : "Ver clases del "} {formatDate(sortedDates[daysToView])}
+                                {isHistory ? LITERALS.CLASS_CARD.LOAD_MORE_HISTORY(formatDate(sortedDates[daysToView])) : LITERALS.CLASS_CARD.LOAD_MORE(formatDate(sortedDates[daysToView]))}
                                 <ChevronDown className="ml-2 w-5 h-5 group-hover:translate-y-1 transition-transform" />
                             </Button>
                         </div>
