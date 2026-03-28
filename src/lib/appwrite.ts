@@ -16,5 +16,6 @@ export const COLLECTION_REVENUE = "69b05347002894ef6a84";
 export const COLLECTION_PAYMENTS = "69b0523e001364e1b4fa";
 export const COLLECTION_NOTIFICATIONS = "69c5c81a002d3d4de570";
 export const COLLECTION_NOTIFICATIONS_READ = "69c5c8b5003e46582a04";
+export const COLLECTION_INVITATION_TOKENS = "69c7be36002621773c55"; // New collection for secure invitations
 
 export { client, account, databases };

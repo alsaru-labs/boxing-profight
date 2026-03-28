@@ -20,7 +20,13 @@ export function ProfileCard({ user, profileInfo, initials }: ProfileCardProps) {
             <AvatarFallback className="bg-zinc-800 text-3xl font-bold">{initials}</AvatarFallback>
           </Avatar>
         </div>
-        <CardTitle className="text-3xl font-black tracking-tighter text-white">{user?.name}</CardTitle>
+        <CardTitle 
+          className="text-3xl font-black tracking-tighter text-white truncate w-full text-center px-4"
+          title={profileInfo?.name ? `${profileInfo.name} ${profileInfo.last_name || ""}` : user?.name}
+        >
+          {profileInfo?.name ? `${profileInfo.name} ${profileInfo.last_name || ""}` : (user?.name || "Cargando...")}
+        </CardTitle>
+
         <CardDescription className="text-white/40 font-medium">
           Desde {user?.$createdAt ? new Date(user.$createdAt).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }) : "---"}
         </CardDescription>
@@ -29,9 +35,9 @@ export function ProfileCard({ user, profileInfo, initials }: ProfileCardProps) {
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-4 p-3 rounded-xl bg-white/5 border border-white/5">
             <div className="bg-white/10 p-2 rounded-lg"><Mail className="w-5 h-5 text-emerald-400" /></div>
-            <div className="flex flex-col">
+            <div className="flex flex-col min-w-0 flex-1">
               <span className="text-[10px] text-white/30 uppercase font-black tracking-widest">Email</span>
-              <span className="text-sm font-medium">{user?.email}</span>
+              <span className="text-sm font-medium truncate" title={user?.email}>{user?.email}</span>
             </div>
           </div>
           <div className="flex items-center gap-4 p-3 rounded-xl bg-white/5 border border-white/5">
@@ -39,13 +45,6 @@ export function ProfileCard({ user, profileInfo, initials }: ProfileCardProps) {
             <div className="flex flex-col">
               <span className="text-[10px] text-white/30 uppercase font-black tracking-widest">Teléfono</span>
               <span className="text-sm font-medium">{profileInfo?.phone || "No registrado"}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-4 p-3 rounded-xl bg-white/5 border border-white/5">
-            <div className="bg-white/10 p-2 rounded-lg"><Shield className="w-5 h-5 text-emerald-400" /></div>
-            <div className="flex flex-col">
-              <span className="text-[10px] text-white/30 uppercase font-black tracking-widest">Nivel</span>
-              <span className="text-sm font-medium">{profileInfo?.level || "Iniciación"}</span>
             </div>
           </div>
         </div>

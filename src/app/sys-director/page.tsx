@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, ShieldCheck, Loader2, Home, MessageCircle, Signal, CalendarDays, Search, ArrowUpDown, Filter, X, ChevronDown, History as HistoryIcon, Plus, UserCog, Trash2, CheckCircle2 } from "lucide-react";
+import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, ShieldCheck, Loader2, Home, MessageCircle, Signal, CalendarDays, Search, ArrowUpDown, Filter, X, ChevronDown, History as HistoryIcon, Plus, UserCog, Trash2, CheckCircle2, UserPlus, AlertCircle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -45,6 +45,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Navbar from "@/components/Navbar";
+import { deleteStudentAccount } from "./actions";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -115,8 +116,11 @@ export default function AdminDashboard() {
         confirmText: "Confirmar"
     });
   };
-  const [newStudentForm, setNewStudentForm] = useState({ name: "", email: "", phone: "", level: "Iniciación" });
+  const [newStudentForm, setNewStudentForm] = useState({ name: "", lastName: "", email: "", phone: "", level: "Iniciación" });
   const [newStudentFormError, setNewStudentFormError] = useState("");
+  const [newStudentEmailError, setNewStudentEmailError] = useState("");
+  const [newStudentPhoneError, setNewStudentPhoneError] = useState("");
+  const [editLastName, setEditLastName] = useState("");
 
   // Table Fitler & Sort States
   const [searchTerm, setSearchTerm] = useState("");
@@ -349,6 +353,7 @@ export default function AdminDashboard() {
 
   const handleOpenEditModal = (student: any) => {
     setSelectedStudent(student);
+    setEditLastName(student.last_name || "");
     setEditPhone(student.phone || "");
     setEditLevel(student.level || "Iniciación");
     setEditPhoneError(""); // Clear previous errors
@@ -359,10 +364,14 @@ export default function AdminDashboard() {
     if (!selectedStudent) return;
 
     // Front-end Validation for Phone Number
-    // Allows empty strings (to remove phone), OR valid formats: e.g. 600123456, +34600123456, 0034600123456...
-    const phoneRegex = /^(\+34|0034|34)?[6789]\d{8}$/;
+    const validatePhone = (phone: string) => {
+      if (!phone.trim()) return true; // Allow empty
+      const cleanPhone = phone.replace(/[\s\-\.]/g, '');
+      const phoneRegex = /^(\+34|0034|34)?[6789]\d{8}$/;
+      return phoneRegex.test(cleanPhone);
+    };
 
-    if (editPhone.trim() !== "" && !phoneRegex.test(editPhone.trim())) {
+    if (!validatePhone(editPhone)) {
       setEditPhoneError("Por favor, introduce un número válido (ej: 600123456 o +34600123456).");
       return; // Stop execution
     }
@@ -372,13 +381,12 @@ export default function AdminDashboard() {
 
     try {
       setIsUpdating(true);
-
-      // Update in Appwrite Database
       await databases.updateDocument(
         DATABASE_ID,
         COLLECTION_PROFILES,
         selectedStudent.$id,
         {
+          last_name: editLastName,
           phone: editPhone,
           level: editLevel
         }
@@ -386,7 +394,7 @@ export default function AdminDashboard() {
 
       // Update Local State for instant UI feedback
       const updatedList = studentsList.map(s =>
-        s.$id === selectedStudent.$id ? { ...s, phone: editPhone, level: editLevel } : s
+        s.$id === selectedStudent.$id ? { ...s, last_name: editLastName, phone: editPhone, level: editLevel } : s
       );
 
       setStudentsList(updatedList);
@@ -401,26 +409,29 @@ export default function AdminDashboard() {
   const handleCreateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     setNewStudentFormError("");
+    setNewStudentEmailError("");
+    setNewStudentPhoneError("");
 
-    if (!newStudentForm.name || !newStudentForm.email) {
-      setNewStudentFormError("Nombre y correo son requeridos.");
-      return;
-    }
-
-    if (newStudentForm.name.length > 50) {
-      setNewStudentFormError("El nombre no puede superar los 50 caracteres.");
+    if (!newStudentForm.name || !newStudentForm.lastName || !newStudentForm.email) {
+      setNewStudentFormError("Nombre, apellidos y correo son requeridos.");
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(newStudentForm.email)) {
-      setNewStudentFormError("Por favor, introduce un correo electrónico válido.");
+      setNewStudentEmailError("Formato de correo no válido.");
       return;
     }
 
-    const phoneRegex = /^(\+34|0034|34)?[6789]\d{8}$/;
-    if (newStudentForm.phone.trim() !== "" && !phoneRegex.test(newStudentForm.phone.trim())) {
-      setNewStudentFormError("Por favor, introduce un teléfono válido (ej: 600123456).");
+    const validatePhone = (phone: string) => {
+      if (!phone.trim()) return true; // Allow empty
+      const cleanPhone = phone.replace(/[\s\-\.]/g, '');
+      const phoneRegex = /^(\+34|0034|34)?[6789]\d{8}$/;
+      return phoneRegex.test(cleanPhone);
+    };
+
+    if (!validatePhone(newStudentForm.phone)) {
+      setNewStudentPhoneError("Formato de teléfono no válido (9 dígitos).");
       return;
     }
 
@@ -434,6 +445,7 @@ export default function AdminDashboard() {
         {
           user_id: uniqueRef, // Fulfill required db schema constraint for manual creation
           name: newStudentForm.name,
+          last_name: newStudentForm.lastName,
           email: newStudentForm.email.toLowerCase(),
           phone: newStudentForm.phone || null,
           role: "alumno",
@@ -446,7 +458,7 @@ export default function AdminDashboard() {
       setTotalStudents(prev => prev + 1);
       setUnpaidCount(prev => prev + 1);
       setIsNewStudentModalOpen(false);
-      setNewStudentForm({ name: "", email: "", phone: "", level: "Iniciación" });
+      setNewStudentForm({ name: "", lastName: "", email: "", phone: "", level: "Iniciación" });
       showAlert("Éxito", "Alumno registrado correctamente.", "success");
     } catch (err) {
       console.error("Error creating student:", err);
@@ -839,7 +851,9 @@ export default function AdminDashboard() {
 
   const isNewStudentFormValid =
     newStudentForm.name.trim().length > 0 &&
+    newStudentForm.lastName.trim().length > 0 &&
     newStudentForm.name.length <= 50 &&
+    newStudentForm.lastName.length <= 50 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newStudentForm.email) &&
     (newStudentForm.phone.trim() === "" || /^(\+34|0034|34)?[6789]\d{8}$/.test(newStudentForm.phone.trim()));
 
@@ -1101,170 +1115,324 @@ export default function AdminDashboard() {
 
           <Card className="bg-zinc-900/50 border-white/10 backdrop-blur-lg shadow-2xl overflow-hidden">
             <div className="max-h-[700px] overflow-y-auto custom-scrollbar">
-              <Table>
-                <TableHeader className="bg-black/60 sticky top-0 z-10 backdrop-blur-md border-b border-white/10">
-                <TableRow className="border-white/10 hover:bg-transparent">
-                  <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('name')}>
-                    <div className="flex items-center gap-1">Alumno <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
-                  </TableHead>
-                  <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('is_paid')}>
-                    <div className="flex items-center gap-1">Estado de Pago <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
-                  </TableHead>
-                  <TableHead className="text-white/70">Contacto</TableHead>
-                  <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors hidden sm:table-cell" onClick={() => handleSort('$createdAt')}>
-                    <div className="flex items-center gap-1">Alta <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
-                  </TableHead>
-                  <TableHead className="text-right text-white/70"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+              {/* Desktop Table View */}
+              <div className="hidden sm:block">
+                <Table>
+                  <TableHeader className="bg-black/60 sticky top-0 z-10 backdrop-blur-md border-b border-white/10">
+                    <TableRow className="border-white/10 hover:bg-transparent">
+                      <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('name')}>
+                        <div className="flex items-center gap-1">Alumno <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
+                      </TableHead>
+                      <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('is_paid')}>
+                        <div className="flex items-center gap-1">Estado de Pago <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
+                      </TableHead>
+                      <TableHead className="text-white/70">Contacto</TableHead>
+                      <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('level')}>
+                        <div className="flex items-center gap-1">Nivel <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
+                      </TableHead>
+                      <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors hidden md:table-cell" onClick={() => handleSort('$createdAt')}>
+                        <div className="flex items-center gap-1">Alta <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
+                      </TableHead>
+                      <TableHead className="text-right text-white/70"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {slicedStudents.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center h-24 text-white/50">
+                          No hay alumnos registrados todavía en la Base de Datos.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      slicedStudents.map((student) => (
+                        <TableRow key={student.$id} className="border-white/10 hover:bg-white/5 transition-colors">
+                          <TableCell className="font-medium">
+                            <div className="flex items-center space-x-3">
+                              <div>
+                                <p className="text-white font-medium">{student.name} {student.last_name || ""}</p>
+                                <p className="text-white/50 text-xs text-nowrap">{student.email}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={
+                                student.is_paid
+                                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                  : "bg-red-500/10 text-red-400 border-red-500/20"
+                              }
+                            >
+                              {student.is_paid ? "Pagado" : "No Pagado"}
+                            </Badge>
+                          </TableCell>
+
+                          <TableCell>
+                            {student.phone ? (
+                              <a
+                                href={`https://wa.me/${student.phone.replace(/\+/g, '').replace(/\s/g, '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 text-white/70 hover:text-[#25D366] transition-colors group"
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  className="w-4 h-4 text-[#25D366] group-hover:scale-110 transition-transform fill-current"
+                                >
+                                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                                </svg>
+                                <span className="text-sm font-medium">{student.phone}</span>
+                              </a>
+                            ) : (
+                              <span className="text-white/30 text-xs italic">No indicado</span>
+                            )}
+                          </TableCell>
+
+                          <TableCell>
+                            <Badge variant="outline" className={`
+                              ${student.level === 'Iniciación' ? 'border-amber-500/30 text-amber-500' : ''}
+                              ${student.level === 'Media' ? 'border-blue-500/30 text-blue-400' : ''}
+                              ${student.level === 'Profesional' ? 'border-red-500/30 text-red-500' : ''}
+                              bg-black/40 shadow-inner px-2.5 py-1 text-[10px] font-black tracking-widest uppercase
+                            `}>
+                              <Signal className="w-3 h-3 mr-1" />
+                              {student.level || "Iniciación"}
+                            </Badge>
+                          </TableCell>
+
+                          <TableCell className="text-white/50 text-xs font-medium hidden md:table-cell">
+                            {new Date(student.$createdAt).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
+                          </TableCell>
+
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger className="h-9 w-9 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 rounded-xl transition-all border border-transparent hover:border-white/10 outline-none focus:ring-2 focus:ring-emerald-500/50">
+                                <span className="sr-only">Abrir menú</span>
+                                <MoreVertical className="h-4 w-4" />
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="bg-zinc-900/95 backdrop-blur-xl border-white/10 text-white min-w-[200px] p-2 rounded-2xl shadow-2xl">
+                                <DropdownMenuGroup className="p-1">
+                                  <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-white/30 px-2 py-1.5">Gestión de Alumno</DropdownMenuLabel>
+                                  <DropdownMenuItem
+                                    className="group flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-white/70 focus:bg-white/10 focus:text-white cursor-pointer transition-colors"
+                                    onClick={() => handleActionClick(student)}
+                                    disabled={isUpdating}
+                                  >
+                                    {student.is_paid ? (
+                                      <><CalendarX className="w-4 h-4 text-red-400 group-hover:scale-110 transition-transform" /> <span className="text-red-400">Marcar como Pendiente</span></>
+                                    ) : (
+                                      <><ShieldCheck className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" /> <span className="text-emerald-400">Registrar Pago Hoy</span></>
+                                    )}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-white/70 focus:bg-white/10 focus:text-white cursor-pointer transition-colors"
+                                    onClick={() => handleOpenEditModal(student)}
+                                    disabled={isUpdating}
+                                  >
+                                    <UserCog className="w-4 h-4 text-blue-400" />
+                                    <span>Editar Alumno</span>
+                                  </DropdownMenuItem>
+                                </DropdownMenuGroup>
+                                <DropdownMenuSeparator className="bg-white/5 mx-1" />
+                                <DropdownMenuGroup className="p-1">
+                                  <DropdownMenuItem
+                                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-red-400 focus:bg-red-500/20 focus:text-red-400 cursor-pointer transition-colors"
+                                    onClick={() => {
+                                      showConfirm(
+                                        "Dar de baja",
+                                        `¿Seguro que quieres eliminar a ${student.name}? Esta acción es irreversible.`,
+                                        async () => {
+                                          try {
+                                            setIsUpdating(true);
+                                            const result = await deleteStudentAccount(student.$id, student.user_id);
+                                            
+                                            if (result.success) {
+                                              setStudentsList(prev => prev.filter(s => s.$id !== student.$id));
+                                              showAlert("Éxito", "Alumno dado de baja y cuenta eliminada correctamente.", "success");
+                                            } else {
+                                              showAlert("Error", result.error || "No se ha podido eliminar al alumno.", "danger");
+                                            }
+                                          } catch (err) {
+                                            showAlert("Error", "Error de red al intentar dar de baja al alumno.", "danger");
+                                          } finally {
+                                            setIsUpdating(false);
+                                          }
+                                        },
+                                        "danger"
+                                      );
+                                    }}
+                                    disabled={isUpdating}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                    <span>Eliminar Cuenta</span>
+                                  </DropdownMenuItem>
+                                </DropdownMenuGroup>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="sm:hidden grid grid-cols-1 divide-y divide-white/5">
                 {slicedStudents.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center h-24 text-white/50">
-                      No hay alumnos registrados todavía en la Base de Datos.
-                    </TableCell>
-                  </TableRow>
+                  <div className="p-8 text-center text-white/50 italic">
+                    No hay alumnos registrados.
+                  </div>
                 ) : (
                   slicedStudents.map((student) => (
-                    <TableRow key={student.$id} className="border-white/10 hover:bg-white/5 transition-colors">
-                      <TableCell className="font-medium">
-                        <div className="flex items-center space-x-3">
-                          <div>
-                            <p className="text-white font-medium">{student.name || "Usuario Desconocido"}</p>
-                            <p className="text-white/50 text-xs">{student.email}</p>
-                          </div>
+                    <div key={student.$id} className="p-4 space-y-4 hover:bg-white/[0.02] transition-colors relative">
+                      {/* Top Header: Name/Email + Action Button */}
+                      <div className="flex justify-between items-start pr-10">
+                        <div className="min-w-0">
+                          <h3 className="text-white font-bold truncate leading-tight">
+                            {student.name} {student.last_name || ""}
+                          </h3>
+                          <p className="text-white/40 text-[10px] truncate mt-0.5">
+                            {student.email}
+                          </p>
                         </div>
-                      </TableCell>
-
-                      {/* Estado de Pago */}
-                      <TableCell>
-                        <div className="flex flex-col items-start gap-1">
-                          <Badge
-                            variant="outline"
-                            className={
-                              student.is_paid
-                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                                : "bg-red-500/10 text-red-400 border-red-500/20"
-                            }
-                          >
-                            {student.is_paid ? "Pagado" : "No Pagado"}
-                          </Badge>
+                        
+                        {/* Pinned Action Button */}
+                        <div className="absolute right-3 top-4">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger className="h-9 w-9 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 rounded-xl transition-all border border-white/5 bg-black/20 outline-none">
+                              <MoreVertical className="h-4 w-4" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-zinc-900/95 backdrop-blur-xl border-white/10 text-white min-w-[200px] p-2 rounded-2xl shadow-2xl">
+                              <DropdownMenuGroup className="p-1">
+                                <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-white/30 px-2 py-1.5">Gestión de Alumno</DropdownMenuLabel>
+                                <DropdownMenuItem
+                                  className="group flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-white/70 focus:bg-white/10 focus:text-white cursor-pointer transition-colors"
+                                  onClick={() => handleActionClick(student)}
+                                  disabled={isUpdating}
+                                >
+                                  {student.is_paid ? (
+                                    <><CalendarX className="w-4 h-4 text-red-400 group-hover:scale-110 transition-transform" /> <span className="text-red-400">Pendiente</span></>
+                                  ) : (
+                                    <><ShieldCheck className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" /> <span className="text-emerald-400">Registrar Pago</span></>
+                                  )}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-white/70 focus:bg-white/10 focus:text-white cursor-pointer transition-colors"
+                                  onClick={() => handleOpenEditModal(student)}
+                                  disabled={isUpdating}
+                                >
+                                  <UserCog className="w-4 h-4 text-blue-400" />
+                                  <span>Editar Alumno</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuGroup>
+                              <DropdownMenuSeparator className="bg-white/5 mx-1" />
+                              <DropdownMenuGroup className="p-1">
+                                <DropdownMenuItem
+                                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-red-400 focus:bg-red-500/20 focus:text-red-400 cursor-pointer transition-colors"
+                                  onClick={() => {
+                                    showConfirm(
+                                      "Dar de baja",
+                                      `¿Seguro que quieres eliminar a ${student.name}? Esta acción es irreversible.`,
+                                      async () => {
+                                        try {
+                                          setIsUpdating(true);
+                                          const result = await deleteStudentAccount(student.$id, student.user_id);
+                                          
+                                          if (result.success) {
+                                            setStudentsList(prev => prev.filter(s => s.$id !== student.$id));
+                                            showAlert("Éxito", "Alumno dado de baja y cuenta eliminada correctamente.", "success");
+                                          } else {
+                                            showAlert("Error", result.error || "No se ha podido eliminar al alumno.", "danger");
+                                          }
+                                        } catch (err) {
+                                          showAlert("Error", "Error de red al intentar dar de baja al alumno.", "danger");
+                                        } finally {
+                                          setIsUpdating(false);
+                                        }
+                                      },
+                                      "danger"
+                                    );
+                                  }}
+                                  disabled={isUpdating}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  <span>Eliminar Cuenta</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuGroup>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
-                      </TableCell>
+                      </div>
 
-                      {/* Contacto (WhatsApp & Phone) */}
-                      <TableCell>
+                      {/* Middle: Badges Row */}
+                      <div className="flex flex-wrap gap-2">
+                        <Badge
+                          variant="outline"
+                          className={`text-[9px] px-2 py-0.5 font-black uppercase tracking-tighter ${
+                            student.is_paid
+                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                              : "bg-red-500/10 text-red-400 border-red-500/20"
+                          }`}
+                        >
+                          {student.is_paid ? "Pagado" : "Pendiente"}
+                        </Badge>
+                        <Badge variant="outline" className={`
+                          ${student.level === 'Iniciación' ? 'border-amber-500/30 text-amber-500' : ''}
+                          ${student.level === 'Media' ? 'border-blue-500/30 text-blue-400' : ''}
+                          ${student.level === 'Profesional' ? 'border-red-500/30 text-red-500' : ''}
+                          bg-black/40 px-2 py-0.5 text-[9px] font-black tracking-tighter uppercase
+                        `}>
+                          {student.level || "Iniciación"}
+                        </Badge>
+                      </div>
+
+                      {/* Bottom Footer: WhatsApp Button */}
+                      <div className="flex items-center justify-between pt-2 border-t border-white/[0.03]">
                         {student.phone ? (
                           <a
                             href={`https://wa.me/${student.phone.replace(/\+/g, '').replace(/\s/g, '')}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 text-white/70 hover:text-[#25D366] transition-colors group"
+                            className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg bg-[#25D366]/10 text-[#25D366] text-xs font-bold border border-[#25D366]/20"
                           >
                             <svg
                               xmlns="http://www.w3.org/2000/svg"
-                              width="16"
-                              height="16"
+                              width="14"
+                              height="14"
                               viewBox="0 0 24 24"
-                              className="w-4 h-4 text-[#25D366] group-hover:scale-110 transition-transform fill-current"
+                              className="fill-current"
                             >
                               <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                             </svg>
-                            <span className="text-sm font-medium hidden sm:inline">{student.phone}</span>
+                            WhatsApp
                           </a>
                         ) : (
-                          <span className="text-white/30 text-xs italic hidden sm:inline">No indicado</span>
+                          <div className="text-[10px] text-white/20 italic">Sin contacto</div>
                         )}
-                      </TableCell>
-
-                      {/* Fecha de Alta (Antigüedad) */}
-                      <TableCell className="text-white/50 text-xs font-medium hidden sm:table-cell">
-                        {new Date(student.$createdAt).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
-                      </TableCell>
-
-                      {/* Acciones */}
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger className="h-9 w-9 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 rounded-xl transition-all border border-transparent hover:border-white/10 outline-none focus:ring-2 focus:ring-emerald-500/50">
-                            <span className="sr-only">Abrir menú</span>
-                            <MoreVertical className="h-4 w-4" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-zinc-900/95 backdrop-blur-xl border-white/10 text-white min-w-[200px] p-2 rounded-2xl shadow-2xl shadow-black/50">
-                            <DropdownMenuGroup className="p-1">
-                              <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-white/30 px-2 py-1.5">Gestión de Alumno</DropdownMenuLabel>
-                              <DropdownMenuItem
-                                className="group flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-white/70 focus:bg-white/10 focus:text-white cursor-pointer transition-colors"
-                                onClick={() => handleActionClick(student)}
-                                disabled={isUpdating}
-                              >
-                                {student.is_paid ? (
-                                  <>
-                                    <div className="p-1.5 rounded-lg bg-red-500/10 text-red-400"><CreditCard className="w-3.5 h-3.5" /></div>
-                                    <span>Marcar pendiente</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400"><CheckCircle2 className="w-3.5 h-3.5" /></div>
-                                    <span>Registrar Pago</span>
-                                  </>
-                                )}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-white/70 focus:bg-white/10 focus:text-white cursor-pointer transition-colors"
-                                onClick={() => handleOpenEditModal(student)}
-                                disabled={isUpdating}
-                              >
-                                <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400"><UserCog className="w-3.5 h-3.5" /></div>
-                                <span>Editar Perfil</span>
-                              </DropdownMenuItem>
-                            </DropdownMenuGroup>
-                            <DropdownMenuSeparator className="bg-white/5 my-1" />
-                            <DropdownMenuGroup className="p-1">
-                              <DropdownMenuItem 
-                                className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer transition-colors"
-                                onClick={() => {
-                                  showConfirm(
-                                    "Dar de baja",
-                                    `¿Seguro que quieres eliminar a ${student.name}? Esta acción es irreversible.`,
-                                    async () => {
-                                      try {
-                                        await databases.deleteDocument(DATABASE_ID, COLLECTION_PROFILES, student.$id);
-                                        setStudentsList(prev => prev.filter(s => s.$id !== student.$id));
-                                        showAlert("Éxito", "Alumno eliminado correctamente.", "success");
-                                      } catch (err) {
-                                        showAlert("Error", "No se ha podido eliminar al alumno.", "danger");
-                                      }
-                                    },
-                                    "danger"
-                                  );
-                                }}
-                              >
-                                <div className="p-1.5 rounded-lg bg-red-500/10 text-red-500"><Trash2 className="w-3.5 h-3.5" /></div>
-                                <span>Dar de baja</span>
-                              </DropdownMenuItem>
-                            </DropdownMenuGroup>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
+                      </div>
+                    </div>
                   ))
                 )}
-              </TableBody>
-            </Table>
-          </div>
-
-            {visibleCount < processedStudents.length && (
-              <div className="w-full flex justify-center py-4 border-t border-white/10 bg-white/5">
-                <Button
-                  variant="ghost"
-                  onClick={() => setVisibleCount(prev => prev + 30)}
-                  className="text-white hover:bg-white/10 flex items-center gap-2"
-                >
-                  <ChevronDown className="w-4 h-4" />
-                  Cargar más alumnos ({processedStudents.length - visibleCount} restantes)
-                </Button>
               </div>
-            )}
+
+              {visibleCount < processedStudents.length && (
+                <div className="w-full flex justify-center py-4 border-t border-white/10 bg-white/5">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setVisibleCount(prev => prev + 30)}
+                    className="text-white hover:bg-white/10 flex items-center gap-2"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                    Cargar más alumnos ({processedStudents.length - visibleCount} restantes)
+                  </Button>
+                </div>
+              )}
+            </div>
           </Card>
         </div>
       </TabsContent>
@@ -1329,260 +1497,331 @@ export default function AdminDashboard() {
 
       {/* Payment Confirmation Modal */}
       <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
-        <DialogContent className="bg-zinc-950 border border-white/10 text-white sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Registrar Mensualidad</DialogTitle>
-            <DialogDescription className="text-white/50">
-              Vas a confirmar el pago mensual de <strong className="text-white">{selectedStudent?.name}</strong>. Rellena los detalles de la transacción.
+        <DialogContent 
+          showCloseButton={false}
+          className="bg-zinc-950 border-white/10 text-white max-w-md rounded-[2rem] overflow-hidden backdrop-blur-2xl p-0 focus:outline-none shadow-2xl"
+        >
+          <div className="absolute inset-0 bg-emerald-500/5 pointer-events-none" />
+          
+          <button 
+            onClick={() => setIsPaymentModalOpen(false)}
+            className="absolute right-6 top-6 z-50 p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/40 hover:text-white transition-all"
+          >
+            <X className="w-4 h-4" />
+          </button>
+
+          <DialogHeader className="p-8 pb-0 relative z-10">
+            <DialogTitle className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
+              <CreditCard className="w-6 h-6 text-emerald-400" /> Registrar Pago
+            </DialogTitle>
+            <DialogDescription className="text-white/40 font-medium">
+              Confirmar mensualidad de <strong className="text-white">{selectedStudent?.name}</strong>. Rellena los detalles.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-6 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="amount" className="text-white/80">Cantidad Recibida (€)</Label>
-              <Input
-                id="amount"
-                type="number"
-                value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value)}
-                className="bg-black border-white/20 text-white focus-visible:ring-emerald-500"
-              />
-            </div>
 
-            <div className="grid gap-2">
-              <Label className="text-white/80 mb-2">Método de Pago</Label>
-              <div className="grid grid-cols-3 gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setPaymentMethod("Efectivo")}
-                  className={paymentMethod === "Efectivo" ? "bg-emerald-500 hover:bg-emerald-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Efectivo
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setPaymentMethod("Bizum")}
-                  className={paymentMethod === "Bizum" ? "bg-cyan-500 hover:bg-cyan-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Bizum
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setPaymentMethod("Tarjeta")}
-                  className={paymentMethod === "Tarjeta" ? "bg-purple-500 hover:bg-purple-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Tarjeta
-                </Button>
+          <div className="p-8 space-y-6 relative z-10">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="amount" className="text-[10px] font-black uppercase tracking-widest text-white/40">Cantidad Recibida (€)</Label>
+                <div className="relative">
+                  <Input
+                    id="amount"
+                    type="number"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    className="bg-white/5 border-white/10 h-12 pl-10 focus:border-emerald-500/50 transition-all font-bold text-lg"
+                    placeholder="55"
+                  />
+                  <div className="absolute left-3.5 top-3.5 text-white/20 font-bold">€</div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Método de Pago</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setPaymentMethod("Efectivo")}
+                    className={`h-12 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      paymentMethod === "Efectivo" 
+                      ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Efectivo
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setPaymentMethod("Bizum")}
+                    className={`h-12 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      paymentMethod === "Bizum" 
+                      ? "bg-blue-500/20 border-blue-500/40 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Bizum
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setPaymentMethod("Tarjeta")}
+                    className={`h-12 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      paymentMethod === "Tarjeta" 
+                      ? "bg-purple-500/20 border-purple-500/40 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Tarjeta
+                  </Button>
+                </div>
               </div>
             </div>
+
+            <DialogHeader className="pt-2">
+              <Button
+                onClick={() => handleConfirmPayment(selectedStudent?.$id, true)}
+                disabled={isUpdating}
+                className="w-full h-14 bg-white text-black hover:bg-emerald-500 hover:text-white font-black tracking-widest uppercase rounded-xl shadow-xl transition-all disabled:opacity-20"
+              >
+                {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "CONFIRMAR INGRESO"}
+              </Button>
+            </DialogHeader>
           </div>
-          <DialogFooter className="mt-4 border-t border-white/10 pt-4">
-            <Button
-              variant="ghost" 
-              onClick={() => setIsPaymentModalOpen(false)} 
-              className="bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white font-medium"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={() => handleConfirmPayment(selectedStudent?.$id, true)}
-              disabled={isUpdating}
-              className="bg-white text-black hover:bg-neutral-200"
-            >
-              {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Confirmar Ingreso
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       {/* Edit Profile (Contact/Level) Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="bg-zinc-950 border border-white/10 text-white sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Editar Información de Alumno</DialogTitle>
-            <DialogDescription className="text-white/50">
-              Añade un número de teléfono de contacto y ajusta el nivel táctico actuál de <strong className="text-white">{selectedStudent?.name}</strong>.
+        <DialogContent 
+          showCloseButton={false}
+          className="bg-zinc-950 border-white/10 text-white max-w-md rounded-[2rem] overflow-hidden backdrop-blur-2xl p-0 focus:outline-none shadow-2xl"
+        >
+          <div className="absolute inset-0 bg-blue-500/5 pointer-events-none" />
+          
+          <button 
+            onClick={() => setIsEditModalOpen(false)}
+            className="absolute right-6 top-6 z-50 p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/40 hover:text-white transition-all"
+          >
+            <X className="w-4 h-4" />
+          </button>
+
+          <DialogHeader className="p-8 pb-0 relative z-10">
+            <DialogTitle className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
+              <UserCog className="w-6 h-6 text-blue-400" /> Editar Alumno
+            </DialogTitle>
+            <DialogDescription className="text-white/40 font-medium italic">
+              Actualiza los datos de <strong className="text-white">{selectedStudent?.name} {selectedStudent?.last_name || ""}</strong>.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-6 py-4">
-            {/* Phone */}
-            <div className="grid gap-2">
-              <Label htmlFor="phone" className="text-white/80">Teléfono (WhatsApp)</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="+34 600 000 000"
-                value={editPhone}
-                onChange={(e) => {
-                  setEditPhone(e.target.value);
-                  if (editPhoneError) setEditPhoneError(""); // clear error on typing
-                }}
-                className={`bg-black text-white placeholder:text-white/20 focus-visible:ring-blue-500 ${editPhoneError ? 'border-red-500 bg-red-500/5' : 'border-white/20'}`}
-              />
-              {editPhoneError && (
-                <p className="text-red-400 text-xs mt-1 font-medium">{editPhoneError}</p>
-              )}
-            </div>
 
-            {/* Level */}
-            <div className="grid gap-2">
-              <Label className="text-white/80 mb-2">Nivel de Experiencia</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setEditLevel("Iniciación")}
-                  className={editLevel === "Iniciación" ? "bg-white/20 hover:bg-white/30 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Iniciación
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setEditLevel("Media")}
-                  className={editLevel === "Media" ? "bg-amber-500 hover:bg-amber-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Media
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setEditLevel("Profesional")}
-                  className={editLevel === "Profesional" ? "bg-purple-500 hover:bg-purple-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Profesional
-                </Button>
+          <div className="p-8 space-y-6 relative z-10">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nombre (Fijo)</Label>
+                  <Input
+                    value={selectedStudent?.name || ""}
+                    disabled
+                    className="bg-white/[0.03] border-white/5 text-white/30 cursor-not-allowed h-12 font-bold opacity-60"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Apellidos</Label>
+                  <Input
+                    value={editLastName}
+                    placeholder="Apellidos"
+                    onChange={(e) => setEditLastName(e.target.value)}
+                    className="bg-white/5 border-white/10 text-white focus:border-blue-500/50 transition-all font-bold h-12"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Teléfono (WhatsApp)</Label>
+                <Input
+                  type="tel"
+                  placeholder="+34 600 000 000"
+                  value={editPhone}
+                  onChange={(e) => {
+                    setEditPhone(e.target.value);
+                    if (editPhoneError) setEditPhoneError(""); 
+                  }}
+                  className={`bg-white/5 border-white/10 text-white focus:border-blue-500/50 transition-all font-bold h-12 ${editPhoneError ? 'border-red-500/50 bg-red-500/5' : ''}`}
+                />
+                {editPhoneError && (
+                  <p className="text-red-400 text-[10px] font-bold italic tracking-wider pl-1">{editPhoneError}</p>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nivel de Combate</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setEditLevel("Iniciación")}
+                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      editLevel === "Iniciación" 
+                      ? "bg-amber-500/20 border-amber-500/40 text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Iniciación
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setEditLevel("Media")}
+                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      editLevel === "Media" 
+                      ? "bg-blue-500/20 border-blue-500/40 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Media
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setEditLevel("Profesional")}
+                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      editLevel === "Profesional" 
+                      ? "bg-purple-500/20 border-purple-500/40 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Pro
+                  </Button>
+                </div>
               </div>
             </div>
+
+            <DialogHeader className="pt-2">
+              <Button
+                onClick={handleSaveProfile}
+                disabled={isUpdating || !!editPhoneError}
+                className="w-full h-14 bg-white text-black hover:bg-blue-500 hover:text-white font-black tracking-widest uppercase rounded-xl shadow-xl transition-all disabled:opacity-20"
+              >
+                {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "GUARDAR CAMBIOS"}
+              </Button>
+            </DialogHeader>
           </div>
-          <DialogFooter className="mt-4 border-t border-white/10 pt-4">
-            <Button 
-              variant="ghost" 
-              onClick={() => setIsEditModalOpen(false)} 
-              className="bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white font-medium"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSaveProfile}
-              disabled={isUpdating}
-              className="bg-white text-black hover:bg-neutral-200"
-            >
-              {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Guardar Cambios
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       {/* Create Class Modal */}
       <Dialog open={isClassModalOpen} onOpenChange={setIsClassModalOpen}>
-        <DialogContent className="bg-zinc-950 border border-white/10 text-white sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Programar Nueva Clase</DialogTitle>
-            <DialogDescription className="text-white/50">
-              Añade una sesión al calendario. Los alumnos podrán apuntarse hasta cubrir el cupo de plazas.
+        <DialogContent 
+          showCloseButton={false}
+          className="bg-zinc-950 border-white/10 text-white max-w-md rounded-[2rem] overflow-hidden backdrop-blur-2xl p-0 focus:outline-none shadow-2xl"
+        >
+          <div className="absolute inset-0 bg-emerald-500/5 pointer-events-none" />
+          
+          <button 
+            onClick={() => setIsClassModalOpen(false)}
+            className="absolute right-6 top-6 z-50 p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/40 hover:text-white transition-all"
+          >
+            <X className="w-4 h-4" />
+          </button>
+
+          <DialogHeader className="p-8 pb-0 relative z-10">
+            <DialogTitle className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
+              <CalendarDays className="w-6 h-6 text-emerald-400" /> Programar Clase
+            </DialogTitle>
+            <DialogDescription className="text-white/40 font-medium italic">
+              Añade una nueva sesión al calendario de la comunidad.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label className="text-white/80">Disciplina</Label>
-                <select
-                  value={newClass.name}
-                  onChange={(e) => setNewClass({ ...newClass, name: e.target.value })}
-                  className="bg-black border border-white/20 text-white rounded-md p-2 text-sm focus:ring-emerald-500 w-full"
-                >
-                  <option value="Boxeo">Boxeo</option>
-                  <option value="K1">K1</option>
-                  <option value="Sparring">Sparring</option>
-                </select>
+          <div className="p-8 space-y-6 relative z-10">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Disciplina</Label>
+                  <select
+                    value={newClass.name}
+                    onChange={(e) => setNewClass({ ...newClass, name: e.target.value })}
+                    className="w-full bg-white/5 border border-white/10 text-white rounded-xl h-12 px-4 transition-all focus:border-emerald-500/50 font-bold text-sm appearance-none cursor-pointer"
+                  >
+                    <option value="Boxeo" className="bg-zinc-900">Boxeo</option>
+                    <option value="K1" className="bg-zinc-900">K1</option>
+                    <option value="Sparring" className="bg-zinc-900">Sparring</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Monitor</Label>
+                  <div className="relative">
+                    <Input
+                      value={newClass.coach}
+                      onChange={(e) => setNewClass({ ...newClass, coach: e.target.value })}
+                      placeholder="Coach"
+                      className={`bg-white/5 border-white/10 h-12 focus:border-emerald-500/50 transition-all font-bold ${!isCoachValid && newClass.coach !== "" ? "border-red-500/50 bg-red-500/5" : ""}`}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label className="text-white/80">Monitor</Label>
-                <Input
-                  value={newClass.coach}
-                  onChange={(e) => setNewClass({ ...newClass, coach: e.target.value })}
-                  className={`bg-black text-white focus-visible:ring-emerald-500 ${!isCoachValid && newClass.coach !== "" ? "border-red-500" : "border-white/20"}`}
-                />
-                {!isCoachValid && newClass.coach !== "" && (
-                  <span className="text-xs text-red-500">No puede estar vacío ni contener números.</span>
-                )}
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label className="text-white/80">Fecha (Día)</Label>
-                <div className="relative">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Fecha</Label>
+                  <div className="relative">
+                    <Input
+                      ref={dateInputRef}
+                      type="date"
+                      min={localTodayISO}
+                      value={newClass.date}
+                      onChange={(e) => setNewClass({ ...newClass, date: e.target.value })}
+                      className="bg-white/5 border-white/10 h-12 pl-10 focus:border-emerald-500/50 transition-all font-bold cursor-pointer"
+                    />
+                    <CalendarDays className="absolute left-3.5 top-3.5 h-4 w-4 text-emerald-500/40 pointer-events-none" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Horario</Label>
                   <Input
-                    ref={dateInputRef}
-                    type="date"
-                    min={localTodayISO}
-                    value={newClass.date}
-                    onChange={(e) => setNewClass({ ...newClass, date: e.target.value })}
-                    className={`bg-black text-white focus-visible:ring-emerald-500 pl-10 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full cursor-pointer ${!isDateValid && newClass.date !== "" ? "border-red-500" : "border-white/20"}`}
-                  />
-                  <CalendarDays
-                    className="absolute left-3 top-2.5 h-5 w-5 text-emerald-500 pointer-events-none"
+                    placeholder="18:00 - 19:30"
+                    value={newClass.time}
+                    onChange={(e) => setNewClass({ ...newClass, time: e.target.value })}
+                    className={`bg-white/5 border-white/10 h-12 focus:border-emerald-500/50 transition-all font-bold ${(!isTimeFormatValid || !isTimeFuture) && newClass.time !== "" ? "border-red-500/50 bg-red-500/5" : ""}`}
                   />
                 </div>
-                {!isDateValid && newClass.date !== "" && (
-                  <span className="text-xs text-red-500">La fecha no puede ser en el pasado.</span>
-                )}
               </div>
-              <div className="grid gap-2">
-                <Label className="text-white/80">Franja Horaria</Label>
-                <Input
-                  placeholder="Ej: 18:00 - 19:30"
-                  value={newClass.time}
-                  onChange={(e) => setNewClass({ ...newClass, time: e.target.value })}
-                  className={`bg-black text-white focus-visible:ring-emerald-500 ${(!isTimeFormatValid || !isTimeFuture) && newClass.time !== "" ? "border-red-500" : "border-white/20"}`}
-                />
-                {!isTimeFormatValid && newClass.time !== "" && (
-                  <span className="text-xs text-red-500">Formato inválido. Usa formato: 18:00 - 19:30</span>
-                )}
-                {isTimeFormatValid && !isTimeFuture && newClass.date === localTodayISO && (
-                  <span className="text-xs text-red-500">Esa hora ya ha pasado hoy.</span>
-                )}
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Cupo Máximo</Label>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    value={newClass.capacity}
+                    onChange={(e) => setNewClass({ ...newClass, capacity: Number(e.target.value) })}
+                    className="bg-white/5 border-white/10 h-12 pl-10 focus:border-emerald-500/50 transition-all font-bold"
+                  />
+                  <Users className="absolute left-3.5 top-3.5 h-4 w-4 text-emerald-500/40 pointer-events-none" />
+                </div>
               </div>
+
+              {isDuplicate && (
+                <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl text-[11px] font-bold italic text-red-500 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>Conflicto: Ya existe una clase a esta misma hora.</span>
+                </div>
+              )}
             </div>
 
-            <div className="grid gap-2">
-              <Label className="text-white/80">Límite de Plazas (Aforo max)</Label>
-              <Input
-                type="number"
-                value={newClass.capacity}
-                onChange={(e) => setNewClass({ ...newClass, capacity: Number(e.target.value) })}
-                className="bg-black border-white/20 text-white focus-visible:ring-emerald-500"
-              />
-            </div>
-
-            {isDuplicate && (
-              <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-md text-red-500 text-sm mt-2 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4" />
-                <span>Ya existe una clase de <strong>{newClass.name}</strong> a esa misma hora y día.</span>
-              </div>
-            )}
-
+            <DialogHeader className="pt-2">
+              <Button
+                onClick={handleCreateClass}
+                disabled={isUpdating || !isNewClassFormValid}
+                className="w-full h-14 bg-white text-black hover:bg-emerald-500 hover:text-white font-black tracking-widest uppercase rounded-xl shadow-xl transition-all disabled:opacity-20"
+              >
+                {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "PUBLICAR CLASE EN CALENDARIO"}
+              </Button>
+            </DialogHeader>
           </div>
-          <DialogFooter className="mt-4 border-t border-white/10 pt-4">
-            <Button 
-              variant="ghost" 
-              onClick={() => setIsClassModalOpen(false)} 
-              className="bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white font-medium"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleCreateClass}
-              disabled={isUpdating || !isNewClassFormValid}
-              className="bg-emerald-500 text-white hover:bg-emerald-600"
-            >
-              {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Publicar Clase
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       {/* View Attendees Modal */}
       <Dialog open={isAttendeesModalOpen} onOpenChange={setIsAttendeesModalOpen}>
@@ -1636,104 +1875,154 @@ export default function AdminDashboard() {
 
       {/* Nuevo Alumno Modal */}
       <Dialog open={isNewStudentModalOpen} onOpenChange={setIsNewStudentModalOpen}>
-        <DialogContent className="bg-zinc-950 border border-white/10 text-white max-w-md w-[95vw] shadow-2xl p-6 sm:p-8">
-          <DialogTitle className="text-2xl font-bold tracking-tight">Registrar Nuevo Alumno</DialogTitle>
-          <p className="text-white/50 text-sm mb-4">
-            Añade los datos básicos. (Más adelante implementaremos el envío de invitación para crear su contraseña).
-          </p>
-          <form onSubmit={handleCreateStudent} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-white/50 uppercase tracking-widest">Nombre y Apellidos</label>
-              <Input
-                type="text"
-                required
-                maxLength={50}
-                placeholder="Paco Fernández"
-                value={newStudentForm.name}
-                onChange={(e) => setNewStudentForm({ ...newStudentForm, name: e.target.value })}
-                className="bg-white/5 border-white/10 text-white focus:border-white focus:ring-1 focus:ring-white h-12"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-white/50 uppercase tracking-widest">Correo Electrónico (ID de acceso)</label>
-              <Input
-                type="email"
-                required
-                placeholder="paco@email.com"
-                value={newStudentForm.email}
-                onChange={(e) => setNewStudentForm({ ...newStudentForm, email: e.target.value })}
-                className="bg-white/5 border-white/10 text-white focus:border-white focus:ring-1 focus:ring-white h-12"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-white/50 uppercase tracking-widest">Teléfono (WhatsApp)</label>
-              <Input
-                type="text"
-                placeholder="600123456"
-                value={newStudentForm.phone}
-                onChange={(e) => setNewStudentForm({ ...newStudentForm, phone: e.target.value })}
-                className="bg-white/5 border-white/10 text-white focus:border-white focus:ring-1 focus:ring-white h-12"
-              />
-            </div>
+        <DialogContent 
+          showCloseButton={false}
+          className="bg-zinc-950 border-white/10 text-white max-w-md w-[95vw] rounded-[2rem] overflow-hidden backdrop-blur-2xl p-0 focus:outline-none shadow-2xl"
+        >
+          <div className="absolute inset-0 bg-emerald-500/5 pointer-events-none" />
+          
+          <button 
+            onClick={() => setIsNewStudentModalOpen(false)}
+            className="absolute right-6 top-6 z-50 p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/40 hover:text-white transition-all"
+          >
+            <X className="w-4 h-4" />
+          </button>
 
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-1 block">Nivel de Experiencia Inicial</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setNewStudentForm({ ...newStudentForm, level: "Iniciación" })}
-                  className={newStudentForm.level === "Iniciación" ? "bg-white/20 hover:bg-white/30 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Iniciación
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setNewStudentForm({ ...newStudentForm, level: "Media" })}
-                  className={newStudentForm.level === "Media" ? "bg-amber-500 hover:bg-amber-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Media
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setNewStudentForm({ ...newStudentForm, level: "Profesional" })}
-                  className={newStudentForm.level === "Profesional" ? "bg-purple-500 hover:bg-purple-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Profesional
-                </Button>
+          <DialogHeader className="p-8 pb-0 relative z-10">
+            <DialogTitle className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
+              <UserPlus className="w-6 h-6 text-emerald-400" /> Registrar Alumno
+            </DialogTitle>
+            <DialogDescription className="text-white/40 font-medium italic">
+              Añade los datos básicos para enviarle su acceso a la plataforma.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateStudent} className="p-8 space-y-6 relative z-10">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nombre</Label>
+                  <Input
+                    type="text"
+                    required
+                    maxLength={50}
+                    placeholder="Paco"
+                    value={newStudentForm.name}
+                    onChange={(e) => setNewStudentForm({ ...newStudentForm, name: e.target.value })}
+                    className="bg-white/5 border-white/10 text-white focus:border-emerald-500/50 transition-all font-bold h-12"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Apellidos</Label>
+                  <Input
+                    type="text"
+                    required
+                    maxLength={50}
+                    placeholder="Fernández"
+                    value={newStudentForm.lastName}
+                    onChange={(e) => setNewStudentForm({ ...newStudentForm, lastName: e.target.value })}
+                    className="bg-white/5 border-white/10 text-white focus:border-emerald-500/50 transition-all font-bold h-12"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Correo Electrónico</Label>
+                <Input
+                  type="email"
+                  required
+                  placeholder="paco@email.com"
+                  value={newStudentForm.email}
+                  onChange={(e) => {
+                      setNewStudentForm({ ...newStudentForm, email: e.target.value });
+                      if (newStudentEmailError) setNewStudentEmailError("");
+                  }}
+                  className={`bg-white/5 border-white/10 text-white focus:border-emerald-500/50 transition-all font-bold h-12 ${newStudentEmailError ? 'border-red-500/50 bg-red-500/5' : ''}`}
+                />
+                {newStudentEmailError && <p className="text-red-400 text-[10px] font-bold italic tracking-wider pl-1">{newStudentEmailError}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Teléfono (WhatsApp)</Label>
+                <Input
+                  type="tel"
+                  placeholder="600 000 000"
+                  value={newStudentForm.phone}
+                  onChange={(e) => {
+                      setNewStudentForm({ ...newStudentForm, phone: e.target.value });
+                      if (newStudentPhoneError) setNewStudentPhoneError("");
+                  }}
+                  className={`bg-white/5 border-white/10 text-white focus:border-emerald-500/50 transition-all font-bold h-12 ${newStudentPhoneError ? 'border-red-500/50 bg-red-500/5' : ''}`}
+                />
+                {newStudentPhoneError && <p className="text-red-400 text-[10px] font-bold italic tracking-wider pl-1">{newStudentPhoneError}</p>}
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nivel de Combate</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setNewStudentForm({ ...newStudentForm, level: "Iniciación" })}
+                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      newStudentForm.level === "Iniciación" 
+                      ? "bg-amber-500/20 border-amber-500/40 text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Iniciación
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setNewStudentForm({ ...newStudentForm, level: "Media" })}
+                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      newStudentForm.level === "Media" 
+                      ? "bg-blue-500/20 border-blue-500/40 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Media
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setNewStudentForm({ ...newStudentForm, level: "Profesional" })}
+                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      newStudentForm.level === "Profesional" 
+                      ? "bg-purple-500/20 border-purple-500/40 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Pro
+                  </Button>
+                </div>
               </div>
             </div>
 
             {newStudentFormError && (
-              <p className="text-sm font-medium text-red-500 bg-red-500/10 p-3 rounded-md border border-red-500/20">
+              <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-3 rounded-xl text-[11px] font-bold italic text-center">
                 {newStudentFormError}
-              </p>
+              </div>
             )}
 
-            <div className="pt-4 flex flex-col sm:flex-row gap-3">
-              <Button
-                type="button"
-                variant="ghost"
-                className="flex-1 bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white font-medium"
-                onClick={() => setIsNewStudentModalOpen(false)}
-                disabled={isUpdating}
+            <DialogHeader className="pt-2">
+              <Button 
+                type="submit" 
+                disabled={isUpdating || !!newStudentEmailError || !!newStudentPhoneError}
+                className={`w-full h-14 font-black tracking-widest uppercase rounded-xl shadow-xl transition-all ${
+                    !newStudentEmailError && !newStudentPhoneError
+                    ? "bg-white text-black hover:bg-emerald-500 hover:text-white" 
+                    : "bg-white/5 text-white/20 cursor-not-allowed border-white/5 opacity-50"
+                }`}
               >
-                Cancelar
+                {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "REGISTRAR Y ENVIAR ACCESO"}
               </Button>
-              <Button
-                type="submit"
-                className="flex-1 bg-white text-black hover:bg-neutral-200 disabled:opacity-50"
-                disabled={isUpdating || !isNewStudentFormValid}
-              >
-                {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Registrar Alumno
-              </Button>
-            </div>
+            </DialogHeader>
           </form>
         </DialogContent>
       </Dialog>
+
       <ConfirmModal 
         isOpen={modalConfig.isOpen}
         onOpenChange={(open) => setModalConfig(prev => ({ ...prev, isOpen: open }))}

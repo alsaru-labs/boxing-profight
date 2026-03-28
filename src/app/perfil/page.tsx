@@ -30,6 +30,7 @@ export default function StudentProfile() {
   const [userBookings, setUserBookings] = useState<any[]>([]);
   const [pastClasses, setPastClasses] = useState<any[]>([]);
   const [isProcessingBooking, setIsProcessingBooking] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Custom Modal State
@@ -197,7 +198,39 @@ export default function StudentProfile() {
     );
   };
 
+  const handleUpdatePhone = async (newPhone: string) => {
+    try {
+      setIsUpdating(true);
+      await databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, profileInfo.$id, {
+        phone: newPhone
+      });
+      setProfileInfo({ ...profileInfo, phone: newPhone });
+      showAlert("Éxito", "Teléfono actualizado correctamente.", "success");
+    } catch (err) {
+      showAlert("Error", "No se ha podido actualizar el teléfono.", "danger");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleChangePassword = async (oldPass: string, newPass: string) => {
+    try {
+      setIsUpdating(true);
+      await account.updatePassword(newPass, oldPass);
+      showAlert("Éxito", "Contraseña actualizada correctamente.", "success");
+    } catch (err: any) {
+      console.error(err);
+      if (err.code === 401) {
+        throw new Error("La contraseña actual es incorrecta.");
+      }
+      throw new Error("No se ha podido cambiar la contraseña. Inténtalo más tarde.");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   if (loading) {
+
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <Loader2 className="w-10 h-10 text-white animate-spin" />
@@ -206,7 +239,11 @@ export default function StudentProfile() {
   }
 
   // Get user initials for Avatars
-  const initials = user?.name ? user.name.substring(0, 2).toUpperCase() : "US";
+  // 🟢 Cálculo de iniciales basado en el perfil de la base de datos (prioridad)
+  const initials = profileInfo?.name 
+    ? `${profileInfo.name.charAt(0)}${profileInfo.last_name?.charAt(0) || profileInfo.name.charAt(1) || ""}`.toUpperCase()
+    : user?.name ? user.name.substring(0, 2).toUpperCase() : "US";
+
 
   return (
     <div className="dark min-h-screen bg-black text-white font-sans flex flex-col relative w-full">
@@ -377,7 +414,12 @@ export default function StudentProfile() {
 
               {/* Ajustes Tab */}
               <TabsContent key="ajustes" value="ajustes" className="focus-visible:outline-none">
-                <ProfileSettings profileInfo={profileInfo} />
+                <ProfileSettings 
+                  profileInfo={profileInfo} 
+                  onUpdatePhone={handleUpdatePhone}
+                  onChangePassword={handleChangePassword}
+                  isUpdating={isUpdating}
+                />
               </TabsContent>
             </AnimatePresence>
           </div>
