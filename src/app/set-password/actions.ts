@@ -13,6 +13,7 @@ function timingSafeEqual(a: string, b: string): boolean {
   return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 }
 
+
 export async function setPasswordWithToken(token: string, password: string, confirm: string) {
   // 1. Basic Sanitization & Validation
   if (!token || !password || !confirm) {
@@ -52,7 +53,7 @@ export async function setPasswordWithToken(token: string, password: string, conf
 
     // 4. Security Checks (Timing Attack Prevention & Expiry)
     if (!timingSafeEqual(tokenDoc.token, token)) {
-        return { success: false, error: "Token inválido." };
+      return { success: false, error: "Token inválido." };
     }
 
     const now = new Date();
