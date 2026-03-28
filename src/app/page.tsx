@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Instagram, MapPin, Youtube, Calendar } from "lucide-react";
 import Link from "next/link";
 
+
 const classes = [
   { title: "Boxeo", type: "Técnica / Física", time: "10:00 - 11:00 AM", slots: "Verde" },
   { title: "Boxeo", type: "General / Sparring", time: "18:00 - 19:30 PM", slots: "Amarillo" },
