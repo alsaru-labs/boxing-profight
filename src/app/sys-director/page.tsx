@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, ShieldCheck, Loader2, Home, MessageCircle, Signal, CalendarDays, Search, ArrowUpDown, Filter, X, ChevronDown, History as HistoryIcon, Plus } from "lucide-react";
+import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, ShieldCheck, Loader2, Home, MessageCircle, Signal, CalendarDays, Search, ArrowUpDown, Filter, X, ChevronDown, History as HistoryIcon, Plus, UserCog, Trash2, CheckCircle2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -1149,24 +1149,22 @@ export default function AdminDashboard() {
                           >
                             {student.is_paid ? "Pagado" : "No Pagado"}
                           </Badge>
-                          {student.is_paid && student.payment_method && (
-                            <span className="text-[10px] text-white/40 uppercase tracking-wider font-semibold">
-                              {student.payment_method}
-                            </span>
-                          )}
                         </div>
                       </TableCell>
 
-                      {/* Contacto (Teléfono/WhatsApp) */}
+                      {/* Contacto (WhatsApp & Phone) */}
                       <TableCell>
                         {student.phone ? (
                           <a
-                            href={`https://wa.me/${student.phone.replace(/[\s+]/g, '')}`}
+                            href={`https://wa.me/${student.phone.replace(/\+/g, '').replace(/\s/g, '')}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 text-white/80 hover:text-white transition-colors w-fit group"
+                            className="flex items-center gap-2 text-white/70 hover:text-[#25D366] transition-colors group"
                           >
                             <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="16"
+                              height="16"
                               viewBox="0 0 24 24"
                               className="w-4 h-4 text-[#25D366] group-hover:scale-110 transition-transform fill-current"
                             >
@@ -1187,33 +1185,64 @@ export default function AdminDashboard() {
                       {/* Acciones */}
                       <TableCell className="text-right">
                         <DropdownMenu>
-                          <DropdownMenuTrigger className="h-8 w-8 flex flex-col justify-center items-center text-white hover:bg-white/10 border-0 outline-none rounded-md transition-colors">
+                          <DropdownMenuTrigger className="h-9 w-9 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 rounded-xl transition-all border border-transparent hover:border-white/10 outline-none focus:ring-2 focus:ring-emerald-500/50">
                             <span className="sr-only">Abrir menú</span>
                             <MoreVertical className="h-4 w-4" />
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10 text-white">
-                            <DropdownMenuGroup>
-                              <DropdownMenuLabel>Gestión de Alumno</DropdownMenuLabel>
+                          <DropdownMenuContent align="end" className="bg-zinc-900/95 backdrop-blur-xl border-white/10 text-white min-w-[200px] p-2 rounded-2xl shadow-2xl shadow-black/50">
+                            <DropdownMenuGroup className="p-1">
+                              <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-white/30 px-2 py-1.5">Gestión de Alumno</DropdownMenuLabel>
+                              <DropdownMenuItem
+                                className="group flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-white/70 focus:bg-white/10 focus:text-white cursor-pointer transition-colors"
+                                onClick={() => handleActionClick(student)}
+                                disabled={isUpdating}
+                              >
+                                {student.is_paid ? (
+                                  <>
+                                    <div className="p-1.5 rounded-lg bg-red-500/10 text-red-400"><CreditCard className="w-3.5 h-3.5" /></div>
+                                    <span>Marcar pendiente</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400"><CheckCircle2 className="w-3.5 h-3.5" /></div>
+                                    <span>Registrar Pago</span>
+                                  </>
+                                )}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-white/70 focus:bg-white/10 focus:text-white cursor-pointer transition-colors"
+                                onClick={() => handleOpenEditModal(student)}
+                                disabled={isUpdating}
+                              >
+                                <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400"><UserCog className="w-3.5 h-3.5" /></div>
+                                <span>Editar Perfil</span>
+                              </DropdownMenuItem>
                             </DropdownMenuGroup>
-                            <DropdownMenuSeparator className="bg-white/10" />
-                            <DropdownMenuItem
-                              className="focus:bg-white/10 focus:text-white cursor-pointer hover:bg-white/5"
-                              onClick={() => handleActionClick(student)}
-                              disabled={isUpdating}
-                            >
-                              {student.is_paid ? "Marcar como pendiente" : "Registrar Pago"}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="focus:bg-white/10 focus:text-white cursor-pointer hover:bg-white/5"
-                              onClick={() => handleOpenEditModal(student)}
-                              disabled={isUpdating}
-                            >
-                              Editar Perfil (Contacto/Nivel)
-                            </DropdownMenuItem>
-
-                            <DropdownMenuItem className="text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer">
-                              Dar de baja (Eliminar)
-                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className="bg-white/5 my-1" />
+                            <DropdownMenuGroup className="p-1">
+                              <DropdownMenuItem 
+                                className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer transition-colors"
+                                onClick={() => {
+                                  showConfirm(
+                                    "Dar de baja",
+                                    `¿Seguro que quieres eliminar a ${student.name}? Esta acción es irreversible.`,
+                                    async () => {
+                                      try {
+                                        await databases.deleteDocument(DATABASE_ID, COLLECTION_PROFILES, student.$id);
+                                        setStudentsList(prev => prev.filter(s => s.$id !== student.$id));
+                                        showAlert("Éxito", "Alumno eliminado correctamente.", "success");
+                                      } catch (err) {
+                                        showAlert("Error", "No se ha podido eliminar al alumno.", "danger");
+                                      }
+                                    },
+                                    "danger"
+                                  );
+                                }}
+                              >
+                                <div className="p-1.5 rounded-lg bg-red-500/10 text-red-500"><Trash2 className="w-3.5 h-3.5" /></div>
+                                <span>Dar de baja</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuGroup>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
