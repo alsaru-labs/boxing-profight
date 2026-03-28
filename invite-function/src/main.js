@@ -46,21 +46,33 @@ module.exports = async function (context) {
     try {
         log(`Processing invitation for: ${profile.name} <${profile.email}>`);
 
-        // 2. Check if user already exists in Auth
+        // 2. Resolve Auth User (Check by ID first, then by Email as fallback)
         let authUser;
         try {
             authUser = await users.get(profile.user_id);
-            log("User already exists in Auth. Skipping creation.");
-        } catch (e) {
-            log("Creating new Auth user...");
-            const tempPassword = crypto.randomBytes(20).toString('hex');
-            authUser = await users.create(
-                profile.user_id, // Match the ID used in the database
-                profile.email,
-                null, // No phone for Auth yet
-                tempPassword,
-                profile.name
-            );
+            log(`Found existing user by ID: ${authUser.$id}`);
+        } catch (idError) {
+            log(`User ID not found, checking by email: ${profile.email}`);
+            try {
+                const usersList = await users.list([sdk.Query.equal("email", profile.email)]);
+                if (usersList.total > 0) {
+                    authUser = usersList.users[0];
+                    log(`Found existing user by Email: ${authUser.$id}`);
+                } else {
+                    log("Creating new Auth user...");
+                    const tempPassword = crypto.randomBytes(20).toString('hex');
+                    authUser = await users.create(
+                        profile.user_id,
+                        profile.email,
+                        null,
+                        tempPassword,
+                        profile.name
+                    );
+                }
+            } catch (emailError) {
+                error("Critical error resolving user: " + emailError.message);
+                throw emailError;
+            }
         }
 
         // 3. Generate Secure Token
@@ -82,7 +94,7 @@ module.exports = async function (context) {
 
         // 5. Send Email via Resend
         const setPasswordUrl = `${process.env.PUBLIC_DOMAIN}/set-password?token=${token}`;
-        
+
         const html = `
         <!DOCTYPE html>
         <html>
@@ -113,7 +125,8 @@ module.exports = async function (context) {
         `;
 
         const data = await resend.emails.send({
-            from: 'Boxing Profight <onboarding@profight.com>',
+            //  from: 'Boxing Profight <onboarding@profight.com>',
+            from: 'onboarding@resend.dev', // Cambia esto para el test inicial
             to: [profile.email],
             subject: '🧤 ¡Bienvenido a Boxing Profight! Configura tu cuenta',
             html: html,
