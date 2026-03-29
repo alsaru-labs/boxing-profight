@@ -2,6 +2,7 @@
 
 import * as sdk from "node-appwrite";
 import { DATABASE_ID, COLLECTION_PROFILES, COLLECTION_INVITATION_TOKENS, COLLECTION_BOOKINGS } from "@/lib/appwrite";
+import { createAdminClient } from "@/lib/server/appwrite";
 
 /**
  * Synchronized Student Deletion (Auth + Database + Tokens)
@@ -13,22 +14,9 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
         return { success: false, error: "Faltan identificadores para realizar la baja." };
     }
 
-    const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-    const apiKey = process.env.APPWRITE_API_KEY || process.env.NEXT_PUBLIC_DEBUG_APPWRITE_KEY;
-    const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://fra.cloud.appwrite.io/v1";
-
-    if (!projectId || !apiKey) {
-        return { success: false, error: "Servidor desconfigurado: Clave de acceso no encontrada." };
-    }
-
     // 1. Initialize Server SDK
-    const client = new sdk.Client()
-        .setEndpoint(endpoint)
-        .setProject(projectId)
-        .setKey(apiKey);
+    const { databases, users } = await createAdminClient();
 
-    const databases = new sdk.Databases(client);
-    const users = new sdk.Users(client);
 
     try {
         // 2. Delete from Auth (Primary Action)

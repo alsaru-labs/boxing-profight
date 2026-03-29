@@ -68,8 +68,10 @@ export default function AdminDashboard() {
   // Profile Edit Modal States
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
   const [editLevel, setEditLevel] = useState("Iniciación");
   const [editPhoneError, setEditPhoneError] = useState("");
+  const [editEmailError, setEditEmailError] = useState("");
 
   // New Student Modal States
   const [isNewStudentModalOpen, setIsNewStudentModalOpen] = useState(false);
@@ -366,8 +368,9 @@ export default function AdminDashboard() {
     setSelectedStudent(student);
     setEditLastName(student.last_name || "");
     setEditPhone(student.phone || "");
-    setEditLevel(student.level || "Iniciación");
+    setEditEmail(student.email || "");
     setEditPhoneError(""); // Clear previous errors
+    setEditEmailError("");
     setIsEditModalOpen(true);
   };
 
@@ -384,20 +387,42 @@ export default function AdminDashboard() {
 
     if (!validatePhone(editPhone)) {
       setEditPhoneError("Por favor, introduce un número válido (ej: 600123456 o +34600123456).");
-      return; // Stop execution
+      return; 
     }
 
-    // Reset error just in case
-    setEditPhoneError("");
+    // Email Validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editEmail)) {
+      setEditEmailError("Formato de correo no válido.");
+      return;
+    }
 
     try {
       setIsUpdating(true);
+
+      // Duplicate email check (excluding current student)
+      const existing = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTION_PROFILES,
+        [
+          Query.equal("email", editEmail.toLowerCase()),
+          Query.notEqual("$id", selectedStudent.$id)
+        ]
+      );
+
+      if (existing.total > 0) {
+        setEditEmailError("Este correo electrónico ya está registrado por otro alumno.");
+        setIsUpdating(false);
+        return;
+      }
+
       await databases.updateDocument(
         DATABASE_ID,
         COLLECTION_PROFILES,
         selectedStudent.$id,
         {
           last_name: editLastName,
+          email: editEmail.toLowerCase(),
           phone: editPhone,
           level: editLevel
         }
@@ -405,7 +430,7 @@ export default function AdminDashboard() {
 
       // Update Local State for instant UI feedback
       const updatedList = studentsList.map(s =>
-        s.$id === selectedStudent.$id ? { ...s, last_name: editLastName, phone: editPhone, level: editLevel } : s
+        s.$id === selectedStudent.$id ? { ...s, last_name: editLastName, email: editEmail.toLowerCase(), phone: editPhone, level: editLevel } : s
       );
 
       setStudentsList(updatedList);
@@ -448,6 +473,20 @@ export default function AdminDashboard() {
 
     try {
       setIsUpdating(true);
+
+      // 1. Check if student already exists by email
+      const existing = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTION_PROFILES,
+        [Query.equal("email", newStudentForm.email.toLowerCase())]
+      );
+
+      if (existing.total > 0) {
+        setNewStudentEmailError("Este correo electrónico ya está registrado por otro alumno.");
+        setIsUpdating(false);
+        return;
+      }
+
       const uniqueRef = ID.unique();
       const newProfile = await databases.createDocument(
         DATABASE_ID,
@@ -1223,6 +1262,23 @@ export default function AdminDashboard() {
                     className="bg-white/5 border-white/10 text-white focus:border-blue-500/50 transition-all font-bold h-12"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Correo Electrónico</Label>
+                <Input
+                  type="email"
+                  placeholder="email@ejemplo.com"
+                  value={editEmail}
+                  onChange={(e) => {
+                    setEditEmail(e.target.value);
+                    if (editEmailError) setEditEmailError("");
+                  }}
+                  className={`bg-white/5 border-white/10 text-white focus:border-blue-500/50 transition-all font-bold h-12 ${editEmailError ? 'border-red-500/50 bg-red-500/5' : ''}`}
+                />
+                {editEmailError && (
+                  <p className="text-red-400 text-[10px] font-bold italic tracking-wider pl-1">{editEmailError}</p>
+                )}
               </div>
 
               <div className="space-y-2">

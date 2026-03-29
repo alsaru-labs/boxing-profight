@@ -3,6 +3,7 @@
 import * as sdk from "node-appwrite";
 import crypto from "crypto";
 import { DATABASE_ID, COLLECTION_INVITATION_TOKENS } from "@/lib/appwrite";
+import { createAdminClient } from "@/lib/server/appwrite";
 import { cookies } from "next/headers";
 
 /**
@@ -28,22 +29,9 @@ export async function setPasswordWithToken(token: string, password: string, conf
     return { success: false, error: "La contraseña debe tener al menos 8 caracteres." };
   }
 
-  const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-  const apiKey = process.env.APPWRITE_API_KEY || process.env.NEXT_PUBLIC_DEBUG_APPWRITE_KEY;
-  const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://fra.cloud.appwrite.io/v1";
-
-  if (!projectId || !apiKey) {
-    return { success: false, error: "Servidor desconfigurado: Clave de acceso no encontrada." };
-  }
-
   // 1. Initialize Server SDK
-  const client = new sdk.Client()
-    .setEndpoint(endpoint)
-    .setProject(projectId)
-    .setKey(apiKey);
+  const { databases, users } = await createAdminClient();
 
-  const databases = new sdk.Databases(client);
-  const users = new sdk.Users(client);
 
   try {
     // 3. Retrieve Token from Database
