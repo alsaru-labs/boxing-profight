@@ -7,7 +7,8 @@ import { Lock, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle, ShieldCheck } fr
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { setPasswordWithToken } from "./actions";
+import { setPasswordWithToken, logout } from "./actions";
+import { useEffect } from "react";
 
 function SetPasswordForm() {
     const searchParams = useSearchParams();
@@ -20,6 +21,15 @@ function SetPasswordForm() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
+
+    // 🛡️ Limpieza de Sesión: Si entramos a generar contraseña, 
+    // nos aseguramos de que no haya sesiones viejas (ej: del admin)
+    useEffect(() => {
+        if (token) {
+            logout();
+        }
+    }, [token]);
+
 
     // 🛡️ Robust Validation Logic
     const passwordRequirements = [

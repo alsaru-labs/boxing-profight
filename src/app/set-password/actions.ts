@@ -71,3 +71,11 @@ export async function setPasswordWithToken(token: string, password: string, conf
     return { success: false, error: "Ha ocurrido un error de seguridad al procesar tu solicitud." };
   }
 }
+
+/**
+ * Clears the session cookie to logout any existing user.
+ */
+export async function logout() {
+  const cookieStore = await cookies();
+  cookieStore.delete("session");
+}

@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import NotificationPanel from "./NotificationPanel";
+import { logout } from "@/app/set-password/actions";
 
 export default function Navbar({ isHome = false }: { isHome?: boolean }) {
   const router = useRouter();
@@ -63,7 +64,11 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
 
   const handleLogout = async () => {
     try {
+      // 1. Client-side Logout (Appwrite SDK)
       await account.deleteSession("current");
+      // 2. Server-side Logout (Cookies)
+      await logout();
+      
       router.push("/login");
     } catch (e) {
       console.error("Error logging out", e);
