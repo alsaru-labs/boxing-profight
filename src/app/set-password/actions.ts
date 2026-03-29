@@ -25,8 +25,11 @@ export async function setPasswordWithToken(token: string, password: string, conf
     return { success: false, error: "Las contraseñas no coinciden." };
   }
 
-  if (password.length < 8) {
-    return { success: false, error: "La contraseña debe tener al menos 8 caracteres." };
+  if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[!@#$%^&*(),.?":{}|<> ]/.test(password)) {
+    return { 
+      success: false, 
+      error: "La contraseña es demasiado débil. Debe tener al menos 8 caracteres, una mayúscula, un número y un carácter especial." 
+    };
   }
 
   // 1. Initialize Server SDK

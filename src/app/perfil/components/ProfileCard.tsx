@@ -21,7 +21,7 @@ export function ProfileCard({ user, profileInfo, initials }: ProfileCardProps) {
           </Avatar>
         </div>
         <CardTitle 
-          className="text-3xl font-black tracking-tighter text-white truncate w-full text-center px-4"
+          className="text-2xl md:text-3xl font-black tracking-tighter text-white w-full text-center px-4 break-words leading-tight"
           title={profileInfo?.name ? `${profileInfo.name} ${profileInfo.last_name || ""}` : user?.name}
         >
           {profileInfo?.name ? `${profileInfo.name} ${profileInfo.last_name || ""}` : (user?.name || "Cargando...")}

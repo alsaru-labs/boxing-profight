@@ -8,9 +8,10 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
 import { ID } from "appwrite";
+import { PASSWORD_REQUIREMENTS } from "@/constants/security";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -239,6 +240,30 @@ export default function RegisterPage() {
                 disabled={loading}
                 className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-14 rounded-xl px-4 focus-visible:ring-1 focus-visible:ring-white/30 focus-visible:border-white/30 transition-all"
               />
+              
+              <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 space-y-2.5 mt-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-white/20">Seguridad</span>
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${PASSWORD_REQUIREMENTS.every(r => r.regex.test(password)) ? 'text-emerald-400' : 'text-zinc-600'}`}>
+                    {PASSWORD_REQUIREMENTS.filter(r => r.regex.test(password)).length}/{PASSWORD_REQUIREMENTS.length}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 gap-1.5Condensed">
+                  {PASSWORD_REQUIREMENTS.map((req) => {
+                    const isMet = req.regex.test(password);
+                    return (
+                      <div key={req.id} className="flex items-center gap-2">
+                        <div className={`p-0.5 rounded-full ${isMet ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-white/10'}`}>
+                          <CheckCircle2 className="w-3 h-3" />
+                        </div>
+                        <span className={`text-[11px] font-bold ${isMet ? 'text-white/60' : 'text-white/20'}`}>
+                          {req.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             <Button

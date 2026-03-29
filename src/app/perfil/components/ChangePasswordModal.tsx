@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { PASSWORD_REQUIREMENTS } from "@/constants/security";
 
 interface ChangePasswordModalProps {
   isOpen: boolean;
@@ -28,15 +29,8 @@ export function ChangePasswordModal({ isOpen, onOpenChange, onSubmit, isUpdating
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
 
-  const passwordRequirements = [
-    { id: 'length', label: 'Mínimo 8 caracteres', regex: /.{8,}/ },
-    { id: 'upper', label: 'Al menos una Mayúscula', regex: /[A-Z]/ },
-    { id: 'number', label: 'Al menos un Número', regex: /[0-9]/ },
-    { id: 'special', label: 'Un carácter especial (@, #, $, etc.)', regex: /[!@#$%^&*(),.?":{}|<>]/ },
-  ];
-
-  const metRequirements = passwordRequirements.filter(req => req.regex.test(newPassword));
-  const allMet = metRequirements.length === passwordRequirements.length;
+  const metRequirements = PASSWORD_REQUIREMENTS.filter(req => req.regex.test(newPassword));
+  const allMet = metRequirements.length === PASSWORD_REQUIREMENTS.length;
   const isMatching = newPassword !== "" && newPassword === confirmPassword;
 
   const handleApply = async (e: React.FormEvent) => {
@@ -81,27 +75,28 @@ export function ChangePasswordModal({ isOpen, onOpenChange, onSubmit, isUpdating
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent 
         showCloseButton={false}
-        className="bg-zinc-950 border-white/10 text-white max-w-md rounded-[2rem] overflow-hidden backdrop-blur-2xl p-0 focus:outline-none"
+        className="bg-zinc-950 border-white/10 text-white w-[calc(100%-1rem)] sm:max-w-md rounded-[1.5rem] md:rounded-[2rem] overflow-hidden backdrop-blur-2xl p-0 focus:outline-none max-h-[96vh] flex flex-col"
       >
         <div className="absolute inset-0 bg-emerald-500/5 pointer-events-none" />
         
         {/* Custom Close Button */}
         <button 
           onClick={() => onOpenChange(false)}
-          className="absolute right-6 top-6 z-50 p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/40 hover:text-white transition-all"
+          className="absolute right-4 top-4 md:right-6 md:top-6 z-50 p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/40 hover:text-white transition-all"
         >
           <X className="w-4 h-4" />
         </button>
 
-        <DialogHeader className="p-8 pb-0 relative z-10">
-          <DialogTitle className="text-2xl font-black tracking-tight">Cambiar Contraseña</DialogTitle>
-          <DialogDescription className="text-white/40 font-medium">
-            Por seguridad, necesitamos verificar tu identidad antes de establecer la nueva clave.
-          </DialogDescription>
-        </DialogHeader>
+        <div className="overflow-y-auto custom-scrollbar flex-1">
+          <DialogHeader className="p-5 md:p-8 md:pb-0 relative z-10">
+            <DialogTitle className="text-xl md:text-2xl font-black tracking-tight">Cambiar Contraseña</DialogTitle>
+            <DialogDescription className="text-white/40 font-medium text-[11px] md:text-sm leading-snug mt-1">
+              Por seguridad, necesitamos verificar tu identidad antes de establecer la nueva clave.
+            </DialogDescription>
+          </DialogHeader>
 
 
-        <form onSubmit={handleApply} className="p-8 space-y-6 relative z-10">
+          <form onSubmit={handleApply} className="p-5 md:p-8 space-y-4 md:space-y-6 relative z-10">
           <div className="space-y-4">
             {/* Old Password */}
             <div className="space-y-2">
@@ -143,17 +138,19 @@ export function ChangePasswordModal({ isOpen, onOpenChange, onSubmit, isUpdating
               <div className="p-3 bg-white/[0.02] border border-white/5 rounded-xl space-y-2 mt-2">
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-[9px] font-black uppercase tracking-widest text-white/20">Seguridad</span>
-                  <span className={`text-[9px] font-black tracking-widest ${allMet ? 'text-emerald-400' : 'text-zinc-600'}`}>{metRequirements.length}/4</span>
+                  <span className={`text-[9px] font-black tracking-widest ${allMet ? 'text-emerald-400' : 'text-zinc-600'}`}>{metRequirements.length}/{PASSWORD_REQUIREMENTS.length}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                  {passwordRequirements.map(req => {
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5">
+                  {PASSWORD_REQUIREMENTS.map(req => {
                     const met = req.regex.test(newPassword);
                     return (
                       <div key={req.id} className="flex items-center gap-1.5">
                         <div className={`p-0.5 rounded-full ${met ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-white/10'}`}>
                           <CheckCircle2 className="w-2.5 h-2.5" />
                         </div>
-                        <span className={`text-[10px] font-bold truncate ${met ? 'text-white/60' : 'text-white/20'}`}>{req.label}</span>
+                        <span className={`text-[10px] font-bold leading-tight ${met ? 'text-white/60' : 'text-white/20'}`}>
+                          {req.label}
+                        </span>
                       </div>
                     );
                   })}
@@ -188,7 +185,7 @@ export function ChangePasswordModal({ isOpen, onOpenChange, onSubmit, isUpdating
             )}
           </AnimatePresence>
 
-          <DialogHeader className="pt-2">
+          <div className="pt-2">
             <Button 
               type="submit"
               size="xl"
@@ -201,8 +198,9 @@ export function ChangePasswordModal({ isOpen, onOpenChange, onSubmit, isUpdating
             >
               {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : "GUARDAR NUEVA CONTRASEÑA"}
             </Button>
-          </DialogHeader>
+          </div>
         </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

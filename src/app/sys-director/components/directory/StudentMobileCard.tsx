@@ -79,7 +79,7 @@ export function StudentMobileCard({
             </Badge>
           </div>
 
-          <h3 className="text-white font-bold truncate leading-tight text-base tracking-tight mb-0.5">
+          <h3 className="text-white font-bold leading-tight text-base tracking-tight mb-0.5 break-words whitespace-normal">
             {student.name} {student.last_name || ""}
           </h3>
           <p className="text-white/30 text-[10px] truncate font-medium">
