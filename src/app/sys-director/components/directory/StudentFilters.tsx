@@ -62,7 +62,7 @@ export function StudentFilters({
                 <SelectValue placeholder={LITERALS.DASHBOARD.FILTER_ALL_PAYMENTS} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todos">{LITERALS.DASHBOARD.FILTER_ALL_PAYMENTS}</SelectItem>
+                <SelectItem value="Todos">{LITERALS.DASHBOARD.FILTER_ALL_PAYMENTS}</SelectItem>
                 <SelectItem value="pagado">{LITERALS.DASHBOARD.FILTER_PAID}</SelectItem>
                 <SelectItem value="pendiente">{LITERALS.DASHBOARD.FILTER_PENDING}</SelectItem>
               </SelectContent>
@@ -77,7 +77,7 @@ export function StudentFilters({
                 <SelectValue placeholder="Todos los Niveles" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todos">Todos los Niveles</SelectItem>
+                <SelectItem value="Todos">Todos los Niveles</SelectItem>
                 <SelectItem value="Iniciación">Iniciación</SelectItem>
                 <SelectItem value="Media">Media</SelectItem>
                 <SelectItem value="Profesional">Profesional</SelectItem>
@@ -87,13 +87,13 @@ export function StudentFilters({
         </div>
 
         {/* Reset Filters */}
-        {(searchTerm !== "" || filterPayment !== "todos" || filterLevel !== "todos" || sortConfig !== null) && (
+        {(searchTerm !== "" || filterPayment !== "Todos" || filterLevel !== "Todos" || sortConfig !== null) && (
           <Button
             variant="ghost"
             onClick={() => {
               setSearchTerm("");
-              setFilterPayment("todos");
-              setFilterLevel("todos");
+              setFilterPayment("Todos");
+              setFilterLevel("Todos");
               setSortConfig(null);
               setVisibleCount(30);
             }}

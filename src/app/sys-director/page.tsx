@@ -256,8 +256,12 @@ export default function AdminDashboard() {
 
   const handleActionClick = (student: any) => {
     if (student.is_paid) {
-      // If already paid, flip directly back to pending without modal
-      handleConfirmPayment(student.$id, false);
+      showConfirm(
+        "Marcar Pendiente",
+        `¿Confirmar que el pago de ${student.name} vuelve a estar PENDIENTE?`,
+        () => handleConfirmPayment(student.$id, false),
+        "warning"
+      );
     } else {
       // If not paid, open the confirmation modal
       setSelectedStudent(student);
@@ -1170,7 +1174,7 @@ export default function AdminDashboard() {
                   <Button
                     variant="ghost"
                     onClick={() => setPaymentMethod("Efectivo")}
-                    className={`h-12 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                    className={`h-14 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
                       paymentMethod === "Efectivo" 
                       ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]" 
                       : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
@@ -1181,7 +1185,7 @@ export default function AdminDashboard() {
                   <Button
                     variant="ghost"
                     onClick={() => setPaymentMethod("Bizum")}
-                    className={`h-12 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                    className={`h-14 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
                       paymentMethod === "Bizum" 
                       ? "bg-blue-500/20 border-blue-500/40 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.1)]" 
                       : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
@@ -1192,7 +1196,7 @@ export default function AdminDashboard() {
                   <Button
                     variant="ghost"
                     onClick={() => setPaymentMethod("Tarjeta")}
-                    className={`h-12 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                    className={`h-14 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
                       paymentMethod === "Tarjeta" 
                       ? "bg-purple-500/20 border-purple-500/40 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.1)]" 
                       : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
@@ -1305,7 +1309,7 @@ export default function AdminDashboard() {
                     type="button"
                     variant="ghost"
                     onClick={() => setEditLevel("Iniciación")}
-                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                    className={`h-14 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
                       editLevel === "Iniciación" 
                       ? "bg-amber-500/20 border-amber-500/40 text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.1)]" 
                       : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
@@ -1317,7 +1321,7 @@ export default function AdminDashboard() {
                     type="button"
                     variant="ghost"
                     onClick={() => setEditLevel("Media")}
-                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                    className={`h-14 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
                       editLevel === "Media" 
                       ? "bg-blue-500/20 border-blue-500/40 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.1)]" 
                       : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
@@ -1329,7 +1333,7 @@ export default function AdminDashboard() {
                     type="button"
                     variant="ghost"
                     onClick={() => setEditLevel("Profesional")}
-                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                    className={`h-14 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
                       editLevel === "Profesional" 
                       ? "bg-purple-500/20 border-purple-500/40 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.1)]" 
                       : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
@@ -1609,9 +1613,9 @@ export default function AdminDashboard() {
                     type="button"
                     variant="ghost"
                     onClick={() => setNewStudentForm({ ...newStudentForm, level: "Iniciación" })}
-                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                    className={`h-14 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
                       newStudentForm.level === "Iniciación" 
-                      ? "bg-amber-500/20 border-amber-500/40 text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.1)]" 
+                      ? "bg-amber-500/20 border-amber-500/40 text-amber-500 shadow-[0_0_15_rgba(245,158,11,0.1)]" 
                       : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
                     }`}
                   >
@@ -1621,7 +1625,7 @@ export default function AdminDashboard() {
                     type="button"
                     variant="ghost"
                     onClick={() => setNewStudentForm({ ...newStudentForm, level: "Media" })}
-                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                    className={`h-14 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
                       newStudentForm.level === "Media" 
                       ? "bg-blue-500/20 border-blue-500/40 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.1)]" 
                       : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
@@ -1633,7 +1637,7 @@ export default function AdminDashboard() {
                     type="button"
                     variant="ghost"
                     onClick={() => setNewStudentForm({ ...newStudentForm, level: "Profesional" })}
-                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                    className={`h-14 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
                       newStudentForm.level === "Profesional" 
                       ? "bg-purple-500/20 border-purple-500/40 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.1)]" 
                       : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"

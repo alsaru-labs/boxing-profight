@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { 
-  ArrowUpDown, 
+import {
+  ArrowUpDown,
   ChevronDown
 } from 'lucide-react';
 import { Card } from "@/components/ui/card";
@@ -44,8 +44,8 @@ export function StudentDirectory({
 }: StudentDirectoryProps) {
   // Local State for Search/Filter/Sort
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterPayment, setFilterPayment] = useState("todos");
-  const [filterLevel, setFilterLevel] = useState("todos");
+  const [filterPayment, setFilterPayment] = useState("Todos");
+  const [filterLevel, setFilterLevel] = useState("Todos");
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
   const [visibleCount, setVisibleCount] = useState(30);
 
@@ -73,12 +73,12 @@ export function StudentDirectory({
     }
 
     // 2. Payment filter
-    if (filterPayment !== "todos") {
+    if (filterPayment !== "Todos") {
       result = result.filter(s => filterPayment === "pagado" ? s.is_paid : !s.is_paid);
     }
 
     // 3. Level filter
-    if (filterLevel !== "todos") {
+    if (filterLevel !== "Todos") {
       result = result.filter(s => (s.level || "Iniciación") === filterLevel);
     }
 
@@ -106,7 +106,7 @@ export function StudentDirectory({
   return (
     <div className="space-y-4">
       {/* Table Header & Controls */}
-      <StudentFilters 
+      <StudentFilters
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         filterPayment={filterPayment}
@@ -150,7 +150,7 @@ export function StudentDirectory({
                   </TableRow>
                 ) : (
                   slicedStudents.map((student) => (
-                    <StudentDesktopRow 
+                    <StudentDesktopRow
                       key={student.$id}
                       student={student}
                       isUpdating={isUpdating}
@@ -175,7 +175,7 @@ export function StudentDirectory({
               </div>
             ) : (
               slicedStudents.map((student) => (
-                <StudentMobileCard 
+                <StudentMobileCard
                   key={student.$id}
                   student={student}
                   isUpdating={isUpdating}

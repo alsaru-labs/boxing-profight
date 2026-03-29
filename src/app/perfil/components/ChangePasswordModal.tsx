@@ -191,8 +191,9 @@ export function ChangePasswordModal({ isOpen, onOpenChange, onSubmit, isUpdating
           <DialogHeader className="pt-2">
             <Button 
               type="submit"
+              size="xl"
               disabled={isUpdating || !allMet || !isMatching || !oldPassword}
-              className={`w-full h-12 font-black tracking-widest uppercase transition-all shadow-xl ${
+              className={`w-full tracking-widest uppercase transition-all shadow-xl ${
                 allMet && isMatching && oldPassword
                 ? "bg-white text-black hover:bg-emerald-500 hover:text-white" 
                 : "bg-white/5 text-white/20 border-white/5 cursor-not-allowed opacity-50"
