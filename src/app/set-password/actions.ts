@@ -28,11 +28,21 @@ export async function setPasswordWithToken(token: string, password: string, conf
     return { success: false, error: "La contraseña debe tener al menos 8 caracteres." };
   }
 
-  // 2. Initialize Server SDK
+  const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
+  const apiKey = process.env.APPWRITE_API_KEY;
+  const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://fra.cloud.appwrite.io/v1";
+
+  console.log(`[DEBUG] setPassword -> Project: ${projectId?.slice(0, 6)}... | KeyLen: ${apiKey?.length || 0} | Start: ${apiKey?.slice(0, 10)}...`);
+
+  if (!projectId || !apiKey) {
+    return { success: false, error: "Servidor desconfigurado: Faltan claves de acceso." };
+  }
+
+  // 1. Initialize Server SDK
   const client = new sdk.Client()
-    .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://fra.cloud.appwrite.io/v1")
-    .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
-    .setKey(process.env.APPWRITE_API_KEY!); // Critical: Only server-side
+    .setEndpoint(endpoint)
+    .setProject(projectId)
+    .setKey(apiKey);
 
   const databases = new sdk.Databases(client);
   const users = new sdk.Users(client);

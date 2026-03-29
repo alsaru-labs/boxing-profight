@@ -13,11 +13,21 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
         return { success: false, error: "Faltan identificadores para realizar la baja." };
     }
 
+    const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
+    const apiKey = process.env.APPWRITE_API_KEY;
+    const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://fra.cloud.appwrite.io/v1";
+
+    console.log(`[DEBUG] deleteStudent -> Project: ${projectId?.slice(0, 6)}... | KeyLen: ${apiKey?.length || 0} | Start: ${apiKey?.slice(0, 10)}...`);
+
+    if (!projectId || !apiKey) {
+        return { success: false, error: "Servidor desconfigurado: Faltan claves de acceso." };
+    }
+
     // 1. Initialize Server SDK
     const client = new sdk.Client()
-        .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://fra.cloud.appwrite.io/v1")
-        .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
-        .setKey(process.env.APPWRITE_API_KEY!);
+        .setEndpoint(endpoint)
+        .setProject(projectId)
+        .setKey(apiKey);
 
     const databases = new sdk.Databases(client);
     const users = new sdk.Users(client);
