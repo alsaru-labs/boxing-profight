@@ -172,53 +172,28 @@ export function useAdminActions({
   };
 
   const handleAutoGenerateWeekClasses = async () => {
-    // Note: The logic for calculating dates and duplicate check remains here
-    // But abstracted for the component to call
     showConfirm(
       "Generar Clases",
-      "¿Seguro que quieres auto-generar las clases de la PRÓXIMA SEMANA?",
+      "¿Seguro que quieres auto-generar las clases de la PRÓXIMA SEMANA? (El sistema saltará las que ya existan)",
       async () => {
         try {
           setIsUpdating(true);
-          const today = new Date();
-          const nextMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + ((1 + 7 - today.getDay()) % 7 || 7));
-          const mondayDateStr = new Date(nextMonday.getTime() - (nextMonday.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-          const nextFriday = new Date(nextMonday);
-          nextFriday.setDate(nextMonday.getDate() + 4);
-          const fridayDateStr = new Date(nextFriday.getTime() - (nextFriday.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+          const { autoGenerateNextWeekClasses } = await import("../actions");
+          const result = await autoGenerateNextWeekClasses();
 
-          const existing = await databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [
-            Query.greaterThanEqual("date", mondayDateStr), Query.lessThanEqual("date", fridayDateStr), Query.limit(1)
-          ]);
-
-          if (existing.total > 0) {
-            showAlert("Generación Bloqueada", "Las clases ya han sido generadas.", "warning");
-            return;
+          if (result.success) {
+            if (result.count === 0) {
+              showAlert("Info", "No se han generado clases nuevas porque ya existían todas.", "info");
+            } else {
+              setClassesList([...classesList, ...result.classes].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+              showAlert("Éxito", `Se han generado ${result.count} clases nuevas.`, "success");
+            }
+          } else {
+            showAlert("Error", result.error || "No se pudieron generar las clases.", "danger");
           }
-
-          const classesToGen = [];
-          for (let i = 0; i < 5; i++) {
-            const date = new Date(nextMonday);
-            date.setDate(nextMonday.getDate() + i);
-            date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
-            const dStr = date.toISOString().split('T')[0];
-            const name = date.getDay() === 3 ? "Sparring" : "Boxeo y K1";
-
-            const payload = { name, date: dStr, coach: "Álex Pintor", capacity: 30, registeredCount: 0, status: "Activa" };
-            classesToGen.push({ ...payload, time: "10:00 - 11:00" });
-            [18, 19, 20, 21].forEach(h => classesToGen.push({ ...payload, time: `${h}:00 - ${h + 1}:00` }));
-          }
-
-          const created = [];
-          for (const cls of classesToGen) {
-            created.push(await databases.createDocument(DATABASE_ID, COLLECTION_CLASSES, ID.unique(), cls));
-          }
-
-          setClassesList([...classesList, ...created].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
-          showAlert("Éxito", "Clases generadas.", "success");
         } catch (e) {
           console.error(e);
-          showAlert("Error", "No se pudieron generar las clases.", "danger");
+          showAlert("Error", "Error de red al generar la semana.", "danger");
         } finally {
           setIsUpdating(false);
         }

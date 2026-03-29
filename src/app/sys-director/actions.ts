@@ -130,3 +130,73 @@ export async function createClassServer(newClass: any) {
         return { success: false, error: error.message };
     }
 }
+
+/**
+ * Auto-generate next week's classes (Mon-Fri)
+ * This logic identifies the upcoming week and populates standard slots.
+ * Includes a per-slot duplicate check to ensure idempotency.
+ */
+export async function autoGenerateNextWeekClasses() {
+    const { databases } = await createAdminClient();
+    
+    try {
+        const today = new Date();
+        // Calculate Next Monday
+        const nextMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + ((1 + 7 - today.getDay()) % 7 || 7));
+        
+        const generatedClasses = [];
+        const slots = ["10:00 - 11:00", "18:00 - 19:00", "19:00 - 20:00", "20:00 - 21:00", "21:00 - 22:00"];
+
+        for (let i = 0; i < 5; i++) { // Mon to Fri
+            const date = new Date(nextMonday);
+            date.setDate(nextMonday.getDate() + i);
+            
+            // Adjust to local ISO date string correctly
+            const tzOffset = date.getTimezoneOffset() * 60000;
+            const dStr = new Date(date.getTime() - tzOffset).toISOString().split('T')[0];
+            
+            // Determine Discipline (Sparring on Wednesdays)
+            const isWednesday = date.getDay() === 3;
+            const name = isWednesday ? "Sparring" : "Boxeo y K1";
+
+            for (const time of slots) {
+                // 1. DUPLICATE CHECK: Does this slot already exist for this date?
+                const existing = await databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [
+                    sdk.Query.equal("date", dStr),
+                    sdk.Query.equal("time", time),
+                    sdk.Query.limit(1)
+                ]);
+
+                if (existing.total === 0) {
+                    // 2. CREATE: Slot is free
+                    const newClass = await databases.createDocument(
+                        DATABASE_ID, 
+                        COLLECTION_CLASSES, 
+                        sdk.ID.unique(), 
+                        {
+                            name,
+                            date: dStr,
+                            time,
+                            coach: "Álex Pintor",
+                            capacity: 30,
+                            registeredCount: 0,
+                            status: "Activa"
+                        }
+                    );
+                    generatedClasses.push(newClass);
+                }
+            }
+        }
+
+        return { 
+            success: true, 
+            count: generatedClasses.length, 
+            classes: JSON.parse(JSON.stringify(generatedClasses)) 
+        };
+
+    } catch (error: any) {
+        console.error("[AUTO-GEN] Critical failure during week generation:", error);
+        return { success: false, error: "Error sistémico al generar la semana." };
+    }
+}
+
