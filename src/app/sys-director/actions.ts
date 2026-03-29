@@ -147,6 +147,8 @@ export async function autoGenerateNextWeekClasses() {
         const generatedClasses = [];
         const slots = ["10:00 - 11:00", "18:00 - 19:00", "19:00 - 20:00", "20:00 - 21:00", "21:00 - 22:00"];
 
+        console.log(`[AUTO-GEN] Will process week starting at: ${nextMonday.toDateString()}`);
+
         for (let i = 0; i < 5; i++) { // Mon to Fri
             const date = new Date(nextMonday);
             date.setDate(nextMonday.getDate() + i);
@@ -155,6 +157,8 @@ export async function autoGenerateNextWeekClasses() {
             const tzOffset = date.getTimezoneOffset() * 60000;
             const dStr = new Date(date.getTime() - tzOffset).toISOString().split('T')[0];
             
+            console.log(`[AUTO-GEN] Checking date: ${dStr}`);
+
             // Determine Discipline (Sparring on Wednesdays)
             const isWednesday = date.getDay() === 3;
             const name = isWednesday ? "Sparring" : "Boxeo y K1";
@@ -168,6 +172,7 @@ export async function autoGenerateNextWeekClasses() {
                 ]);
 
                 if (existing.total === 0) {
+                    console.log(`[AUTO-GEN] Creating slot: ${dStr} ${time}`);
                     // 2. CREATE: Slot is free
                     const newClass = await databases.createDocument(
                         DATABASE_ID, 

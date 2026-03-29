@@ -1,6 +1,6 @@
 "use client";
 
-import { X, CalendarDays, Users, AlertCircle, Loader2 } from "lucide-react";
+import { X, Calendar, Users, AlertCircle, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -87,7 +87,7 @@ export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, cla
 
         <DialogHeader className="p-8 pb-0 relative z-10">
           <DialogTitle className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
-            <CalendarDays className="w-6 h-6 text-emerald-400" /> Programar Clase
+            <Calendar className="w-6 h-6 text-emerald-400" /> Programar Clase
           </DialogTitle>
           <DialogDescription className="text-white/40 font-medium italic">
             Añade una nueva sesión al calendario de la comunidad.
@@ -118,7 +118,7 @@ export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, cla
                 min={localTodayISO}
                 value={newClass.date}
                 onChange={(val) => setNewClass({ ...newClass, date: val })}
-                icon={CalendarDays}
+                icon={Calendar}
               />
               <FormSelect
                 label="Horario"

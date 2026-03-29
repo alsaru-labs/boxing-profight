@@ -97,13 +97,13 @@ export default function BookingsPage() {
                 setUserBookings(bookingsData.documents);
 
                 const now = new Date();
-                const msIn7Days = 7 * 24 * 60 * 60 * 1000;
                 const validUpcomingClasses = classesData.documents.filter((cls: any) => {
                     try {
                         const startTime = cls.time.split('-')[0].trim();
                         const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
                         const [hours, minutes] = startTime.split(":").map(Number);
                         const classDateTime = new Date(year, month - 1, day, hours, minutes);
+                        const msIn7Days = 7 * 24 * 60 * 60 * 1000;
                         return classDateTime >= now && classDateTime.getTime() <= now.getTime() + msIn7Days;
                     } catch { return false; }
                 }).sort((a, b) => {

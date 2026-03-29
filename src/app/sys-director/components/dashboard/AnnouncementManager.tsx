@@ -6,6 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { LITERALS } from "@/constants/literals";
 import { useState } from "react";
 import { databases, DATABASE_ID, COLLECTION_NOTIFICATIONS } from "@/lib/appwrite";
@@ -101,15 +108,19 @@ export function AnnouncementManager({ announcements, setAnnouncements, showAlert
           </div>
           <div className="space-y-2">
             <Label className="text-xs text-white/60 uppercase">Importancia</Label>
-            <select
-              value={newAnnouncement.type}
-              onChange={(e) => setNewAnnouncement({ ...newAnnouncement, type: e.target.value })}
-              className="w-full bg-black/40 border border-white/10 rounded-md p-2 text-sm text-white outline-none"
+            <Select 
+              value={newAnnouncement.type} 
+              onValueChange={(val) => setNewAnnouncement({ ...newAnnouncement, type: val })}
             >
-              <option value="info">Info (Azul)</option>
-              <option value="warning">Aviso (Ambar)</option>
-              <option value="success">Éxito (Verde)</option>
-            </select>
+              <SelectTrigger className="w-full bg-black/40 border-white/10 rounded-md p-2 text-sm text-white focus:ring-emerald-500 font-bold h-11">
+                <SelectValue placeholder="Importancia" />
+              </SelectTrigger>
+              <SelectContent className="bg-zinc-900 border-white/10 text-white rounded-xl shadow-2xl backdrop-blur-xl">
+                <SelectItem value="info" className="focus:bg-blue-500/10 focus:text-blue-400 font-bold py-3 transition-colors cursor-pointer">Info (Azul)</SelectItem>
+                <SelectItem value="warning" className="focus:bg-amber-500/10 focus:text-amber-400 font-bold py-3 transition-colors cursor-pointer">Aviso (Ambar)</SelectItem>
+                <SelectItem value="success" className="focus:bg-emerald-500/10 focus:text-emerald-400 font-bold py-3 transition-colors cursor-pointer">Éxito (Verde)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <Button
             onClick={handlePublish}
