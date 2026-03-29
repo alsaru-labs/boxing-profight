@@ -26,7 +26,6 @@ function SetPasswordForm() {
         { id: 'length', label: 'Mínimo 8 caracteres', regex: /.{8,}/ },
         { id: 'upper', label: 'Al menos una Mayúscula', regex: /[A-Z]/ },
         { id: 'number', label: 'Al menos un Número', regex: /[0-9]/ },
-        { id: 'special', label: 'Un carácter especial (@, #, $, etc.)', regex: /[!@#$%^&*(),.?":{}|<>]/ },
     ];
 
     const metRequirements = passwordRequirements.filter(req => req.regex.test(password));
@@ -130,7 +129,7 @@ function SetPasswordForm() {
                         <div className="flex items-center justify-between mb-1">
                             <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Nivel de Seguridad</span>
                             <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${allMet ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                                {metRequirements.length}/4 Criterios
+                                {metRequirements.length}/3 Criterios
                             </span>
                         </div>
                         <div className="grid grid-cols-1 gap-2">
@@ -150,9 +149,9 @@ function SetPasswordForm() {
                         </div>
                         {/* Dynamic Strength Bar */}
                         <div className="flex gap-1 h-1.5 mt-3">
-                            {[1, 2, 3, 4].map((i) => {
+                            {[1, 2, 3].map((i) => {
                                 const isActive = metRequirements.length >= i;
-                                const colors = ['bg-red-500/20', 'bg-orange-500/30', 'bg-yellow-500/40', 'bg-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.3)]'];
+                                const colors = ['bg-red-500/40', 'bg-yellow-500/50', 'bg-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.3)]'];
                                 return (
                                     <div 
                                         key={i} 

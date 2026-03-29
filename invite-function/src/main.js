@@ -93,7 +93,8 @@ module.exports = async function (context) {
         );
 
         // 5. Send Email via Resend
-        const setPasswordUrl = `${process.env.PUBLIC_DOMAIN}/set-password?token=${token}`;
+        const publicDomain = (process.env.PUBLIC_DOMAIN || '').replace(/\/$/, '');
+        const setPasswordUrl = `${publicDomain}/set-password?token=${token}`;
 
         const html = `
         <!DOCTYPE html>
@@ -111,7 +112,7 @@ module.exports = async function (context) {
                             <!-- Header / Logo -->
                             <tr>
                                 <td align="center" style="padding: 48px 40px 20px 40px;">
-                                    <img src="https://boxingprofight.com/logo_boxing_profight.webp" alt="Boxing Profight" width="100" style="display: block; border-radius: 16px;">
+                                    <img src="${publicDomain}/logo_boxing_profight.webp" alt="Boxing Profight" width="100" style="display: block; border-radius: 16px;">
                                 </td>
                             </tr>
                             

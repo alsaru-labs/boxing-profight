@@ -1,7 +1,7 @@
 "use server";
 
 import * as sdk from "node-appwrite";
-import { DATABASE_ID, COLLECTION_PROFILES, COLLECTION_INVITATION_TOKENS } from "@/lib/appwrite";
+import { DATABASE_ID, COLLECTION_PROFILES, COLLECTION_INVITATION_TOKENS, COLLECTION_BOOKINGS } from "@/lib/appwrite";
 
 /**
  * Synchronized Student Deletion (Auth + Database + Tokens)
@@ -32,28 +32,44 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
             console.warn(`[ACL] Auth removal skipped (User not found or already deleted): ${authError.message}`);
         }
 
-        // 3. Delete from Database Profiles
+        // 3. Delete all student Bookings
+        try {
+            const bookingsList = await databases.listDocuments(
+                DATABASE_ID,
+                COLLECTION_BOOKINGS,
+                [sdk.Query.equal("student_id", userId), sdk.Query.limit(500)]
+            );
+            if (bookingsList.total > 0) {
+                await Promise.all(bookingsList.documents.map(b =>
+                    databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, b.$id)
+                ));
+                console.log(`[ACL] Cleaned up ${bookingsList.total} bookings.`);
+            }
+        } catch (bookingCleanupError) {
+            console.warn("[ACL] Booking cleanup warning:", bookingCleanupError);
+        }
+
+        // 4. Delete from Database Profiles
         await databases.deleteDocument(DATABASE_ID, COLLECTION_PROFILES, profileId);
         console.log(`[ACL] Profile document deleted: ${profileId}`);
 
-        // 4. Cleanup Invitation Tokens (Prevent orphans)
+        // 5. Cleanup Invitation Tokens
         try {
             const tokensList = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTION_INVITATION_TOKENS,
                 [sdk.Query.equal("user_id", userId)]
             );
-            
             if (tokensList.total > 0) {
-                const cleanupPromises = tokensList.documents.map(t => 
+                await Promise.all(tokensList.documents.map(t => 
                     databases.deleteDocument(DATABASE_ID, COLLECTION_INVITATION_TOKENS, t.$id)
-                );
-                await Promise.all(cleanupPromises);
+                ));
                 console.log(`[ACL] Cleaned up ${tokensList.total} invitation tokens.`);
             }
         } catch (tokenCleanupError) {
             console.warn("[ACL] Invitation token cleanup failed, but main deletion succeeded.");
         }
+
 
         return { success: true };
 
