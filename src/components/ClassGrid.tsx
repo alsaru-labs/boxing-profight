@@ -169,20 +169,17 @@ export function ClassGrid({
                                                                     <DropdownMenuTrigger className="h-10 w-10 flex justify-center items-center text-white/40 hover:text-white hover:bg-white/10 rounded-xl transition-all outline-none">
                                                                         <MoreVertical className="h-5 w-5" />
                                                                     </DropdownMenuTrigger>
-                                                                    <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10 text-white min-w-[200px] rounded-xl shadow-2xl p-2">
+                                                                    <DropdownMenuContent align="end" className="bg-zinc-900/95 backdrop-blur-xl border-white/10 text-white min-w-[160px] rounded-xl shadow-2xl p-1.5">
                                                                         {!isPastClass ? (
                                                                             <DropdownMenuItem 
-                                                                                className="text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer font-bold py-3 px-4 rounded-lg flex items-center justify-between gap-2 border border-transparent hover:border-red-500/20 transition-all"
+                                                                                className="text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer text-xs font-bold py-2.5 px-3 rounded-lg flex items-center gap-2 border border-transparent hover:border-red-500/20 transition-all whitespace-nowrap"
                                                                                 onClick={() => onCancelClass?.(cls)}
                                                                             >
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <Trash2 className="w-4 h-4" /> 
-                                                                                    <span>{LITERALS.CLASS_CARD.CANCEL_CLASS}</span>
-                                                                                </div>
-                                                                                <Badge className="bg-red-500/10 text-[8px] text-red-500 border-0 p-0.5 px-1.5 font-black uppercase">{LITERALS.CLASS_CARD.DANGER_BADGE}</Badge>
+                                                                                <Trash2 className="w-3.5 h-3.5" /> 
+                                                                                <span>{LITERALS.CLASS_CARD.CANCEL_CLASS}</span>
                                                                             </DropdownMenuItem>
                                                                         ) : (
-                                                                            <div className="px-4 py-3 text-xs text-white/30 italic font-medium"> {LITERALS.CLASS_CARD.PAST_CLASS_INFO} </div>
+                                                                            <div className="px-3 py-2 text-[10px] text-white/30 italic font-medium"> {LITERALS.CLASS_CARD.PAST_CLASS_INFO} </div>
                                                                         )}
                                                                     </DropdownMenuContent>
                                                                 </DropdownMenu>
