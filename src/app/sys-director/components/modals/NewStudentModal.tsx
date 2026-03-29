@@ -15,12 +15,12 @@ interface NewStudentModalProps {
 }
 
 export function NewStudentModal({ isOpen, onOpenChange, isUpdating, onSave }: NewStudentModalProps) {
-  const [form, setForm] = useState({ name: "", lastName: "", email: "", phone: "", level: "Iniciación", password: "" });
+  const [form, setForm] = useState({ name: "", lastName: "", email: "", phone: "", level: "Iniciación" });
   const [emailError, setEmailError] = useState("");
 
   useEffect(() => {
     if (isOpen) {
-      setForm({ name: "", lastName: "", email: "", phone: "", level: "Iniciación", password: "" });
+      setForm({ name: "", lastName: "", email: "", phone: "", level: "Iniciación" });
       setEmailError("");
     }
   }, [isOpen]);
@@ -113,19 +113,6 @@ export function NewStudentModal({ isOpen, onOpenChange, isUpdating, onSave }: Ne
               />
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-white/40 flex items-center justify-between">
-                <span>Contraseña Directa (Demo)</span>
-                <span className="bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded text-[8px] font-bold">PUERTA TRASERA</span>
-              </Label>
-              <Input
-                type="text"
-                placeholder="Mínimo 8 caracteres (opcional)"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="bg-white/5 border-white/10 text-white focus:border-emerald-500/50 transition-all font-bold h-12"
-              />
-            </div>
 
             <div className="space-y-3">
               <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nivel de Combate</Label>

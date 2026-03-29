@@ -11,7 +11,7 @@ import {
   COLLECTION_REVENUE, 
   COLLECTION_BOOKINGS 
 } from "@/lib/appwrite";
-import { directCreateStudent, createClassServer } from "../actions";
+import { createClassServer } from "../actions";
 
 interface UseAdminActionsProps {
   studentsList: any[];
@@ -125,22 +125,7 @@ export function useAdminActions({
     try {
       setIsUpdating(true);
 
-      // 1. If password is provided, use the "Backdoor" server action for instant creation
-      if (form.password && form.password.trim().length >= 8) {
-        const result = await directCreateStudent(form);
-        if (result.success) {
-          setStudentsList([result.profile, ...studentsList]);
-          setTotalStudents((prev: number) => prev + 1);
-          setUnpaidCount((prev: number) => prev + 1);
-          showAlert("Éxito (Demo)", "Cuenta creada DIRECTAMENTE. El alumno puede entrar ya con su correo y contraseña.", "success");
-          return true;
-        } else {
-          showAlert("Error Directo", result.error || "No se pudo crear la cuenta directamente.", "danger");
-          return false;
-        }
-      }
-
-      // 2. Normal flow (Profile only, requires invite system)
+      // Normal flow (Profile only, requires invite system)
       const uniqueRef = ID.unique();
       const newProfile = await databases.createDocument(DATABASE_ID, COLLECTION_PROFILES, uniqueRef, {
         user_id: uniqueRef,
