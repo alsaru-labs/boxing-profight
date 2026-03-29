@@ -128,12 +128,12 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
 
               <DropdownMenu>
                 <DropdownMenuTrigger className="outline-none focus:outline-none">
-                  <div className="flex items-center gap-2 md:gap-3 cursor-pointer hover:bg-white/5 pr-1 md:pr-4 pl-1 py-1 rounded-full transition-colors border border-transparent hover:border-white/10">
-                    <span className="font-semibold text-sm hidden sm:block truncate max-w-[120px] ml-2 text-white/90">{profileName.split(' ')[0]}</span>
-                    <Avatar className="h-10 w-10 border border-white/20 shadow-sm">
-                      <AvatarFallback className="bg-zinc-800 text-white text-xs font-bold">{getInitials(profileName)}</AvatarFallback>
-                    </Avatar>
-                  </div>
+                    <div className="flex items-center gap-2 md:gap-3 cursor-pointer hover:bg-white/10 pr-1 md:pr-1.5 pl-3 md:pl-4 py-1 rounded-full transition-all border border-white/5 hover:border-white/20 group">
+                      <span className="font-semibold text-sm hidden sm:block truncate max-w-[120px] text-white/90 group-hover:text-white transition-colors">{profileName.split(' ')[0]}</span>
+                      <Avatar className="h-9 w-9 md:h-10 md:w-10 border border-white/20 shadow-sm transition-transform group-hover:scale-105">
+                        <AvatarFallback className="bg-zinc-800 text-white text-[10px] md:text-xs font-bold">{getInitials(profileName)}</AvatarFallback>
+                      </Avatar>
+                    </div>
                 </DropdownMenuTrigger>
 
                 <DropdownMenuContent align="end" className="bg-zinc-950 border-white/10 text-white min-w-[200px] mt-2 rounded-xl p-2 shadow-[0_10px_40px_rgba(0,0,0,0.8)]">
