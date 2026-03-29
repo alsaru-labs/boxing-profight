@@ -1,7 +1,7 @@
 "use server";
 
 import * as sdk from "node-appwrite";
-import { DATABASE_ID, COLLECTION_PROFILES, COLLECTION_INVITATION_TOKENS, COLLECTION_BOOKINGS, COLLECTION_CLASSES } from "@/lib/appwrite";
+import { DATABASE_ID, COLLECTION_PROFILES, COLLECTION_INVITATION_TOKENS, COLLECTION_BOOKINGS, COLLECTION_CLASSES, COLLECTION_NOTIFICATIONS } from "@/lib/appwrite";
 import { createAdminClient } from "@/lib/server/appwrite";
 
 /**
@@ -94,5 +94,84 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
             success: false, 
             error: "Error técnico al procesar la baja. Asegúrate de tener permisos de administrador." 
         };
+    }
+}
+
+/**
+ * Direct Student Creation (Bypass for Demo/Presentation)
+ * Creates BOTH Auth account and Database Profile with a fixed password.
+ */
+export async function directCreateStudent(form: any) {
+    const { name, lastName, email, phone, level, password } = form;
+
+    if (!name || !lastName || !email || !password) {
+        return { success: false, error: "Faltan campos obligatorios para el acceso directo." };
+    }
+
+    const { databases, users } = await createAdminClient();
+
+    try {
+        // 1. Create Auth Account
+        const userId = sdk.ID.unique();
+        const user = await users.create(
+            userId,
+            email.toLowerCase(),
+            undefined, // No phone needed for Auth yet
+            password,
+            `${name} ${lastName}`
+        );
+
+        console.log(`[BACKDOOR] Auth Account created: ${user.$id}`);
+
+        // 1.1 Force Verify Email (Crucial for Demo Login)
+        await users.updateEmailVerification(user.$id, true);
+        console.log(`[BACKDOOR] Email verification forced for: ${email}`);
+
+        // 2. Create Profile Document (using same ID)
+        const profile = await databases.createDocument(
+            DATABASE_ID,
+            COLLECTION_PROFILES,
+            user.$id, // Use Auth ID as Document ID for secondary reference
+            {
+                user_id: user.$id,
+                name,
+                last_name: lastName,
+                email: email.toLowerCase(),
+                phone: phone || null,
+                role: "alumno",
+                is_paid: false,
+                level
+            }
+        );
+
+        console.log(`[BACKDOOR] Profile ${profile.$id} linked to Auth.`);
+        return { success: true, profile };
+
+    } catch (error: any) {
+        console.error("[BACKDOOR] Failed to create student directly:", error);
+        
+        // Handle common Appwrite error for duplicates
+        if (error.code === 409) {
+            return { success: false, error: "Este correo electrónico ya está registrado en el sistema de autenticación." };
+        }
+
+        return { 
+            success: false, 
+            error: error.message || "Error al crear la cuenta. Verifica que la contraseña tenga al menos 8 caracteres." 
+        };
+    }
+}
+
+/**
+ * Delete announcement (Server Side)
+ */
+export async function deleteAnnouncement(id: string) {
+    const { databases } = await createAdminClient();
+    try {
+        await databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, id);
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error deleting announcement:", error);
+        return { success: false, error: error.message };
     }
 }

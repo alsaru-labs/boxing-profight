@@ -43,7 +43,7 @@ export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, cla
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent 
         showCloseButton={false}
-        className="bg-zinc-950 border-white/10 text-white max-w-md rounded-[2rem] overflow-hidden backdrop-blur-2xl p-0 focus:outline-none shadow-2xl"
+        className="bg-zinc-950 border-white/10 text-white max-w-md rounded-[2rem] overflow-hidden backdrop-blur-2xl p-0 focus:outline-none shadow-2xl max-h-[96vh] flex flex-col"
       >
         <div className="absolute inset-0 bg-emerald-500/5 pointer-events-none" />
         
@@ -63,7 +63,7 @@ export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, cla
           </DialogDescription>
         </DialogHeader>
 
-        <div className="p-8 space-y-6 relative z-10">
+        <div className="p-8 space-y-6 relative z-10 overflow-y-auto flex-1 custom-scrollbar">
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

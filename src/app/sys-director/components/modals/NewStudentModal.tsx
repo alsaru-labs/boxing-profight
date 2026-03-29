@@ -15,12 +15,12 @@ interface NewStudentModalProps {
 }
 
 export function NewStudentModal({ isOpen, onOpenChange, isUpdating, onSave }: NewStudentModalProps) {
-  const [form, setForm] = useState({ name: "", lastName: "", email: "", phone: "", level: "Iniciación" });
+  const [form, setForm] = useState({ name: "", lastName: "", email: "", phone: "", level: "Iniciación", password: "" });
   const [emailError, setEmailError] = useState("");
 
   useEffect(() => {
     if (isOpen) {
-      setForm({ name: "", lastName: "", email: "", phone: "", level: "Iniciación" });
+      setForm({ name: "", lastName: "", email: "", phone: "", level: "Iniciación", password: "" });
       setEmailError("");
     }
   }, [isOpen]);
@@ -39,7 +39,7 @@ export function NewStudentModal({ isOpen, onOpenChange, isUpdating, onSave }: Ne
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent 
         showCloseButton={false}
-        className="bg-zinc-950 border-white/10 text-white max-w-md w-[95vw] rounded-[2rem] overflow-hidden backdrop-blur-2xl p-0 focus:outline-none shadow-2xl"
+        className="bg-zinc-950 border-white/10 text-white max-w-md w-[95vw] rounded-[2rem] overflow-hidden backdrop-blur-2xl p-0 focus:outline-none shadow-2xl max-h-[96vh] flex flex-col"
       >
         <div className="absolute inset-0 bg-emerald-500/5 pointer-events-none" />
         
@@ -59,7 +59,7 @@ export function NewStudentModal({ isOpen, onOpenChange, isUpdating, onSave }: Ne
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="p-8 space-y-6 relative z-10">
+        <form onSubmit={handleSubmit} className="p-8 space-y-6 relative z-10 overflow-y-auto flex-1 custom-scrollbar">
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -109,6 +109,20 @@ export function NewStudentModal({ isOpen, onOpenChange, isUpdating, onSave }: Ne
                 placeholder="600 000 000"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                className="bg-white/5 border-white/10 text-white focus:border-emerald-500/50 transition-all font-bold h-12"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-white/40 flex items-center justify-between">
+                <span>Contraseña Directa (Demo)</span>
+                <span className="bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded text-[8px] font-bold">PUERTA TRASERA</span>
+              </Label>
+              <Input
+                type="text"
+                placeholder="Mínimo 8 caracteres (opcional)"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
                 className="bg-white/5 border-white/10 text-white focus:border-emerald-500/50 transition-all font-bold h-12"
               />
             </div>

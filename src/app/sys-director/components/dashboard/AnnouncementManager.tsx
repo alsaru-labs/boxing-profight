@@ -10,6 +10,7 @@ import { LITERALS } from "@/constants/literals";
 import { useState } from "react";
 import { databases, DATABASE_ID, COLLECTION_NOTIFICATIONS } from "@/lib/appwrite";
 import { ID } from "appwrite";
+import { deleteAnnouncement } from "../../actions";
 
 interface AnnouncementManagerProps {
   announcements: any[];
@@ -55,9 +56,13 @@ export function AnnouncementManager({ announcements, setAnnouncements, showAlert
       "¿Seguro que quieres borrar este anuncio?",
       async () => {
         try {
-          await databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, id);
-          setAnnouncements(announcements.filter(a => a.$id !== id));
-          showAlert("Éxito", "Anuncio eliminado.", "success");
+          const result = await deleteAnnouncement(id);
+          if (result.success) {
+            setAnnouncements(announcements.filter(a => a.$id !== id));
+            showAlert("Éxito", "Anuncio eliminado.", "success");
+          } else {
+            showAlert("Error", result.error || "No se pudo borrar.", "danger");
+          }
         } catch (e) {
           showAlert("Error", "No se pudo borrar.", "danger");
         }
