@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
@@ -8,10 +8,13 @@ const inter = Inter({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  themeColor: "#000000",
+};
+
 export const metadata: Metadata = {
   title: "Boxing Profight",
   description: "Entrenamiento de Boxeo y K1 en Alcorcón con Álex Pintor. Asegura tu plaza.",
-  themeColor: "#000000",
   icons: {
     icon: "/favicon.ico",
     apple: "/icon_boxing_profight-192x192.webp",

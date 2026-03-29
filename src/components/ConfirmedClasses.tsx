@@ -3,6 +3,7 @@ import { CheckCircle2, ChevronDown, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
+import { LITERALS } from "@/constants/literals";
 
 interface ConfirmedClassesProps {
     availableClasses: any[];
@@ -77,15 +78,15 @@ export default function ConfirmedClasses({
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {groupedByDate[dateKey].map((cls) => (
-                                        <div key={cls.$id} className="bg-white/5 hover:bg-white/[0.07] transition-all border border-white/5 hover:border-emerald-500/20 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 group">
+                                        <div key={cls.$id} className="bg-white/5 hover:bg-white/[0.07] transition-all border border-white/5 hover:border-emerald-500/20 rounded-2xl p-4 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 md:gap-6 group">
                                             <div className="space-y-1">
-                                                <Badge className="bg-emerald-500 text-black font-black text-[10px] tracking-widest mb-2 border-0 rounded-sm">
+                                                <Badge className="bg-emerald-500 text-black font-black text-[8px] md:text-[10px] tracking-widest mb-1.5 md:mb-2 border-0 rounded-sm">
                                                     {cls.name.toUpperCase()} • CONFIRMADA
                                                 </Badge>
-                                                <p className="text-white font-black text-xl tracking-tight leading-tight">
+                                                <p className="text-white font-black text-lg md:text-xl tracking-tight leading-tight">
                                                     {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
                                                 </p>
-                                                <div className="flex items-center gap-2 text-white/50 text-sm font-medium">
+                                                <div className="flex items-center gap-2 text-white/50 text-[13px] md:text-sm font-medium">
                                                     <span>{cls.time}</span>
                                                     <span className="w-1 h-1 bg-white/20 rounded-full" />
                                                     <span>Prof. {cls.coach}</span>
@@ -95,7 +96,7 @@ export default function ConfirmedClasses({
                                                 variant="ghost"
                                                 onClick={() => handleCancelBooking(cls)}
                                                 disabled={isProcessingBooking === cls.$id}
-                                                className="w-full sm:w-auto text-red-400 hover:text-red-500 hover:bg-red-500/10 border border-white/5 hover:border-red-500/20 px-6 h-12 font-bold transition-all rounded-xl"
+                                                className="w-full sm:w-auto text-red-400 hover:text-red-500 hover:bg-red-500/10 border border-white/5 hover:border-red-500/20 px-6 h-10 md:h-12 font-bold transition-all rounded-xl"
                                             >
                                                 {isProcessingBooking === cls.$id ? <Loader2 className="w-5 h-5 animate-spin" /> : "Anular Reserva"}
                                             </Button>
@@ -107,14 +108,14 @@ export default function ConfirmedClasses({
                     </AnimatePresence>
 
                     {hasMore && (
-                        <div className="flex justify-center pt-4">
+                        <div className="flex justify-center pt-8 px-4">
                             <Button 
                                 onClick={() => setDaysToView(prev => prev + 1)}
                                 variant="outline"
-                                className="bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-white/20 px-8 h-12 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all group"
+                                className="w-full sm:w-auto bg-white/[0.03] border-white/10 text-white hover:bg-emerald-500 hover:border-emerald-500 hover:text-white px-6 md:px-8 h-10 md:h-12 rounded-xl font-black uppercase tracking-widest text-[9px] md:text-[10px] transition-all duration-300 group shadow-lg hover:shadow-emerald-500/20"
                             >
-                                Ver reservas del {formatDate(sortedDates[daysToView])}
-                                <ChevronDown className="ml-2 w-4 h-4 group-hover:translate-y-1 transition-transform" />
+                                {LITERALS.CLASS_CARD.LOAD_MORE(formatDate(sortedDates[daysToView]))}
+                                <ChevronDown className="ml-2 w-4 h-4 group-hover:translate-y-1 transition-transform shrink-0" />
                             </Button>
                         </div>
                     )}

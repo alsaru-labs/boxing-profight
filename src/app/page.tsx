@@ -134,7 +134,7 @@ export default function Home() {
             </p>
           </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
             {classes.map((cls, idx) => (
               <motion.div
                 key={idx}
@@ -155,14 +155,14 @@ export default function Home() {
                     <Calendar className="w-24 h-24" />
                   </div>
 
-                  <CardHeader className="relative z-10 pb-2">
-                    <CardTitle className="text-3xl text-white font-bold">{cls.title}</CardTitle>
-                    <CardDescription className="text-white/60 font-medium text-base mt-1">{cls.type}</CardDescription>
+                  <CardHeader className="relative z-10 p-4 md:pb-2">
+                    <CardTitle className="text-2xl md:text-3xl text-white font-bold">{cls.title}</CardTitle>
+                    <CardDescription className="text-white/60 font-medium text-sm md:text-base mt-1">{cls.type}</CardDescription>
                   </CardHeader>
-                  <CardContent className="relative z-10 pt-4">
+                  <CardContent className="relative z-10 p-4 md:pt-4">
                     <div className="flex flex-col space-y-4">
-                      <div className="bg-black/40 rounded-lg p-4 border border-white/5">
-                        <span className="text-xl font-semibold tracking-wider text-white/90">{cls.time}</span>
+                      <div className="bg-black/40 rounded-lg p-3 md:p-4 border border-white/5">
+                        <span className="text-lg md:text-xl font-semibold tracking-wider text-white/90">{cls.time}</span>
                       </div>
 
                       <div className="flex items-center justify-between mt-2">

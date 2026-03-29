@@ -248,7 +248,7 @@ export default function BookingsPage() {
             <Navbar isHome={false} />
 
             {/* Main Panel */}
-            <main className="flex-1 max-w-7xl mx-auto w-full p-6 md:p-12 z-10 space-y-12">
+            <main className="flex-1 max-w-7xl mx-auto w-full p-4 md:p-12 z-10 space-y-12">
 
                 <div>
                     <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter mb-4 uppercase">{LITERALS.BOOKINGS.TITLE}</h1>

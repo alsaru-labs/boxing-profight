@@ -76,7 +76,7 @@ export function ClassGrid({
     };
 
     return (
-        <div className="space-y-12">
+        <div className="space-y-8 md:space-y-12">
             {!isAdmin && (
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <h3 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
@@ -104,7 +104,7 @@ export function ClassGrid({
                     </p>
                 </motion.div>
             ) : (
-                <div className="space-y-16">
+                <div className="space-y-10 md:space-y-16">
                     <AnimatePresence mode="popLayout">
                         {visibleDates.map((dateKey) => (
                             <motion.div
@@ -112,16 +112,16 @@ export function ClassGrid({
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.95 }}
-                                className="space-y-6"
+                                className="space-y-4 md:space-y-6"
                             >
                                 <div className="flex items-center gap-4">
-                                    <h4 className="text-lg font-black uppercase tracking-[0.2em] text-emerald-500/80">
+                                    <h4 className="text-sm md:text-lg font-black uppercase tracking-[0.2em] text-emerald-500/80">
                                         {formatDate(dateKey)}
                                     </h4>
                                     <div className="h-px flex-1 bg-gradient-to-r from-emerald-500/20 to-transparent" />
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
                                     {groupedByDate[dateKey].map((cls) => {
                                         const isFull = cls.registeredCount >= cls.capacity;
 
@@ -138,9 +138,9 @@ export function ClassGrid({
                                         return (
                                             <Card
                                                 key={cls.$id}
-                                                className={`bg-white/5 border-white/10 backdrop-blur-lg overflow-hidden group transition-all duration-500 hover:shadow-[0_0_40px_rgba(16,185,129,0.08)] ${isAdmin ? 'hover:border-white/20' : 'hover:border-emerald-500/30'} ${isAdmin && isPastClass ? 'opacity-60 grayscale-[0.3]' : ''}`}
+                                                className={`bg-white/5 border-white/10 backdrop-blur-lg overflow-hidden group transition-all duration-500 hover:shadow-[0_0_40px_rgba(16,185,129,0.08)] py-1 md:py-4 gap-0.5 md:gap-4 ${isAdmin ? 'hover:border-white/20' : 'hover:border-emerald-500/30'} ${isAdmin && isPastClass ? 'opacity-60 grayscale-[0.3]' : ''}`}
                                             >
-                                                <CardHeader className="pb-3 border-b border-white/5 relative">
+                                                <CardHeader className="p-2.5 md:p-4 border-b border-white/5 relative">
                                                     {!isAdmin && (
                                                         <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
                                                             <div className="w-12 h-12 bg-emerald-500/10 rounded-full blur-xl animate-pulse" />
@@ -148,18 +148,18 @@ export function ClassGrid({
                                                     )}
                                                     <div className="flex justify-between items-start relative z-10">
                                                         <div>
-                                                            <Badge className={`mb-3 font-black text-[10px] tracking-widest px-2 py-0.5 border-0 rounded-sm ${cls.name === 'Boxeo' ? 'bg-amber-500/20 text-amber-500' : 'bg-red-500/20 text-red-500'}`}>
+                                                            <Badge className={`mb-1 md:mb-3 font-black text-[8px] md:text-[10px] tracking-widest px-2 py-0.5 border-0 rounded-sm ${cls.name === 'Boxeo' ? 'bg-amber-500/20 text-amber-500' : 'bg-red-500/20 text-red-500'}`}>
                                                                 {cls.name.toUpperCase()}
                                                             </Badge>
-                                                            <CardTitle className="text-2xl font-black text-white tracking-tight">{cls.coach}</CardTitle>
+                                                            <CardTitle className="text-sm md:text-2xl font-black text-white tracking-tight">{cls.coach}</CardTitle>
                                                         </div>
                                                         <div className="flex items-center gap-2">
                                                             {!isAdmin && (
                                                                 <div className="text-right">
-                                                                    <span className="text-lg font-black text-white block leading-none">
+                                                                    <span className="block text-[13px] md:text-lg font-black text-white leading-none">
                                                                         {cls.time.split('-')[0].trim()}
                                                                     </span>
-                                                                    <span className="text-[10px] text-white/30 font-bold uppercase tracking-tighter">{LITERALS.CLASS_CARD.START_TIME}</span>
+                                                                    <span className="text-[7px] md:text-[10px] text-white/30 font-bold uppercase tracking-tighter">{LITERALS.CLASS_CARD.START_TIME}</span>
                                                                 </div>
                                                             )}
                                                             {isAdmin && (
@@ -188,30 +188,30 @@ export function ClassGrid({
                                                         </div>
                                                     </div>
                                                 </CardHeader>
-                                                <CardContent className="pt-6 pb-6 relative z-10">
+                                                <CardContent className="p-2.5 pt-0 md:p-6 relative z-10">
                                                     <div>
                                                         {isAdmin && (
-                                                            <div className="space-y-4 mb-6">
-                                                                <div className="flex items-center gap-2 text-sm">
-                                                                    <CalendarDays className="w-4 h-4 text-white/40" />
+                                                            <div className="space-y-1.5 md:space-y-4 mb-2 md:mb-6">
+                                                                <div className="flex items-center gap-2 text-[10px] md:text-sm">
+                                                                    <CalendarDays className="w-3 h-3 md:w-3.5 md:h-3.5 text-white/40" />
                                                                     <span className="text-white/70 font-medium">
                                                                         {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
                                                                     </span>
                                                                 </div>
-                                                                <div className="flex items-center gap-2 text-sm">
-                                                                    <ShieldCheck className="w-4 h-4 text-white/40" />
+                                                                <div className="flex items-center gap-2 text-[10px] md:text-sm">
+                                                                    <ShieldCheck className="w-3 h-3 md:w-3.5 md:h-3.5 text-white/40" />
                                                                     <span className="text-white/70 font-medium">{cls.time}</span>
                                                                 </div>
                                                             </div>
                                                         )}
 
-                                                        <div className="flex justify-between text-xs mb-2 font-bold uppercase tracking-wider">
+                                                        <div className="flex justify-between text-[9px] md:text-xs mb-0.5 md:mb-2 font-bold uppercase tracking-wider">
                                                             <span className={isFull ? 'text-red-400' : 'text-emerald-400'}>
                                                                 {isFull ? LITERALS.CLASS_CARD.FULL : LITERALS.CLASS_CARD.FREE_SPACES(cls.capacity - cls.registeredCount)}
                                                             </span>
                                                             <span className="text-white/20">{LITERALS.CLASS_CARD.TOTAL_CAPACITY(cls.capacity)}</span>
                                                         </div>
-                                                        <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5 mb-6">
+                                                        <div className="h-1 w-full md:h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/5 mb-2 md:mb-6">
                                                             <motion.div
                                                                 initial={{ width: 0 }}
                                                                 animate={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }}
@@ -224,7 +224,7 @@ export function ClassGrid({
                                                             <Button
                                                                 onClick={() => onBookClass?.(cls)}
                                                                 disabled={isFull || isProcessingBooking === cls.$id || !profileInfo?.is_paid}
-                                                                className={`w-full font-black h-14 text-sm uppercase tracking-widest rounded-xl transition-all duration-300 ${isFull
+                                                                className={`w-full font-black h-8 md:h-14 text-[9px] md:text-sm uppercase tracking-widest rounded-xl transition-all duration-300 ${isFull
                                                                     ? 'bg-red-500/10 text-red-500/50 border border-red-500/20 cursor-not-allowed shadow-none'
                                                                     : !profileInfo?.is_paid
                                                                         ? 'bg-amber-500/10 text-amber-500/50 border border-amber-500/20 cursor-not-allowed shadow-none'
@@ -243,7 +243,7 @@ export function ClassGrid({
                                                             <Button
                                                                 onClick={() => onViewAttendees?.(cls)}
                                                                 variant="outline"
-                                                                className="w-full bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-white/20 font-black h-12 uppercase tracking-widest text-[10px] rounded-xl transition-all"
+                                                                className="w-full bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-white/20 font-black h-8 md:h-12 uppercase tracking-widest text-[9px] rounded-xl transition-all"
                                                             >
                                                                 {LITERALS.CLASS_CARD.VIEW_ATTENDEES}
                                                             </Button>
@@ -259,14 +259,14 @@ export function ClassGrid({
                     </AnimatePresence>
 
                     {hasMore && (
-                        <div className="flex justify-center pt-8">
+                        <div className="flex justify-center pt-8 px-4">
                             <Button
                                 onClick={() => setDaysToView(prev => prev + 1)}
                                 variant="outline"
-                                className="bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-white/20 px-10 h-14 rounded-2xl font-black uppercase tracking-widest transition-all group"
+                                className="w-full sm:w-auto bg-white/[0.03] border-white/10 text-white hover:bg-emerald-500 hover:border-emerald-500 hover:text-white px-6 md:px-10 h-12 md:h-14 rounded-xl md:rounded-2xl font-black uppercase tracking-widest transition-all duration-300 group text-[11px] md:text-xs shadow-lg hover:shadow-emerald-500/20"
                             >
                                 {isHistory ? LITERALS.CLASS_CARD.LOAD_MORE_HISTORY(formatDate(sortedDates[daysToView])) : LITERALS.CLASS_CARD.LOAD_MORE(formatDate(sortedDates[daysToView]))}
-                                <ChevronDown className="ml-2 w-5 h-5 group-hover:translate-y-1 transition-transform" />
+                                <ChevronDown className="ml-2 w-4 h-4 md:w-5 md:h-5 group-hover:translate-y-1 transition-transform shrink-0" />
                             </Button>
                         </div>
                     )}

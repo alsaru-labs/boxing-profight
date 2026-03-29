@@ -163,11 +163,11 @@ export default function AdminDashboard() {
     <div className="dark min-h-screen bg-black text-white font-sans flex flex-col relative w-full">
       <Navbar isHome={false} />
 
-      <main className="flex-1 w-full max-w-[1400px] mx-auto pt-4 md:pt-6 lg:pt-8 px-6 md:px-8 lg:px-12 pb-12 z-10">
+      <main className="flex-1 w-full max-w-[1400px] mx-auto pt-4 md:pt-6 lg:pt-8 px-4 md:px-8 lg:px-12 pb-12 z-10">
         <Tabs defaultValue="general" className="w-full">
           <AdminTabs />
 
-          <TabsContent value="tablon" className="space-y-10 focus-visible:outline-none">
+          <TabsContent value="tablon" className="space-y-6 md:space-y-10 focus-visible:outline-none">
             <AnnouncementManager 
                 announcements={announcements} 
                 setAnnouncements={setAnnouncements} 
@@ -176,7 +176,7 @@ export default function AdminDashboard() {
             />
           </TabsContent>
 
-          <TabsContent value="general" className="space-y-10 focus-visible:outline-none">
+          <TabsContent value="general" className="space-y-6 md:space-y-10 focus-visible:outline-none">
             <DashboardStats 
                 totalStudents={totalStudents} 
                 monthlyRevenue={monthlyRevenue} 
@@ -196,7 +196,7 @@ export default function AdminDashboard() {
             />
           </TabsContent>
 
-          <TabsContent value="clases" className="space-y-10 focus-visible:outline-none">
+          <TabsContent value="clases" className="space-y-6 md:space-y-10 focus-visible:outline-none">
             <div className="space-y-4 mt-16 pb-12">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
                 <div>
