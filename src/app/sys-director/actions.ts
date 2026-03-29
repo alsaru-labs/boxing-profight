@@ -14,13 +14,15 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
     }
 
     const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-    const apiKey = process.env.APPWRITE_API_KEY;
+    const apiKey = process.env.APP_SECRET_APPWRITE_KEY; // Renamed for test
     const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://fra.cloud.appwrite.io/v1";
 
+    const envKeys = Object.keys(process.env).filter(k => k.includes("APPWRITE") || k.includes("SECRET"));
     console.log(`[DEBUG] deleteStudent -> Project: ${projectId?.slice(0, 6)}... | KeyLen: ${apiKey?.length || 0} | Start: ${apiKey?.slice(0, 10)}...`);
+    console.log(`[DEBUG] Available Keys: ${envKeys.join(", ")}`);
 
     if (!projectId || !apiKey) {
-        return { success: false, error: "Servidor desconfigurado: Faltan claves de acceso." };
+        return { success: false, error: "Servidor desconfigurado: Faltan claves de acceso (SECRET)." };
     }
 
     // 1. Initialize Server SDK
