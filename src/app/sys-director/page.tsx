@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, ShieldCheck, Loader2, Home, MessageCircle, Signal, CalendarDays, Search, ArrowUpDown, Filter, X, ChevronDown, History } from "lucide-react";
+import { Users, CreditCard, CalendarX, MoreVertical, LogOut, BicepsFlexed, ShieldCheck, Loader2, Home, MessageCircle, Signal, CalendarDays, Search, ArrowUpDown, Filter, X, ChevronDown, History as HistoryIcon, Plus, UserCog, Trash2, CheckCircle2, UserPlus, AlertCircle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS, COLLECTION_REVENUE, COLLECTION_PAYMENTS } from "@/lib/appwrite";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS, COLLECTION_REVENUE, COLLECTION_PAYMENTS, COLLECTION_NOTIFICATIONS, client } from "@/lib/appwrite";
 import { Query, ID } from "appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +19,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { AdminTabs } from "./components/AdminTabs";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { ClassGrid } from "@/components/ClassGrid";
+import { StudentDirectory } from "./components/StudentDirectory";
+import { LITERALS } from "@/constants/literals";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,12 +45,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-
+import Navbar from "@/components/Navbar";
+import { deleteStudentAccount } from "./actions";
 
 export default function AdminDashboard() {
   const router = useRouter();
   const dateInputRef = useRef<HTMLInputElement>(null);
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [loading, setLoading] = useState(true);
   const [studentsList, setStudentsList] = useState<any[]>([]);
   const [totalStudents, setTotalStudents] = useState(0);
@@ -66,15 +73,55 @@ export default function AdminDashboard() {
 
   // New Student Modal States
   const [isNewStudentModalOpen, setIsNewStudentModalOpen] = useState(false);
-  const [newStudentForm, setNewStudentForm] = useState({ name: "", email: "", phone: "", level: "Iniciación" });
-  const [newStudentFormError, setNewStudentFormError] = useState("");
+  
+  // Custom Modal State
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    variant: "info" | "success" | "warning" | "danger";
+    onConfirm: () => void | Promise<void>;
+    showCancel?: boolean;
+    confirmText?: string;
+  }>({
+    isOpen: false,
+    title: "",
+    description: "",
+    variant: "info",
+    onConfirm: () => {},
+  });
 
-  // Table Fitler & Sort States
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterPayment, setFilterPayment] = useState("todos"); // "todos", "pagado", "pendiente"
-  const [filterLevel, setFilterLevel] = useState("todos"); // "todos", "Iniciación", "Media", "Profesional"
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
-  const [visibleCount, setVisibleCount] = useState(30);
+  const showAlert = (title: string, description: string, variant: "info" | "success" | "warning" | "danger" = "info") => {
+    setModalConfig({
+        isOpen: true,
+        title,
+        description,
+        variant,
+        onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false })),
+        showCancel: false,
+        confirmText: "Entendido"
+    });
+  };
+
+  const showConfirm = (title: string, description: string, onConfirm: () => void | Promise<void>, variant: "info" | "success" | "warning" | "danger" = "warning") => {
+    setModalConfig({
+        isOpen: true,
+        title,
+        description,
+        variant,
+        onConfirm: async () => {
+            await onConfirm();
+            setModalConfig(prev => ({ ...prev, isOpen: false }));
+        },
+        showCancel: true,
+        confirmText: "Confirmar"
+    });
+  };
+  const [newStudentForm, setNewStudentForm] = useState({ name: "", lastName: "", email: "", phone: "", level: "Iniciación" });
+  const [newStudentFormError, setNewStudentFormError] = useState("");
+  const [newStudentEmailError, setNewStudentEmailError] = useState("");
+  const [newStudentPhoneError, setNewStudentPhoneError] = useState("");
+  const [editLastName, setEditLastName] = useState("");
 
   // Classes States
   const [classesList, setClassesList] = useState<any[]>([]);
@@ -87,123 +134,112 @@ export default function AdminDashboard() {
   const [attendeesList, setAttendeesList] = useState<any[]>([]);
   const [isFetchingAttendees, setIsFetchingAttendees] = useState(false);
 
-  useEffect(() => {
-    const verifyAdmin = async () => {
-      try {
-        // 1. Get current logged in user
-        const userData = await account.get();
+  // Announcements States
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [isCreatingAnnouncement, setIsCreatingAnnouncement] = useState(false);
+  const [newAnnouncement, setNewAnnouncement] = useState({ title: "", content: "", type: "info" });
+  const [isAnnouncementsLoading, setIsAnnouncementsLoading] = useState(false);
 
-        // 2. Fetch their profile from the database to check role
-        const profile = await databases.getDocument(
-          DATABASE_ID,
-          COLLECTION_PROFILES,
-          userData.$id
-        );
+  const loadDashboardData = async (silent = false) => {
+    try {
+      if (!silent) setLoading(true);
+
+      const [profilesData, classesData, announcementsData] = await Promise.all([
+        databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [Query.limit(500)]),
+        databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [Query.limit(500), Query.orderAsc("date")]),
+        databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS, [Query.orderDesc("createdAt"), Query.limit(20)])
+      ]);
+
+      const allStudentsFromDB = profilesData.documents.filter((s: any) => s.role !== "admin");
+      
+      // Simular alumnos adicionales para probar el scroll (solicitado por el usuario)
+      const dummyStudents = Array.from({ length: 12 }, (_, i) => ({
+        $id: `dummy-${i}`,
+        user_id: `dummy-u-${i}`,
+        name: `Alumno Prueba ${i + 1}`,
+        last_name: "Test",
+        email: `test${i + 1}@example.com`,
+        phone: "+34 600 000 000",
+        level: i % 3 === 0 ? "Iniciación" : i % 3 === 1 ? "Media" : "Profesional",
+        is_paid: i % 2 === 0,
+        $createdAt: new Date().toISOString(),
+        role: "student"
+      }));
+
+      const allStudents = [...allStudentsFromDB, ...dummyStudents];
+      
+      setTotalStudents(allStudents.length);
+      setClassesList(classesData.documents);
+      setAnnouncements(announcementsData.documents);
+
+      const d = new Date();
+      const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+      try {
+        const revData = await databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [Query.equal("month", currentMonthStr), Query.limit(1)]);
+        if (revData.documents.length > 0) {
+          setMonthlyRevenue(revData.documents[0].amount);
+        } else {
+          setMonthlyRevenue(0);
+        }
+      } catch (e) {
+        console.error("Revenue fetch error:", e);
+      }
+
+      const paidStudentsCount = allStudents.filter((s: any) => s.is_paid === true).length;
+      setUnpaidCount(allStudents.length - paidStudentsCount);
+      setStudentsList(allStudents);
+      setLoading(false);
+    } catch (error) {
+      console.error("Dashboard load error:", error);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const initDashboard = async () => {
+      try {
+        const userData = await account.get();
+        let profile;
+        try {
+          profile = await databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, userData.$id);
+        } catch (e: any) {
+          if (e.code === 404) { router.push("/login"); return; }
+          throw e;
+        }
 
         if (profile.role !== "admin") {
-          throw new Error("No tienes permisos de administrador.");
+          router.push("/perfil");
+          return;
         }
 
-        // 3. Admin verified. Let's fetch all real data (Students and Classes parallel)
-        const [profilesData, classesData] = await Promise.all([
-          databases.listDocuments(
-            DATABASE_ID,
-            COLLECTION_PROFILES,
-            [Query.limit(500)]
-          ),
-          databases.listDocuments(
-            DATABASE_ID,
-            COLLECTION_CLASSES,
-            [Query.limit(100), Query.orderAsc("date")]
-          )
-        ]);
-
-        const allStudents = profilesData.documents.filter((s: any) => s.role !== "admin");
-
-        setTotalStudents(allStudents.length);
-        setClassesList(classesData.documents);
-
-        const d = new Date();
-        const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-
-        try {
-          // Check if current month revenue exists
-          const revData = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTION_REVENUE,
-            [Query.equal("month", currentMonthStr), Query.limit(1)]
-          );
-
-          if (revData.documents.length > 0) {
-            setMonthlyRevenue(revData.documents[0].amount);
-
-            // Standard Unpaid logic
-            const paidStudentsCount = allStudents.filter((s: any) => s.is_paid === true).length;
-            setUnpaidCount(allStudents.length - paidStudentsCount);
-            setStudentsList(allStudents);
-          } else {
-            // CURRENT MONTH NOT FOUND: Possible new month!
-            const anyPastRev = await databases.listDocuments(
-              DATABASE_ID,
-              COLLECTION_REVENUE,
-              [Query.limit(1)]
-            );
-
-            if (anyPastRev.documents.length > 0) {
-              // DETECTED ROLLOVER! Previous months exist, but current doesn't.
-              // Reset all paid students
-              const resetPromises = allStudents.filter(s => s.is_paid).map(s => {
-                s.is_paid = false;
-                s.payment_method = null;
-                return databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, s.$id, {
-                  is_paid: false,
-                  payment_method: null
-                });
-              });
-
-              await Promise.all(resetPromises);
-
-              // Create new month revenue
-              await databases.createDocument(DATABASE_ID, COLLECTION_REVENUE, ID.unique(), {
-                month: currentMonthStr,
-                amount: 0
-              });
-
-              setMonthlyRevenue(0);
-              setUnpaidCount(allStudents.length); // Everyone is unpaid now
-              setStudentsList([...allStudents]); // Update state with mutated allStudents
-            } else {
-              // FIRST TIME SETUP: No previous months exist. Do not reset.
-              const paidStudentsCount = allStudents.filter((s: any) => s.is_paid === true).length;
-              const initialRevenue = paidStudentsCount * 55;
-
-              await databases.createDocument(DATABASE_ID, COLLECTION_REVENUE, ID.unique(), {
-                month: currentMonthStr,
-                amount: initialRevenue
-              });
-
-              setMonthlyRevenue(initialRevenue);
-              setUnpaidCount(allStudents.length - paidStudentsCount);
-              setStudentsList(allStudents);
-            }
-          }
-        } catch (e) {
-          console.error("Revenue collection missing or permission error:", e);
-          const paidStudentsCount = allStudents.filter((s: any) => s.is_paid === true).length;
-          setMonthlyRevenue(paidStudentsCount * 55); // Fallback until table is created
-          setUnpaidCount(allStudents.length - paidStudentsCount);
-          setStudentsList(allStudents);
-        }
-
-        // If verified and data loaded, remove loading state
-        setLoading(false);
+        await loadDashboardData();
       } catch (error) {
-        // If they are not logged in or not an admin, kick them to login
         router.push("/login");
       }
     };
 
-    verifyAdmin();
+    initDashboard();
+
+    const unsubscribe = client.subscribe([
+      `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents`,
+      `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
+      `databases.${DATABASE_ID}.collections.${COLLECTION_REVENUE}.documents`,
+      `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`,
+      `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`
+    ], (response) => {
+      if (response.events.some(e => e.includes(".create") || e.includes(".delete") || e.includes(".update"))) {
+        if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = setTimeout(() => {
+          loadDashboardData(true);
+        }, 800);
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+    };
   }, [router]);
 
   const handleLogout = async () => {
@@ -319,8 +355,8 @@ export default function AdminDashboard() {
       if (newStatus === true) {
         setIsPaymentModalOpen(false); // Close Modal only when it was used to pay
       }
-    } catch (error) {
-      console.error("Error updating payment status:", error);
+    } catch (error: any) {
+      if (error.code !== 404) console.error("Error updating payment status:", error);
     } finally {
       setIsUpdating(false);
     }
@@ -328,6 +364,7 @@ export default function AdminDashboard() {
 
   const handleOpenEditModal = (student: any) => {
     setSelectedStudent(student);
+    setEditLastName(student.last_name || "");
     setEditPhone(student.phone || "");
     setEditLevel(student.level || "Iniciación");
     setEditPhoneError(""); // Clear previous errors
@@ -338,10 +375,14 @@ export default function AdminDashboard() {
     if (!selectedStudent) return;
 
     // Front-end Validation for Phone Number
-    // Allows empty strings (to remove phone), OR valid formats: e.g. 600123456, +34600123456, 0034600123456...
-    const phoneRegex = /^(\+34|0034|34)?[6789]\d{8}$/;
+    const validatePhone = (phone: string) => {
+      if (!phone.trim()) return true; // Allow empty
+      const cleanPhone = phone.replace(/[\s\-\.]/g, '');
+      const phoneRegex = /^(\+34|0034|34)?[6789]\d{8}$/;
+      return phoneRegex.test(cleanPhone);
+    };
 
-    if (editPhone.trim() !== "" && !phoneRegex.test(editPhone.trim())) {
+    if (!validatePhone(editPhone)) {
       setEditPhoneError("Por favor, introduce un número válido (ej: 600123456 o +34600123456).");
       return; // Stop execution
     }
@@ -351,13 +392,12 @@ export default function AdminDashboard() {
 
     try {
       setIsUpdating(true);
-
-      // Update in Appwrite Database
       await databases.updateDocument(
         DATABASE_ID,
         COLLECTION_PROFILES,
         selectedStudent.$id,
         {
+          last_name: editLastName,
           phone: editPhone,
           level: editLevel
         }
@@ -365,7 +405,7 @@ export default function AdminDashboard() {
 
       // Update Local State for instant UI feedback
       const updatedList = studentsList.map(s =>
-        s.$id === selectedStudent.$id ? { ...s, phone: editPhone, level: editLevel } : s
+        s.$id === selectedStudent.$id ? { ...s, last_name: editLastName, phone: editPhone, level: editLevel } : s
       );
 
       setStudentsList(updatedList);
@@ -380,26 +420,29 @@ export default function AdminDashboard() {
   const handleCreateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     setNewStudentFormError("");
+    setNewStudentEmailError("");
+    setNewStudentPhoneError("");
 
-    if (!newStudentForm.name || !newStudentForm.email) {
-      setNewStudentFormError("Nombre y correo son requeridos.");
-      return;
-    }
-
-    if (newStudentForm.name.length > 50) {
-      setNewStudentFormError("El nombre no puede superar los 50 caracteres.");
+    if (!newStudentForm.name || !newStudentForm.lastName || !newStudentForm.email) {
+      setNewStudentFormError("Nombre, apellidos y correo son requeridos.");
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(newStudentForm.email)) {
-      setNewStudentFormError("Por favor, introduce un correo electrónico válido.");
+      setNewStudentEmailError("Formato de correo no válido.");
       return;
     }
 
-    const phoneRegex = /^(\+34|0034|34)?[6789]\d{8}$/;
-    if (newStudentForm.phone.trim() !== "" && !phoneRegex.test(newStudentForm.phone.trim())) {
-      setNewStudentFormError("Por favor, introduce un teléfono válido (ej: 600123456).");
+    const validatePhone = (phone: string) => {
+      if (!phone.trim()) return true; // Allow empty
+      const cleanPhone = phone.replace(/[\s\-\.]/g, '');
+      const phoneRegex = /^(\+34|0034|34)?[6789]\d{8}$/;
+      return phoneRegex.test(cleanPhone);
+    };
+
+    if (!validatePhone(newStudentForm.phone)) {
+      setNewStudentPhoneError("Formato de teléfono no válido (9 dígitos).");
       return;
     }
 
@@ -413,6 +456,7 @@ export default function AdminDashboard() {
         {
           user_id: uniqueRef, // Fulfill required db schema constraint for manual creation
           name: newStudentForm.name,
+          last_name: newStudentForm.lastName,
           email: newStudentForm.email.toLowerCase(),
           phone: newStudentForm.phone || null,
           role: "alumno",
@@ -425,11 +469,11 @@ export default function AdminDashboard() {
       setTotalStudents(prev => prev + 1);
       setUnpaidCount(prev => prev + 1);
       setIsNewStudentModalOpen(false);
-      setNewStudentForm({ name: "", email: "", phone: "", level: "Iniciación" });
-      alert("Alumno registrado correctamente.");
+      setNewStudentForm({ name: "", lastName: "", email: "", phone: "", level: "Iniciación" });
+      showAlert("Éxito", "Alumno registrado correctamente.", "success");
     } catch (err) {
       console.error("Error creating student:", err);
-      alert("Hubo un error al registrar el alumno.");
+      showAlert("Error", "Hubo un error al registrar el alumno.", "danger");
     } finally {
       setIsUpdating(false);
     }
@@ -463,72 +507,69 @@ export default function AdminDashboard() {
   };
 
   const handleAutoGenerateWeekClasses = async () => {
-    if (!window.confirm("¿Seguro que quieres auto-generar las clases de la PRÓXIMA SEMANA? (L-V, Boxeo/K1 y Sparring los Miércoles)")) return;
+    showConfirm(
+      "Generar Clases",
+      "¿Seguro que quieres auto-generar las clases de la PRÓXIMA SEMANA? (L-V, Boxeo y K1, Sparring los Miércoles)",
+      async () => {
+        setIsUpdating(true);
+        try {
+          const today = new Date();
+          const nextMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + ((1 + 7 - today.getDay()) % 7 || 7));
+          const classesToGenerate: any[] = [];
 
-    setIsUpdating(true);
-    try {
-      // Get next Monday
-      const today = new Date();
-      const nextMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + ((1 + 7 - today.getDay()) % 7 || 7));
+          for (let i = 0; i < 5; i++) {
+            const targetDate = new Date(nextMonday);
+            targetDate.setDate(nextMonday.getDate() + i);
+            const dayOfWeek = targetDate.getDay();
+            targetDate.setMinutes(targetDate.getMinutes() - targetDate.getTimezoneOffset());
+            const dateStr = targetDate.toISOString().split('T')[0];
 
-      const classesToGenerate = [];
+            const isWednesday = dayOfWeek === 3;
+            const className = isWednesday ? "Sparring" : "Boxeo y K1";
 
-      for (let i = 0; i < 5; i++) { // Monday to Friday (0 to 4)
-        const targetDate = new Date(nextMonday);
-        targetDate.setDate(nextMonday.getDate() + i);
-        const dayOfWeek = targetDate.getDay(); // 1 = Monday, ..., 3 = Wednesday
+            classesToGenerate.push({
+              name: className,
+              date: dateStr,
+              time: "10:00 - 11:00",
+              coach: "Álex Pintor",
+              capacity: 30,
+              registeredCount: 0,
+              status: "Activa"
+            });
 
-        // Format to YYYY-MM-DD
-        targetDate.setMinutes(targetDate.getMinutes() - targetDate.getTimezoneOffset());
-        const dateStr = targetDate.toISOString().split('T')[0];
+            const afternoonHours = [18, 19, 20, 21];
+            for (const hour of afternoonHours) {
+              classesToGenerate.push({
+                name: className,
+                date: dateStr,
+                time: `${hour}:00 - ${hour + 1}:00`,
+                coach: "Álex Pintor",
+                capacity: 30,
+                registeredCount: 0,
+                status: "Activa"
+              });
+            }
+          }
 
-        const isWednesday = dayOfWeek === 3;
-        const className = isWednesday ? "Sparring" : "Boxeo y K1";
+          const createdClasses: any[] = [];
+          for (const cls of classesToGenerate) {
+            const resp = await databases.createDocument(DATABASE_ID, COLLECTION_CLASSES, ID.unique(), cls);
+            createdClasses.push(resp);
+          }
 
-        // Morning Class: 10:00 - 11:00
-        classesToGenerate.push({
-          name: className,
-          date: dateStr,
-          time: "10:00 - 11:00",
-          coach: "Álex Pintor",
-          capacity: 30,
-          registeredCount: 0,
-          status: "Activa"
-        });
-
-        // 4 Afternoon Classes: 18h to 21h (18-19, 19-20, 20-21, 21-22)
-        // Adjusting request "de 18h a 21h en clases de 1h = 4 clases" (18:00, 19:00, 20:00, 21:00)
-        const afternoonHours = [18, 19, 20, 21];
-        for (const hour of afternoonHours) {
-          classesToGenerate.push({
-            name: className,
-            date: dateStr,
-            time: `${hour}:00 - ${hour + 1}:00`,
-            coach: "Álex Pintor",
-            capacity: 30,
-            registeredCount: 0,
-            status: "Activa"
-          });
+          const updatedClasses = [...classesList, ...createdClasses].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+          setClassesList(updatedClasses);
+          showAlert("Éxito", "¡Clases de la próxima semana generadas con éxito!", "success");
+        } catch (err: any) {
+          console.error("Error auto generating classes:", err);
+          showAlert("Error", "Hubo un error al generar las clases automáticamente.", "danger");
+        } finally {
+          setIsUpdating(false);
         }
       }
-
-      // Create them concurrently but in chunks to avoid Appwrite rate limit just in case
-      const createdClasses: any[] = [];
-      for (const cls of classesToGenerate) {
-        const resp = await databases.createDocument(DATABASE_ID, COLLECTION_CLASSES, ID.unique(), cls);
-        createdClasses.push(resp);
-      }
-
-      setClassesList(prev => [...prev, ...createdClasses].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
-      alert("¡Clases de la próxima semana generadas con éxito!");
-
-    } catch (err: any) {
-      console.error("Error auto generating classes:", err);
-      alert("Hubo un error al generar las clases automáticamente.");
-    } finally {
-      setIsUpdating(false);
-    }
+    );
   };
+
 
   const handleDeleteClass = async (classObj: any) => {
     // 0. Prevent deleting past classes logically
@@ -539,38 +580,49 @@ export default function AdminDashboard() {
       const classDateTime = new Date(year, month - 1, day, hours, minutes);
 
       if (classDateTime < new Date()) {
-        alert("No se puede cancelar una clase que ya ha ocurrido. Queda registrada en el historial.");
+        showAlert("Acción Prohibida", "No se puede cancelar una clase que ya ha ocurrido. Queda registrada en el historial.", "warning");
         return;
       }
     } catch (e) {
-      // Allow passing if date parsing fails just in case, but usually shouldn't
+      // Allow passing if date parsing fails
     }
 
-    if (!window.confirm("¿Seguro que quieres borrar esta clase de forma permanente? Se cancelarán también todas las reservas de los alumnos.")) return;
-
-    try {
-      // 1. Fetch all bookings associated with this class
-      const relatedBookings = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_BOOKINGS,
-        [Query.equal("class_id", classObj.$id), Query.limit(100)]
-      );
-
-      // 2. Delete all related bookings one by one (cascade delete effect)
-      const deleteBookingPromises = relatedBookings.documents.map(booking =>
-        databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id)
-      );
-      await Promise.all(deleteBookingPromises);
-
-      // 3. Delete the class itself
-      await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
-
-      // 4. Update the UI state
-      setClassesList(prev => prev.filter(c => c.$id !== classObj.$id));
-    } catch (error: any) {
-      console.error("Error al borrar la clase:", error);
-      alert(`No se pudo borrar la clase o sus reservas. Revisa si en Appwrite le diste el tick verde a 'Delete' en los Permisos tanto para Classes como Bookings. \n\nError: ${error?.message}`);
-    }
+    showConfirm(
+        "Borrar Clase", 
+        "¿Seguro que quieres borrar esta clase de forma permanente? Se cancelarán también todas las reservas de los alumnos.",
+        async () => {
+            try {
+              setIsUpdating(true);
+              // 1. Fetch all bookings associated with this class
+              const relatedBookings = await databases.listDocuments(
+                DATABASE_ID,
+                COLLECTION_BOOKINGS,
+                [Query.equal("class_id", classObj.$id), Query.limit(100)]
+              );
+        
+              // 2. Delete all related bookings
+              const deleteBookingPromises = relatedBookings.documents.map(booking =>
+                databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id)
+              );
+              await Promise.all(deleteBookingPromises);
+        
+              // 3. Delete the class itself
+              await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
+        
+              // 4. Update the UI state
+              setClassesList(prev => prev.filter(c => c.$id !== classObj.$id));
+              showAlert("Éxito", "Clase eliminada correctamente.", "success");
+            } catch (error: any) {
+              if (error.code !== 404) {
+                console.error("Error al borrar la clase:", error);
+                showAlert("Error", "No se pudo borrar la clase o sus reservas.", "danger");
+              }
+            } finally {
+              setIsUpdating(false);
+            }
+        },
+        "danger"
+    );
   };
 
   const handleViewAttendees = async (classObj: any) => {
@@ -592,7 +644,7 @@ export default function AdminDashboard() {
       setAttendeesList(attendees);
     } catch (error) {
       console.error("Error fetching attendees:", error);
-      alert("Error verificando asitentes.");
+      showAlert("Error", "No se ha podido verificar la lista de asistentes en este momento.", "danger");
     } finally {
       setIsFetchingAttendees(false);
     }
@@ -607,54 +659,6 @@ export default function AdminDashboard() {
       </div>
     );
   }
-
-  // Filter and Sort Processing
-  const processedStudents = [...studentsList]
-    .filter((student) => {
-      // Search term
-      const matchesSearch =
-        (student.name?.toLowerCase().includes(searchTerm.toLowerCase()) || "") ||
-        (student.email?.toLowerCase().includes(searchTerm.toLowerCase()) || "");
-
-      // Payment filter
-      const matchesPayment =
-        filterPayment === "todos" ? true :
-          filterPayment === "pagado" ? student.is_paid === true :
-            student.is_paid === false;
-
-      // Level filter
-      const matchesLevel =
-        filterLevel === "todos" ? true :
-          (student.level || "Iniciación") === filterLevel;
-
-      return matchesSearch && matchesPayment && matchesLevel;
-    })
-    .sort((a, b) => {
-      if (!sortConfig) return 0;
-
-      let aValue = a[sortConfig.key];
-      let bValue = b[sortConfig.key];
-
-      // Handle nulls/undefined for level
-      if (sortConfig.key === "level") {
-        aValue = a.level || "Iniciación";
-        bValue = b.level || "Iniciación";
-      }
-
-      if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
-      if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
-      return 0;
-    });
-
-  const handleSort = (key: string) => {
-    let direction: "asc" | "desc" = "asc";
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") {
-      direction = "desc";
-    }
-    setSortConfig({ key, direction });
-  };
-
-  const slicedStudents = processedStudents.slice(0, visibleCount);
 
   // --- New Class Validation ---
   const tzOffset = (new Date()).getTimezoneOffset() * 60000;
@@ -781,9 +785,9 @@ export default function AdminDashboard() {
       // Only classes in the past
       if (classDateTime >= now) return false;
 
-      // Limit to 48 hours in the past
-      const msIn48Hours = 2 * 24 * 60 * 60 * 1000;
-      if (classDateTime.getTime() < now.getTime() - msIn48Hours) return false;
+      // Limit to 30 days in the past (to avoid overwhelming but show a good history)
+      const msIn30Days = 30 * 24 * 60 * 60 * 1000;
+      if (classDateTime.getTime() < now.getTime() - msIn30Days) return false;
 
       return true;
     } catch (err) {
@@ -810,353 +814,227 @@ export default function AdminDashboard() {
 
   const isNewStudentFormValid =
     newStudentForm.name.trim().length > 0 &&
+    newStudentForm.lastName.trim().length > 0 &&
     newStudentForm.name.length <= 50 &&
+    newStudentForm.lastName.length <= 50 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newStudentForm.email) &&
     (newStudentForm.phone.trim() === "" || /^(\+34|0034|34)?[6789]\d{8}$/.test(newStudentForm.phone.trim()));
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans flex flex-col md:flex-row">
-      {/* Sidebar */}
-      <aside className="w-full md:w-64 bg-zinc-950 border-r border-white/10 p-6 flex-col justify-between hidden md:flex h-screen sticky top-0">
-        <div>
-          <div className="flex items-center space-x-3 mb-12">
-            <div className="w-10 h-10 relative">
-              <Image
-                src="/logo_boxing_profight.webp"
-                alt="PROFIGHT Logo"
-                fill
-                className="rounded-full object-cover border border-white/20"
-              />
-            </div>
-            <span className="font-bold text-lg tracking-tight">PROFIGHT ADMIN</span>
-          </div>
-
-          <nav className="space-y-2">
-            <Link href="/">
-              <Button variant="ghost" className="w-full justify-start text-white/50 hover:text-white hover:bg-white/5 mb-4">
-                <Home className="mr-3 h-5 w-5" />
-                Volver a la Web
-              </Button>
-            </Link>
-          </nav>
-        </div>
-
-        <div className="pt-8 border-t border-white/10">
-          <button onClick={handleLogout} className="inline-flex w-full items-center justify-start rounded-lg px-3 py-2 text-sm font-medium transition-colors text-red-500 hover:text-red-400 hover:bg-red-500/10">
-            <LogOut className="mr-3 h-5 w-5" />
-            Cerrar Sesión Segura
-          </button>
-        </div>
-      </aside>
+    <div className="dark min-h-screen bg-black text-white font-sans flex flex-col relative w-full">
+      <Navbar isHome={false} />
 
       {/* Main Content */}
-      <main className="flex-1 p-6 md:p-12 overflow-y-auto">
-        {/* Mobile Header */}
-        <div className="md:hidden flex items-center justify-between mb-8 pb-4 border-b border-white/10">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 relative">
-              <Image
-                src="/logo_boxing_profight.webp"
-                alt="PROFIGHT Logo"
-                fill
-                className="rounded-full object-cover border border-white/20"
-              />
-            </div>
-            <span className="font-bold text-sm tracking-tight">PROFIGHT ADMIN</span>
-          </div>
-          <button onClick={handleLogout} className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-medium transition-colors text-red-500 hover:bg-muted/50">
-            Salir
-          </button>
-        </div>
+      <main className="flex-1 w-full max-w-[1400px] mx-auto pt-4 md:pt-6 lg:pt-8 px-6 md:px-8 lg:px-12 pb-12 z-10">
 
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-10">
-          <div>
-            <h1 className="text-3xl md:text-5xl font-bold tracking-tight mb-2">Panel de Control</h1>
-            <p className="text-white/50 text-lg">Gestiona tus alumnos, clases y pagos actuales.</p>
-          </div>
-          <Button
-            onClick={() => setIsNewStudentModalOpen(true)}
-            className="bg-white text-black hover:bg-neutral-200 shadow-lg"
-          >
-            <Users className="w-4 h-4 mr-2" />
-            + Nuevo Alumno
-          </Button>
-        </div>
 
-        {/* Dashboard Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          <Card className="bg-white/5 border-white/10 backdrop-blur-lg">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-white/70">Alumnos Activos</CardTitle>
-              <Users className="h-4 w-4 text-white/50" />
+
+        <Tabs defaultValue="general" className="w-full">
+          <AdminTabs />
+
+          <TabsContent value="tablon" className="space-y-10 focus-visible:outline-none">
+
+        {/* Notificaciones / Tablón (Admin View) */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-10">
+          <Card className="bg-white/5 border-white/10 backdrop-blur-lg xl:col-span-1">
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center gap-2">
+                <MessageCircle className="w-5 h-5 text-emerald-400" /> {LITERALS.DASHBOARD.ANNOUNCEMENTS.CREATE_TITLE}
+              </CardTitle>
+              <CardDescription className="text-white/40">{LITERALS.DASHBOARD.ANNOUNCEMENTS.DESCRIPTION}</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="text-4xl font-bold text-white">{totalStudents}</div>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-xs text-white/60 uppercase">Título</Label>
+                <Input
+                  value={newAnnouncement.title}
+                  onChange={(e) => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })}
+                  placeholder="Ej: Festivo el Lunes"
+                  className="bg-black/40 border-white/10"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-white/60 uppercase">Mensaje</Label>
+                <textarea
+                  value={newAnnouncement.content}
+                  onChange={(e) => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })}
+                  placeholder="Escribe el aviso aquí..."
+                  className="w-full bg-black/40 border border-white/10 rounded-md p-3 text-sm min-h-[100px] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-white/60 uppercase">Importancia</Label>
+                <select
+                  value={newAnnouncement.type}
+                  onChange={(e) => setNewAnnouncement({ ...newAnnouncement, type: e.target.value })}
+                  className="w-full bg-black/40 border border-white/10 rounded-md p-2 text-sm text-white outline-none"
+                >
+                  <option value="info">Info (Azul)</option>
+                  <option value="warning">Aviso (Ambar)</option>
+                  <option value="success">Éxito (Verde)</option>
+                </select>
+              </div>
+              <Button
+                onClick={() => {
+                  if (!newAnnouncement.title || !newAnnouncement.content) return;
+                  showConfirm(
+                    "Confirmar Publicación",
+                    "¿Estás seguro de que quieres publicar este anuncio? Todos los alumnos recibirán una notificación en su panel.",
+                    async () => {
+                      setIsCreatingAnnouncement(true);
+                      try {
+                        const res = await databases.createDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, ID.unique(), {
+                          title: newAnnouncement.title,
+                          content: newAnnouncement.content,
+                          type: newAnnouncement.type,
+                          createdAt: new Date().toISOString()
+                        });
+                        setAnnouncements([res, ...announcements]);
+                        setNewAnnouncement({ title: "", content: "", type: "info" });
+                        showAlert("Éxito", "Anuncio publicado correctamente.", "success");
+                      } catch (e) { 
+                        console.error(e); 
+                        showAlert("Error", "No se pudo publicar el anuncio.", "danger");
+                      } finally { 
+                        setIsCreatingAnnouncement(false); 
+                      }
+                    },
+                    "warning"
+                  );
+                }}
+                disabled={isCreatingAnnouncement || !newAnnouncement.title || !newAnnouncement.content}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-10"
+              >
+                {isCreatingAnnouncement ? <Loader2 className="w-4 h-4 animate-spin" /> : "Publicar Anuncio"}
+              </Button>
             </CardContent>
           </Card>
 
-          <Card className="bg-white/5 border-white/10 backdrop-blur-lg">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-white/70 capitalize">
-                Ingresos en {new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(new Date())}
-              </CardTitle>
-              <CreditCard className="h-4 w-4 text-white/50" />
+          <Card className="bg-white/5 border-white/10 backdrop-blur-lg xl:col-span-2">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-xl">Anuncios Recientes</CardTitle>
+                <CardDescription className="text-white/40">Los alumnos verán esto en su campanita.</CardDescription>
+              </div>
+              <Badge variant="outline" className="text-white/50 border-white/10">{announcements.length}</Badge>
             </CardHeader>
             <CardContent>
-              <div className="text-4xl font-bold text-white">{monthlyRevenue}€</div>
-              <p className="text-xs text-red-400 mt-1">
-                {unpaidCount > 0 ? `${unpaidCount} alumnos pendientes de pago` : "Todos al día"}
+              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                {announcements.length === 0 ? (
+                  <div className="py-12 text-center text-white/20 italic text-sm">No has publicado ningún anuncio todavía.</div>
+                ) : (
+                  announcements.map((a) => (
+                    <div key={a.$id} className="bg-black/40 border border-white/5 rounded-xl p-4 flex justify-between items-start group">
+                      <div className="min-w-0 flex-1 mr-4">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${a.type === 'warning' ? 'bg-amber-500/20 text-amber-500' : a.type === 'success' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-blue-500/20 text-blue-500'
+                            }`}>
+                            {a.type}
+                          </span>
+                          <span className="text-[10px] text-white/30">{new Date(a.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <h4 className="font-bold text-white truncate">{a.title}</h4>
+                        <p className="text-sm text-white/50 line-clamp-2">{a.content}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          showConfirm(
+                            "Borrar Anuncio",
+                            "¿Seguro que quieres borrar este anuncio? Los alumnos dejarán de verlo en su tablón y campanita.",
+                            async () => {
+                              try {
+                                await databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, a.$id);
+                                setAnnouncements(announcements.filter(prev => prev.$id !== a.$id));
+                                showAlert("Éxito", "Anuncio eliminado correctamente.", "success");
+                              } catch (e: any) {
+                                if (e.code !== 404) {
+                                    console.error("Error al borrar anuncio:", e);
+                                    showAlert("Error", "No se ha podido borrar el anuncio.", "danger");
+                                }
+                              }
+                            },
+                            "danger"
+                          );
+                        }}
+                        className="text-white/20 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="general" className="space-y-10 focus-visible:outline-none">
+
+        {/* Dashboard Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+          <Card className="bg-zinc-900/50 border-white/10 backdrop-blur-lg group hover:border-emerald-500/30 transition-all duration-300">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-black text-white/40 uppercase tracking-widest">{LITERALS.DASHBOARD.ACTIVE_STUDENTS}</CardTitle>
+              <Users className="h-4 w-4 text-emerald-500" />
+            </CardHeader>
+            <CardContent className="flex items-end justify-between">
+              <div>
+                <div className="text-5xl font-black text-white leading-none">{totalStudents}</div>
+                <p className="text-[10px] text-white/20 uppercase font-bold tracking-widest mt-3">{LITERALS.DASHBOARD.TOTAL_STUDENTS}</p>
+              </div>
+              <Button
+                onClick={() => setIsNewStudentModalOpen(true)}
+                className="bg-white text-black hover:bg-emerald-500 hover:text-white font-black rounded-xl h-14 w-14 p-0 shadow-2xl transition-all hover:scale-110 active:scale-95 group-hover:shadow-emerald-500/10"
+                title="Nuevo Alumno"
+              >
+                <Plus className="w-7 h-7" />
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-zinc-900/50 border-white/10 backdrop-blur-lg group hover:border-blue-500/30 transition-all duration-300">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-black text-white/40 uppercase tracking-widest leading-relaxed">
+                {(() => {
+                  const m = new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(new Date());
+                  return LITERALS.DASHBOARD.MONTHLY_REVENUE(m.charAt(0).toUpperCase() + m.slice(1));
+                })()}
+              </CardTitle>
+              <CreditCard className="h-4 w-4 text-blue-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-5xl font-black text-white leading-none">{monthlyRevenue}€</div>
+              <p className={`text-[10px] uppercase font-bold tracking-widest mt-3 ${unpaidCount > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                {unpaidCount > 0 ? `${unpaidCount} ${LITERALS.DASHBOARD.PENDING_PAYMENT}` : LITERALS.DASHBOARD.ALL_UP_TO_DATE}
               </p>
             </CardContent>
           </Card>
-
-          <Card className="bg-white/5 border-white/10 backdrop-blur-lg">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-white/70">Próxima Clase</CardTitle>
-              <ShieldCheck className="h-4 w-4 text-white/50" />
-            </CardHeader>
-            <CardContent>
-              {nextClass ? (
-                <>
-                  <div className="text-2xl font-bold text-white">{nextClass.name} ({nextClass.time.split('-')[0].trim()})</div>
-                  <p className="text-xs text-emerald-400 mt-1">{nextClass.registeredCount} reservas confirmadas</p>
-                </>
-              ) : (
-                <>
-                  <div className="text-2xl font-bold text-white/50">Sin clases</div>
-                  <p className="text-xs text-white/30 mt-1">Programa una nueva clase</p>
-                </>
-              )}
-            </CardContent>
-          </Card>
         </div>
 
-        {/* Students Table Section */}
-        <div className="space-y-4">
-          {/* Table Header & Controls */}
-          <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between mb-6 gap-4">
-            <h2 className="text-2xl font-bold tracking-tight">Directorio de Alumnos</h2>
+        <StudentDirectory 
+          studentsList={studentsList}
+          isUpdating={isUpdating}
+          handleActionClick={handleActionClick}
+          handleOpenEditModal={handleOpenEditModal}
+          deleteStudentAccount={deleteStudentAccount}
+          setStudentsList={setStudentsList}
+          showAlert={showAlert}
+          showConfirm={showConfirm}
+        />
+      </TabsContent>
 
-            <div className="flex flex-col sm:flex-row w-full xl:w-auto gap-3 items-center">
-              {/* Search */}
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-white/50" />
-                <Input
-                  type="text"
-                  placeholder="Buscar alumno o email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 bg-white/5 border-white/10 text-white focus-visible:ring-emerald-500 w-full rounded-md"
-                />
-              </div>
-
-              {/* Filter Payment */}
-              <select
-                value={filterPayment}
-                onChange={(e) => setFilterPayment(e.target.value)}
-                className="bg-zinc-900 border border-white/10 text-white text-sm rounded-md focus:ring-emerald-500 block p-2 w-full sm:w-auto h-10"
-              >
-                <option value="todos">Todos los Pagos</option>
-                <option value="pagado">Pagados</option>
-                <option value="pendiente">Pendientes</option>
-              </select>
-
-              {/* Filter Level */}
-              <select
-                value={filterLevel}
-                onChange={(e) => setFilterLevel(e.target.value)}
-                className="bg-zinc-900 border border-white/10 text-white text-sm rounded-md focus:ring-emerald-500 block p-2 w-full sm:w-auto h-10"
-              >
-                <option value="todos">Todos los Niveles</option>
-                <option value="Iniciación">Iniciación</option>
-                <option value="Media">Media</option>
-                <option value="Profesional">Profesional</option>
-              </select>
-
-              {/* Reset Filters / Sorting Button */}
-              {(searchTerm !== "" || filterPayment !== "todos" || filterLevel !== "todos" || sortConfig !== null) && (
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setSearchTerm("");
-                    setFilterPayment("todos");
-                    setFilterLevel("todos");
-                    setSortConfig(null);
-                    setVisibleCount(30);
-                  }}
-                  className="h-10 text-red-400 hover:text-red-300 hover:bg-red-500/10 whitespace-nowrap px-3"
-                >
-                  <X className="w-4 h-4 mr-1.5" />
-                  Limpiar Filtros
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <Card className="bg-white/5 border-white/10 backdrop-blur-lg shadow-2xl overflow-hidden">
-            <Table>
-              <TableHeader className="bg-white/5">
-                <TableRow className="border-white/10 hover:bg-transparent">
-                  <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('name')}>
-                    <div className="flex items-center gap-1">Alumno <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
-                  </TableHead>
-                  <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('is_paid')}>
-                    <div className="flex items-center gap-1">Estado de Pago <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
-                  </TableHead>
-                  <TableHead className="text-white/70">Contacto</TableHead>
-                  <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('level')}>
-                    <div className="flex items-center gap-1">Nivel <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
-                  </TableHead>
-                  <TableHead className="text-white/70 cursor-pointer hover:text-white transition-colors" onClick={() => handleSort('$createdAt')}>
-                    <div className="flex items-center gap-1">Alta <ArrowUpDown className="w-3 h-3 text-white/30" /></div>
-                  </TableHead>
-                  <TableHead className="text-right text-white/70"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {slicedStudents.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center h-24 text-white/50">
-                      No hay alumnos registrados todavía en la Base de Datos.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  slicedStudents.map((student) => (
-                    <TableRow key={student.$id} className="border-white/10 hover:bg-white/5 transition-colors">
-                      <TableCell className="font-medium">
-                        <div className="flex items-center space-x-3">
-                          <Avatar className="h-9 w-9 border border-white/20">
-                            <AvatarFallback className="bg-black text-white">
-                              {student.name ? student.name.substring(0, 2).toUpperCase() : "US"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="text-white font-medium">{student.name || "Usuario Desconocido"}</p>
-                            <p className="text-white/50 text-xs">{student.email}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      {/* Estado de Pago */}
-                      <TableCell>
-                        <div className="flex flex-col items-start gap-1">
-                          <Badge
-                            variant="outline"
-                            className={
-                              student.is_paid
-                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                                : "bg-red-500/10 text-red-400 border-red-500/20"
-                            }
-                          >
-                            {student.is_paid ? "Pagado" : "No Pagado"}
-                          </Badge>
-                          {student.is_paid && student.payment_method && (
-                            <span className="text-[10px] text-white/40 uppercase tracking-wider font-semibold">
-                              {student.payment_method}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-
-                      {/* Contacto (Teléfono/WhatsApp) */}
-                      <TableCell>
-                        {student.phone ? (
-                          <a
-                            href={`https://wa.me/${student.phone.replace(/[\s+]/g, '')}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 text-white/80 hover:text-white transition-colors w-fit group"
-                          >
-                            <svg
-                              viewBox="0 0 24 24"
-                              className="w-4 h-4 text-[#25D366] group-hover:scale-110 transition-transform fill-current"
-                            >
-                              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                            </svg>
-                            <span className="text-sm font-medium">{student.phone}</span>
-                          </a>
-                        ) : (
-                          <span className="text-white/30 text-xs italic">No indicado</span>
-                        )}
-                      </TableCell>
-
-                      {/* Nivel de Experiencia */}
-                      <TableCell>
-                        <div className="flex items-center gap-1.5 text-white/70">
-                          <Signal className={`w-4 h-4 ${student.level === 'Profesional' ? 'text-purple-400' :
-                            student.level === 'Media' ? 'text-amber-400' :
-                              'text-white/40' // Iniciación or Null
-                            }`} />
-                          <span className="text-sm">{student.level || 'Iniciación'}</span>
-                        </div>
-                      </TableCell>
-
-                      {/* Fecha de Alta (Antigüedad) */}
-                      <TableCell className="text-white/50 text-xs font-medium">
-                        {new Date(student.$createdAt).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
-                      </TableCell>
-
-                      {/* Acciones */}
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger className="h-8 w-8 flex flex-col justify-center items-center text-white hover:bg-white/10 border-0 outline-none rounded-md transition-colors">
-                            <span className="sr-only">Abrir menú</span>
-                            <MoreVertical className="h-4 w-4" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10 text-white">
-                            <DropdownMenuGroup>
-                              <DropdownMenuLabel>Gestión de Alumno</DropdownMenuLabel>
-                            </DropdownMenuGroup>
-                            <DropdownMenuSeparator className="bg-white/10" />
-                            <DropdownMenuItem
-                              className="focus:bg-white/10 focus:text-white cursor-pointer hover:bg-white/5"
-                              onClick={() => handleActionClick(student)}
-                              disabled={isUpdating}
-                            >
-                              {student.is_paid ? "Marcar como pendiente" : "Registrar Pago"}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="focus:bg-white/10 focus:text-white cursor-pointer hover:bg-white/5"
-                              onClick={() => handleOpenEditModal(student)}
-                              disabled={isUpdating}
-                            >
-                              Editar Perfil (Contacto/Nivel)
-                            </DropdownMenuItem>
-
-                            <DropdownMenuItem className="text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer">
-                              Dar de baja (Eliminar)
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-
-            {visibleCount < processedStudents.length && (
-              <div className="w-full flex justify-center py-4 border-t border-white/10 bg-white/5">
-                <Button
-                  variant="ghost"
-                  onClick={() => setVisibleCount(prev => prev + 30)}
-                  className="text-white hover:bg-white/10 flex items-center gap-2"
-                >
-                  <ChevronDown className="w-4 h-4" />
-                  Cargar más alumnos ({processedStudents.length - visibleCount} restantes)
-                </Button>
-              </div>
-            )}
-          </Card>
-        </div>
+      <TabsContent value="clases" className="space-y-10 focus-visible:outline-none">
 
         {/* Classes Section */}
         <div className="space-y-4 mt-16 pb-12">
           {/* Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
             <div>
-              <h2 className="text-2xl font-bold tracking-tight">Horarios y Clases</h2>
-              <p className="text-white/50 text-sm mt-1">Programa las próximas sesiones para que los alumnos puedan reservar.</p>
+              <h2 className="text-2xl font-bold tracking-tight">{LITERALS.DASHBOARD.CLASSES.TITLE}</h2>
+              <p className="text-white/50 text-sm mt-1">{LITERALS.DASHBOARD.CLASSES.DESCRIPTION}</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
@@ -1166,439 +1044,373 @@ export default function AdminDashboard() {
                 disabled={isUpdating}
               >
                 {isUpdating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CalendarDays className="w-4 h-4 mr-2 text-blue-400" />}
-                Auto-Siguiente Semana
+                {LITERALS.DASHBOARD.CLASSES.AUTO_GENERATE}
               </Button>
 
               <Button
                 onClick={() => setIsClassModalOpen(true)}
                 className="bg-emerald-500 hover:bg-emerald-600 text-white whitespace-nowrap"
               >
-                + Programar Clase
+                {LITERALS.DASHBOARD.CLASSES.SCHEDULE_BUTTON}
               </Button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {classesList.length === 0 ? (
-              <div className="col-span-full bg-white/5 border border-white/10 rounded-xl p-8 text-center">
-                <CalendarDays className="w-12 h-12 text-white/20 mx-auto mb-3" />
-                <h3 className="text-lg font-medium text-white mb-1">No hay clases programadas</h3>
-                <p className="text-white/50 text-sm">Empieza creando una clase de Boxeo o K1 para esta semana.</p>
-              </div>
-            ) : (
-              sortedClassesList.map((cls) => {
-                const isFull = cls.registeredCount >= cls.capacity;
-
-                // Determine if class has already happened
-                let isPastClass = false;
-                try {
-                  const startTime = cls.time.split('-')[0].trim();
-                  const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
-                  const [hours, minutes] = startTime.split(":").map(Number);
-                  const classDateTime = new Date(year, month - 1, day, hours, minutes);
-                  isPastClass = classDateTime < new Date();
-                } catch (e) { }
-
-                return (
-                  <Card key={cls.$id} className={`bg-white/5 border-white/10 backdrop-blur-lg overflow-hidden group ${isPastClass ? 'opacity-70 grayscale-[0.2]' : ''}`}>
-                    <CardHeader className="pb-3 border-b border-white/5 relative">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <Badge className={`mb-2 font-medium ${cls.name === 'Boxeo' ? 'bg-amber-500/20 text-amber-500 hover:bg-amber-500/30' : 'bg-red-500/20 text-red-500 hover:bg-red-500/30'}`}>
-                            {cls.name}
-                          </Badge>
-                          <CardTitle className="text-xl font-bold text-white">{cls.coach}</CardTitle>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger className="h-8 w-8 flex justify-center items-center text-white/50 hover:text-white hover:bg-white/10 rounded transition-colors">
-                            <MoreVertical className="h-4 w-4" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10">
-                            <DropdownMenuItem
-                              className="text-white focus:bg-white/10 cursor-pointer"
-                              onClick={() => handleViewAttendees(cls)}
-                            >
-                              Ver Lista de Asistentes
-                            </DropdownMenuItem>
-                            {!isPastClass && (
-                              <DropdownMenuItem
-                                className="text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer"
-                                onClick={() => handleDeleteClass(cls)}
-                              >
-                                Cancelar Clase
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-4 pb-4">
-                      <div className="flex justify-between items-center mb-4">
-                        <div className="text-sm">
-                          <p className="text-white font-medium flex items-center gap-1.5 mb-1">
-                            <CalendarDays className="w-4 h-4 text-white/50" />
-                            {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                          </p>
-                          <p className="text-white/70 flex items-center gap-1.5">
-                            <ShieldCheck className="w-4 h-4 text-white/50" />
-                            {cls.time}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Capacity Bar */}
-                      <div>
-                        <div className="flex justify-between text-xs mb-1.5 font-medium">
-                          <span className={isFull ? 'text-red-400' : 'text-emerald-400'}>
-                            {cls.registeredCount} Reservas
-                          </span>
-                          <span className="text-white/40">{cls.capacity} Plazas</span>
-                        </div>
-                        <div className="h-1.5 w-full bg-black rounded-full overflow-hidden border border-white/5">
-                          <div
-                            className={`h-full transition-all duration-500 ${isFull ? 'bg-red-500' : 'bg-emerald-500'}`}
-                            style={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })
-            )}
+          <div className="space-y-12">
+            <ClassGrid 
+              isAdmin 
+              classes={sortedClassesList}
+              onViewAttendees={handleViewAttendees}
+              onCancelClass={handleDeleteClass}
+            />
           </div>
         </div>
 
-        {/* Recent Past Classes Section */}
-        <div className="space-y-4 pt-12 border-t border-white/10 pb-12">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+        {/* Recent Past Classes Section (History) */}
+        <div className="space-y-4 pt-16 border-t border-white/10 pb-12">
             <div>
-              <h2 className="text-2xl font-bold tracking-tight text-white/70">Historial Reciente</h2>
-              <p className="text-white/40 text-sm mt-1">Clases que han ocurrido en las últimas 48 horas.</p>
+              <h2 className="text-2xl font-bold tracking-tight text-white/70">{LITERALS.DASHBOARD.CLASSES.HISTORY_TITLE}</h2>
+              <p className="text-white/40 text-sm mt-1">{LITERALS.DASHBOARD.CLASSES.HISTORY_DESCRIPTION}</p>
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {recentPastClasses.length === 0 ? (
-              <div className="col-span-full bg-white/5 border border-dashed border-white/10 rounded-xl p-8 text-center">
-                <History className="w-10 h-10 text-white/20 mx-auto mb-3" />
-                <p className="text-white/40 text-sm">No hay clases registradas en los últimos 2 días.</p>
-              </div>
-            ) : (
-              recentPastClasses.map((cls) => {
-                const isFull = cls.registeredCount >= cls.capacity;
-                return (
-                  <Card key={cls.$id} className="bg-black border-white/5 overflow-hidden group opacity-70 grayscale-[0.3]">
-                    <CardHeader className="pb-3 border-b border-white/5 relative">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <Badge className="mb-2 font-medium bg-white/10 text-white/60">
-                            {cls.name} (Finalizada)
-                          </Badge>
-                          <CardTitle className="text-lg font-bold text-white/80">{cls.coach}</CardTitle>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger className="h-8 w-8 flex justify-center items-center text-white/30 hover:text-white hover:bg-white/10 rounded transition-colors">
-                            <MoreVertical className="h-4 w-4" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="bg-zinc-900 border-white/10">
-                            <DropdownMenuItem
-                              className="text-white focus:bg-white/10 cursor-pointer"
-                              onClick={() => handleViewAttendees(cls)}
-                            >
-                              Ver Lista de Asistentes
-                            </DropdownMenuItem>
-                            <DropdownMenuItem disabled className="text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer opacity-50">
-                              Cancelar Clase (Expirado)
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-4 pb-4">
-                      <div className="flex justify-between items-center mb-4">
-                        <div className="text-sm">
-                          <p className="text-white/60 font-medium flex items-center gap-1.5 mb-1">
-                            <CalendarDays className="w-4 h-4 text-white/30" />
-                            {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                          </p>
-                          <p className="text-white/50 flex items-center gap-1.5">
-                            <ShieldCheck className="w-4 h-4 text-white/30" />
-                            {cls.time}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Capacity Bar */}
-                      <div>
-                        <div className="flex justify-between text-xs mb-1.5 font-medium">
-                          <span className={isFull ? 'text-white/60' : 'text-white/60'}>
-                            {cls.registeredCount} Asistentes
-                          </span>
-                          <span className="text-white/30">de {cls.capacity} Plazas</span>
-                        </div>
-                        <div className="h-1.5 w-full bg-black rounded-full overflow-hidden border border-white/5">
-                          <div
-                            className={`h-full transition-all duration-500 bg-white/30`}
-                            style={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })
-            )}
-          </div>
+          
+          <ClassGrid 
+            isAdmin
+            isHistory
+            classes={recentPastClasses}
+            onViewAttendees={handleViewAttendees}
+          />
         </div>
-
-      </main>
+      </TabsContent>
+    </Tabs>
+  </main>
 
       {/* Payment Confirmation Modal */}
       <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
-        <DialogContent className="bg-zinc-950 border border-white/10 text-white sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Registrar Mensualidad</DialogTitle>
-            <DialogDescription className="text-white/50">
-              Vas a confirmar el pago mensual de <strong className="text-white">{selectedStudent?.name}</strong>. Rellena los detalles de la transacción.
+        <DialogContent 
+          showCloseButton={false}
+          className="bg-zinc-950 border-white/10 text-white max-w-md rounded-[2rem] overflow-hidden backdrop-blur-2xl p-0 focus:outline-none shadow-2xl"
+        >
+          <div className="absolute inset-0 bg-emerald-500/5 pointer-events-none" />
+          
+          <button 
+            onClick={() => setIsPaymentModalOpen(false)}
+            className="absolute right-6 top-6 z-50 p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/40 hover:text-white transition-all"
+          >
+            <X className="w-4 h-4" />
+          </button>
+
+          <DialogHeader className="p-8 pb-0 relative z-10">
+            <DialogTitle className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
+              <CreditCard className="w-6 h-6 text-emerald-400" /> Registrar Pago
+            </DialogTitle>
+            <DialogDescription className="text-white/40 font-medium">
+              Confirmar mensualidad de <strong className="text-white">{selectedStudent?.name}</strong>. Rellena los detalles.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-6 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="amount" className="text-white/80">Cantidad Recibida (€)</Label>
-              <Input
-                id="amount"
-                type="number"
-                value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value)}
-                className="bg-black border-white/20 text-white focus-visible:ring-emerald-500"
-              />
-            </div>
 
-            <div className="grid gap-2">
-              <Label className="text-white/80 mb-2">Método de Pago</Label>
-              <div className="grid grid-cols-3 gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setPaymentMethod("Efectivo")}
-                  className={paymentMethod === "Efectivo" ? "bg-emerald-500 hover:bg-emerald-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Efectivo
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setPaymentMethod("Bizum")}
-                  className={paymentMethod === "Bizum" ? "bg-cyan-500 hover:bg-cyan-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Bizum
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setPaymentMethod("Tarjeta")}
-                  className={paymentMethod === "Tarjeta" ? "bg-purple-500 hover:bg-purple-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Tarjeta
-                </Button>
+          <div className="p-8 space-y-6 relative z-10">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="amount" className="text-[10px] font-black uppercase tracking-widest text-white/40">Cantidad Recibida (€)</Label>
+                <div className="relative">
+                  <Input
+                    id="amount"
+                    type="number"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    className="bg-white/5 border-white/10 h-12 pl-10 focus:border-emerald-500/50 transition-all font-bold text-lg"
+                    placeholder="55"
+                  />
+                  <div className="absolute left-3.5 top-3.5 text-white/20 font-bold">€</div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Método de Pago</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setPaymentMethod("Efectivo")}
+                    className={`h-12 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      paymentMethod === "Efectivo" 
+                      ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Efectivo
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setPaymentMethod("Bizum")}
+                    className={`h-12 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      paymentMethod === "Bizum" 
+                      ? "bg-blue-500/20 border-blue-500/40 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Bizum
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setPaymentMethod("Tarjeta")}
+                    className={`h-12 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      paymentMethod === "Tarjeta" 
+                      ? "bg-purple-500/20 border-purple-500/40 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Tarjeta
+                  </Button>
+                </div>
               </div>
             </div>
+
+            <DialogHeader className="pt-2">
+              <Button
+                onClick={() => handleConfirmPayment(selectedStudent?.$id, true)}
+                disabled={isUpdating}
+                className="w-full h-14 bg-white text-black hover:bg-emerald-500 hover:text-white font-black tracking-widest uppercase rounded-xl shadow-xl transition-all disabled:opacity-20"
+              >
+                {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "CONFIRMAR INGRESO"}
+              </Button>
+            </DialogHeader>
           </div>
-          <DialogFooter className="mt-4 border-t border-white/10 pt-4">
-            <Button variant="ghost" onClick={() => setIsPaymentModalOpen(false)} className="text-white/50 hover:text-white bg-transparent">
-              Cancelar
-            </Button>
-            <Button
-              onClick={() => handleConfirmPayment(selectedStudent?.$id, true)}
-              disabled={isUpdating}
-              className="bg-white text-black hover:bg-neutral-200"
-            >
-              {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Confirmar Ingreso
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       {/* Edit Profile (Contact/Level) Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="bg-zinc-950 border border-white/10 text-white sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Editar Información de Alumno</DialogTitle>
-            <DialogDescription className="text-white/50">
-              Añade un número de teléfono de contacto y ajusta el nivel táctico actuál de <strong className="text-white">{selectedStudent?.name}</strong>.
+        <DialogContent 
+          showCloseButton={false}
+          className="bg-zinc-950 border-white/10 text-white max-w-md rounded-[2rem] overflow-hidden backdrop-blur-2xl p-0 focus:outline-none shadow-2xl"
+        >
+          <div className="absolute inset-0 bg-blue-500/5 pointer-events-none" />
+          
+          <button 
+            onClick={() => setIsEditModalOpen(false)}
+            className="absolute right-6 top-6 z-50 p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/40 hover:text-white transition-all"
+          >
+            <X className="w-4 h-4" />
+          </button>
+
+          <DialogHeader className="p-8 pb-0 relative z-10">
+            <DialogTitle className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
+              <UserCog className="w-6 h-6 text-blue-400" /> Editar Alumno
+            </DialogTitle>
+            <DialogDescription className="text-white/40 font-medium italic">
+              Actualiza los datos de <strong className="text-white">{selectedStudent?.name} {selectedStudent?.last_name || ""}</strong>.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-6 py-4">
-            {/* Phone */}
-            <div className="grid gap-2">
-              <Label htmlFor="phone" className="text-white/80">Teléfono (WhatsApp)</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="+34 600 000 000"
-                value={editPhone}
-                onChange={(e) => {
-                  setEditPhone(e.target.value);
-                  if (editPhoneError) setEditPhoneError(""); // clear error on typing
-                }}
-                className={`bg-black text-white placeholder:text-white/20 focus-visible:ring-blue-500 ${editPhoneError ? 'border-red-500 bg-red-500/5' : 'border-white/20'}`}
-              />
-              {editPhoneError && (
-                <p className="text-red-400 text-xs mt-1 font-medium">{editPhoneError}</p>
-              )}
-            </div>
 
-            {/* Level */}
-            <div className="grid gap-2">
-              <Label className="text-white/80 mb-2">Nivel de Experiencia</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setEditLevel("Iniciación")}
-                  className={editLevel === "Iniciación" ? "bg-white/20 hover:bg-white/30 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Iniciación
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setEditLevel("Media")}
-                  className={editLevel === "Media" ? "bg-amber-500 hover:bg-amber-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Media
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setEditLevel("Profesional")}
-                  className={editLevel === "Profesional" ? "bg-purple-500 hover:bg-purple-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Profesional
-                </Button>
+          <div className="p-8 space-y-6 relative z-10">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nombre (Fijo)</Label>
+                  <Input
+                    value={selectedStudent?.name || ""}
+                    disabled
+                    className="bg-white/[0.03] border-white/5 text-white/30 cursor-not-allowed h-12 font-bold opacity-60"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Apellidos</Label>
+                  <Input
+                    value={editLastName}
+                    placeholder="Apellidos"
+                    onChange={(e) => setEditLastName(e.target.value)}
+                    className="bg-white/5 border-white/10 text-white focus:border-blue-500/50 transition-all font-bold h-12"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Teléfono (WhatsApp)</Label>
+                <Input
+                  type="tel"
+                  placeholder="+34 600 000 000"
+                  value={editPhone}
+                  onChange={(e) => {
+                    setEditPhone(e.target.value);
+                    if (editPhoneError) setEditPhoneError(""); 
+                  }}
+                  className={`bg-white/5 border-white/10 text-white focus:border-blue-500/50 transition-all font-bold h-12 ${editPhoneError ? 'border-red-500/50 bg-red-500/5' : ''}`}
+                />
+                {editPhoneError && (
+                  <p className="text-red-400 text-[10px] font-bold italic tracking-wider pl-1">{editPhoneError}</p>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nivel de Combate</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setEditLevel("Iniciación")}
+                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      editLevel === "Iniciación" 
+                      ? "bg-amber-500/20 border-amber-500/40 text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Iniciación
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setEditLevel("Media")}
+                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      editLevel === "Media" 
+                      ? "bg-blue-500/20 border-blue-500/40 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Media
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setEditLevel("Profesional")}
+                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      editLevel === "Profesional" 
+                      ? "bg-purple-500/20 border-purple-500/40 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Pro
+                  </Button>
+                </div>
               </div>
             </div>
+
+            <DialogHeader className="pt-2">
+              <Button
+                onClick={handleSaveProfile}
+                disabled={isUpdating || !!editPhoneError}
+                className="w-full h-14 bg-white text-black hover:bg-blue-500 hover:text-white font-black tracking-widest uppercase rounded-xl shadow-xl transition-all disabled:opacity-20"
+              >
+                {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "GUARDAR CAMBIOS"}
+              </Button>
+            </DialogHeader>
           </div>
-          <DialogFooter className="mt-4 border-t border-white/10 pt-4">
-            <Button variant="ghost" onClick={() => setIsEditModalOpen(false)} className="text-white/50 hover:text-white bg-transparent">
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSaveProfile}
-              disabled={isUpdating}
-              className="bg-white text-black hover:bg-neutral-200"
-            >
-              {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Guardar Cambios
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       {/* Create Class Modal */}
       <Dialog open={isClassModalOpen} onOpenChange={setIsClassModalOpen}>
-        <DialogContent className="bg-zinc-950 border border-white/10 text-white sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Programar Nueva Clase</DialogTitle>
-            <DialogDescription className="text-white/50">
-              Añade una sesión al calendario. Los alumnos podrán apuntarse hasta cubrir el cupo de plazas.
+        <DialogContent 
+          showCloseButton={false}
+          className="bg-zinc-950 border-white/10 text-white max-w-md rounded-[2rem] overflow-hidden backdrop-blur-2xl p-0 focus:outline-none shadow-2xl"
+        >
+          <div className="absolute inset-0 bg-emerald-500/5 pointer-events-none" />
+          
+          <button 
+            onClick={() => setIsClassModalOpen(false)}
+            className="absolute right-6 top-6 z-50 p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/40 hover:text-white transition-all"
+          >
+            <X className="w-4 h-4" />
+          </button>
+
+          <DialogHeader className="p-8 pb-0 relative z-10">
+            <DialogTitle className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
+              <CalendarDays className="w-6 h-6 text-emerald-400" /> Programar Clase
+            </DialogTitle>
+            <DialogDescription className="text-white/40 font-medium italic">
+              Añade una nueva sesión al calendario de la comunidad.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label className="text-white/80">Disciplina</Label>
-                <select
-                  value={newClass.name}
-                  onChange={(e) => setNewClass({ ...newClass, name: e.target.value })}
-                  className="bg-black border border-white/20 text-white rounded-md p-2 text-sm focus:ring-emerald-500 w-full"
-                >
-                  <option value="Boxeo">Boxeo</option>
-                  <option value="K1">K1</option>
-                  <option value="Sparring">Sparring</option>
-                </select>
+          <div className="p-8 space-y-6 relative z-10">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Disciplina</Label>
+                  <select
+                    value={newClass.name}
+                    onChange={(e) => setNewClass({ ...newClass, name: e.target.value })}
+                    className="w-full bg-white/5 border border-white/10 text-white rounded-xl h-12 px-4 transition-all focus:border-emerald-500/50 font-bold text-sm appearance-none cursor-pointer"
+                  >
+                    <option value="Boxeo" className="bg-zinc-900">Boxeo</option>
+                    <option value="K1" className="bg-zinc-900">K1</option>
+                    <option value="Sparring" className="bg-zinc-900">Sparring</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Monitor</Label>
+                  <div className="relative">
+                    <Input
+                      value={newClass.coach}
+                      onChange={(e) => setNewClass({ ...newClass, coach: e.target.value })}
+                      placeholder="Coach"
+                      className={`bg-white/5 border-white/10 h-12 focus:border-emerald-500/50 transition-all font-bold ${!isCoachValid && newClass.coach !== "" ? "border-red-500/50 bg-red-500/5" : ""}`}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label className="text-white/80">Monitor</Label>
-                <Input
-                  value={newClass.coach}
-                  onChange={(e) => setNewClass({ ...newClass, coach: e.target.value })}
-                  className={`bg-black text-white focus-visible:ring-emerald-500 ${!isCoachValid && newClass.coach !== "" ? "border-red-500" : "border-white/20"}`}
-                />
-                {!isCoachValid && newClass.coach !== "" && (
-                  <span className="text-xs text-red-500">No puede estar vacío ni contener números.</span>
-                )}
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label className="text-white/80">Fecha (Día)</Label>
-                <div className="relative">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Fecha</Label>
+                  <div className="relative">
+                    <Input
+                      ref={dateInputRef}
+                      type="date"
+                      min={localTodayISO}
+                      value={newClass.date}
+                      onChange={(e) => setNewClass({ ...newClass, date: e.target.value })}
+                      className="bg-white/5 border-white/10 h-12 pl-10 focus:border-emerald-500/50 transition-all font-bold cursor-pointer"
+                    />
+                    <CalendarDays className="absolute left-3.5 top-3.5 h-4 w-4 text-emerald-500/40 pointer-events-none" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Horario</Label>
                   <Input
-                    ref={dateInputRef}
-                    type="date"
-                    min={localTodayISO}
-                    value={newClass.date}
-                    onChange={(e) => setNewClass({ ...newClass, date: e.target.value })}
-                    className={`bg-black text-white focus-visible:ring-emerald-500 pl-10 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full cursor-pointer ${!isDateValid && newClass.date !== "" ? "border-red-500" : "border-white/20"}`}
-                  />
-                  <CalendarDays
-                    className="absolute left-3 top-2.5 h-5 w-5 text-emerald-500 pointer-events-none"
+                    placeholder="18:00 - 19:30"
+                    value={newClass.time}
+                    onChange={(e) => setNewClass({ ...newClass, time: e.target.value })}
+                    className={`bg-white/5 border-white/10 h-12 focus:border-emerald-500/50 transition-all font-bold ${(!isTimeFormatValid || !isTimeFuture) && newClass.time !== "" ? "border-red-500/50 bg-red-500/5" : ""}`}
                   />
                 </div>
-                {!isDateValid && newClass.date !== "" && (
-                  <span className="text-xs text-red-500">La fecha no puede ser en el pasado.</span>
-                )}
               </div>
-              <div className="grid gap-2">
-                <Label className="text-white/80">Franja Horaria</Label>
-                <Input
-                  placeholder="Ej: 18:00 - 19:30"
-                  value={newClass.time}
-                  onChange={(e) => setNewClass({ ...newClass, time: e.target.value })}
-                  className={`bg-black text-white focus-visible:ring-emerald-500 ${(!isTimeFormatValid || !isTimeFuture) && newClass.time !== "" ? "border-red-500" : "border-white/20"}`}
-                />
-                {!isTimeFormatValid && newClass.time !== "" && (
-                  <span className="text-xs text-red-500">Formato inválido. Usa formato: 18:00 - 19:30</span>
-                )}
-                {isTimeFormatValid && !isTimeFuture && newClass.date === localTodayISO && (
-                  <span className="text-xs text-red-500">Esa hora ya ha pasado hoy.</span>
-                )}
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Cupo Máximo</Label>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    value={newClass.capacity}
+                    onChange={(e) => setNewClass({ ...newClass, capacity: Number(e.target.value) })}
+                    className="bg-white/5 border-white/10 h-12 pl-10 focus:border-emerald-500/50 transition-all font-bold"
+                  />
+                  <Users className="absolute left-3.5 top-3.5 h-4 w-4 text-emerald-500/40 pointer-events-none" />
+                </div>
               </div>
+
+              {isDuplicate && (
+                <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl text-[11px] font-bold italic text-red-500 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>Conflicto: Ya existe una clase a esta misma hora.</span>
+                </div>
+              )}
             </div>
 
-            <div className="grid gap-2">
-              <Label className="text-white/80">Límite de Plazas (Aforo max)</Label>
-              <Input
-                type="number"
-                value={newClass.capacity}
-                onChange={(e) => setNewClass({ ...newClass, capacity: Number(e.target.value) })}
-                className="bg-black border-white/20 text-white focus-visible:ring-emerald-500"
-              />
-            </div>
-
-            {isDuplicate && (
-              <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-md text-red-500 text-sm mt-2 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4" />
-                <span>Ya existe una clase de <strong>{newClass.name}</strong> a esa misma hora y día.</span>
-              </div>
-            )}
-
+            <DialogHeader className="pt-2">
+              <Button
+                onClick={handleCreateClass}
+                disabled={isUpdating || !isNewClassFormValid}
+                className="w-full h-14 bg-white text-black hover:bg-emerald-500 hover:text-white font-black tracking-widest uppercase rounded-xl shadow-xl transition-all disabled:opacity-20"
+              >
+                {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "PUBLICAR CLASE EN CALENDARIO"}
+              </Button>
+            </DialogHeader>
           </div>
-          <DialogFooter className="mt-4 border-t border-white/10 pt-4">
-            <Button variant="ghost" onClick={() => setIsClassModalOpen(false)} className="text-white/50 hover:text-white bg-transparent">
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleCreateClass}
-              disabled={isUpdating || !isNewClassFormValid}
-              className="bg-emerald-500 text-white hover:bg-emerald-600"
-            >
-              {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Publicar Clase
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       {/* View Attendees Modal */}
       <Dialog open={isAttendeesModalOpen} onOpenChange={setIsAttendeesModalOpen}>
@@ -1652,104 +1464,164 @@ export default function AdminDashboard() {
 
       {/* Nuevo Alumno Modal */}
       <Dialog open={isNewStudentModalOpen} onOpenChange={setIsNewStudentModalOpen}>
-        <DialogContent className="bg-zinc-950 border border-white/10 text-white max-w-md w-[95vw] shadow-2xl p-6 sm:p-8">
-          <DialogTitle className="text-2xl font-bold tracking-tight">Registrar Nuevo Alumno</DialogTitle>
-          <p className="text-white/50 text-sm mb-4">
-            Añade los datos básicos. (Más adelante implementaremos el envío de invitación para crear su contraseña).
-          </p>
-          <form onSubmit={handleCreateStudent} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-white/50 uppercase tracking-widest">Nombre y Apellidos</label>
-              <Input
-                type="text"
-                required
-                maxLength={50}
-                placeholder="Paco Fernández"
-                value={newStudentForm.name}
-                onChange={(e) => setNewStudentForm({ ...newStudentForm, name: e.target.value })}
-                className="bg-white/5 border-white/10 text-white focus:border-white focus:ring-1 focus:ring-white h-12"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-white/50 uppercase tracking-widest">Correo Electrónico (ID de acceso)</label>
-              <Input
-                type="email"
-                required
-                placeholder="paco@email.com"
-                value={newStudentForm.email}
-                onChange={(e) => setNewStudentForm({ ...newStudentForm, email: e.target.value })}
-                className="bg-white/5 border-white/10 text-white focus:border-white focus:ring-1 focus:ring-white h-12"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-white/50 uppercase tracking-widest">Teléfono (WhatsApp)</label>
-              <Input
-                type="text"
-                placeholder="600123456"
-                value={newStudentForm.phone}
-                onChange={(e) => setNewStudentForm({ ...newStudentForm, phone: e.target.value })}
-                className="bg-white/5 border-white/10 text-white focus:border-white focus:ring-1 focus:ring-white h-12"
-              />
-            </div>
+        <DialogContent 
+          showCloseButton={false}
+          className="bg-zinc-950 border-white/10 text-white max-w-md w-[95vw] rounded-[2rem] overflow-hidden backdrop-blur-2xl p-0 focus:outline-none shadow-2xl"
+        >
+          <div className="absolute inset-0 bg-emerald-500/5 pointer-events-none" />
+          
+          <button 
+            onClick={() => setIsNewStudentModalOpen(false)}
+            className="absolute right-6 top-6 z-50 p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/40 hover:text-white transition-all"
+          >
+            <X className="w-4 h-4" />
+          </button>
 
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-1 block">Nivel de Experiencia Inicial</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setNewStudentForm({ ...newStudentForm, level: "Iniciación" })}
-                  className={newStudentForm.level === "Iniciación" ? "bg-white/20 hover:bg-white/30 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Iniciación
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setNewStudentForm({ ...newStudentForm, level: "Media" })}
-                  className={newStudentForm.level === "Media" ? "bg-amber-500 hover:bg-amber-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Media
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setNewStudentForm({ ...newStudentForm, level: "Profesional" })}
-                  className={newStudentForm.level === "Profesional" ? "bg-purple-500 hover:bg-purple-600 text-white border-0" : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white"}
-                >
-                  Profesional
-                </Button>
+          <DialogHeader className="p-8 pb-0 relative z-10">
+            <DialogTitle className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
+              <UserPlus className="w-6 h-6 text-emerald-400" /> Registrar Alumno
+            </DialogTitle>
+            <DialogDescription className="text-white/40 font-medium italic">
+              Añade los datos básicos para enviarle su acceso a la plataforma.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateStudent} className="p-8 space-y-6 relative z-10">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nombre</Label>
+                  <Input
+                    type="text"
+                    required
+                    maxLength={50}
+                    placeholder="Paco"
+                    value={newStudentForm.name}
+                    onChange={(e) => setNewStudentForm({ ...newStudentForm, name: e.target.value })}
+                    className="bg-white/5 border-white/10 text-white focus:border-emerald-500/50 transition-all font-bold h-12"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Apellidos</Label>
+                  <Input
+                    type="text"
+                    required
+                    maxLength={50}
+                    placeholder="Fernández"
+                    value={newStudentForm.lastName}
+                    onChange={(e) => setNewStudentForm({ ...newStudentForm, lastName: e.target.value })}
+                    className="bg-white/5 border-white/10 text-white focus:border-emerald-500/50 transition-all font-bold h-12"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Correo Electrónico</Label>
+                <Input
+                  type="email"
+                  required
+                  placeholder="paco@email.com"
+                  value={newStudentForm.email}
+                  onChange={(e) => {
+                      setNewStudentForm({ ...newStudentForm, email: e.target.value });
+                      if (newStudentEmailError) setNewStudentEmailError("");
+                  }}
+                  className={`bg-white/5 border-white/10 text-white focus:border-emerald-500/50 transition-all font-bold h-12 ${newStudentEmailError ? 'border-red-500/50 bg-red-500/5' : ''}`}
+                />
+                {newStudentEmailError && <p className="text-red-400 text-[10px] font-bold italic tracking-wider pl-1">{newStudentEmailError}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Teléfono (WhatsApp)</Label>
+                <Input
+                  type="tel"
+                  placeholder="600 000 000"
+                  value={newStudentForm.phone}
+                  onChange={(e) => {
+                      setNewStudentForm({ ...newStudentForm, phone: e.target.value });
+                      if (newStudentPhoneError) setNewStudentPhoneError("");
+                  }}
+                  className={`bg-white/5 border-white/10 text-white focus:border-emerald-500/50 transition-all font-bold h-12 ${newStudentPhoneError ? 'border-red-500/50 bg-red-500/5' : ''}`}
+                />
+                {newStudentPhoneError && <p className="text-red-400 text-[10px] font-bold italic tracking-wider pl-1">{newStudentPhoneError}</p>}
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nivel de Combate</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setNewStudentForm({ ...newStudentForm, level: "Iniciación" })}
+                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      newStudentForm.level === "Iniciación" 
+                      ? "bg-amber-500/20 border-amber-500/40 text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Iniciación
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setNewStudentForm({ ...newStudentForm, level: "Media" })}
+                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      newStudentForm.level === "Media" 
+                      ? "bg-blue-500/20 border-blue-500/40 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Media
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setNewStudentForm({ ...newStudentForm, level: "Profesional" })}
+                    className={`h-11 border transition-all font-black text-[10px] tracking-widest uppercase rounded-xl ${
+                      newStudentForm.level === "Profesional" 
+                      ? "bg-purple-500/20 border-purple-500/40 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.1)]" 
+                      : "bg-white/5 border-white/5 text-white/20 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Pro
+                  </Button>
+                </div>
               </div>
             </div>
 
             {newStudentFormError && (
-              <p className="text-sm font-medium text-red-500 bg-red-500/10 p-3 rounded-md border border-red-500/20">
+              <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-3 rounded-xl text-[11px] font-bold italic text-center">
                 {newStudentFormError}
-              </p>
+              </div>
             )}
 
-            <div className="pt-4 flex flex-col sm:flex-row gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1 bg-transparent border-white/10 text-white hover:bg-white/5"
-                onClick={() => setIsNewStudentModalOpen(false)}
-                disabled={isUpdating}
+            <DialogHeader className="pt-2">
+              <Button 
+                type="submit" 
+                disabled={isUpdating || !!newStudentEmailError || !!newStudentPhoneError}
+                className={`w-full h-14 font-black tracking-widest uppercase rounded-xl shadow-xl transition-all ${
+                    !newStudentEmailError && !newStudentPhoneError
+                    ? "bg-white text-black hover:bg-emerald-500 hover:text-white" 
+                    : "bg-white/5 text-white/20 cursor-not-allowed border-white/5 opacity-50"
+                }`}
               >
-                Cancelar
+                {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "REGISTRAR Y ENVIAR ACCESO"}
               </Button>
-              <Button
-                type="submit"
-                className="flex-1 bg-white text-black hover:bg-neutral-200 disabled:opacity-50"
-                disabled={isUpdating || !isNewStudentFormValid}
-              >
-                {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Registrar Alumno
-              </Button>
-            </div>
+            </DialogHeader>
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmModal 
+        isOpen={modalConfig.isOpen}
+        onOpenChange={(open) => setModalConfig(prev => ({ ...prev, isOpen: open }))}
+        title={modalConfig.title}
+        description={modalConfig.description}
+        variant={modalConfig.variant}
+        onConfirm={modalConfig.onConfirm}
+        showCancel={modalConfig.showCancel}
+        confirmText={modalConfig.confirmText}
+      />
     </div>
   );
 }

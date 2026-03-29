@@ -1,0 +1,10 @@
+{
+    "name": "invite-student-onboarding",
+    "version": "1.0.0",
+    "description": "Securely creates an Appwrite user and sends an invitation email based on profile creation.",
+    "main": "src/main.js",
+    "dependencies": {
+        "node-appwrite": "^13.0.0",
+        "resend": "^3.2.0"
+    }
+}
