@@ -31,8 +31,9 @@ export async function createAdminClient() {
 
 
   if (!apiKey) {
-    throw new Error("Configuración incompleta: APPWRITE_KEY no encontrada.");
+    throw new Error("Configuración incompleta: No se han encontrado las claves de acceso de Appwrite (APPWRITE_API_KEY / APPWRITE_KEY).");
   }
+
 
   const client = new Client()
     .setEndpoint(endpoint)
