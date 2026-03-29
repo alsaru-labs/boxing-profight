@@ -29,15 +29,11 @@ export async function setPasswordWithToken(token: string, password: string, conf
   }
 
   const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-  const apiKey = process.env.NEXT_PUBLIC_DEBUG_APPWRITE_KEY || process.env.APP_SECRET_APPWRITE_KEY; // Testing prefix
+  const apiKey = process.env.APPWRITE_API_KEY || process.env.NEXT_PUBLIC_DEBUG_APPWRITE_KEY;
   const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://fra.cloud.appwrite.io/v1";
 
-  const envKeys = Object.keys(process.env).filter(k => k.includes("APPWRITE") || k.includes("SECRET") || k.includes("DEBUG"));
-  console.log(`[DEBUG] setPassword -> Project: ${projectId?.slice(0, 6)}... | KeyLen: ${apiKey?.length || 0} | Start: ${apiKey?.slice(0, 10)}...`);
-  console.log(`[DEBUG] Available Keys: ${envKeys.join(", ")}`);
-
   if (!projectId || !apiKey) {
-    return { success: false, error: "Servidor desconfigurado: Faltan claves de acceso (DEBUG/SECRET)." };
+    return { success: false, error: "Servidor desconfigurado: Clave de acceso no encontrada." };
   }
 
   // 1. Initialize Server SDK
