@@ -11,7 +11,7 @@ import {
   COLLECTION_REVENUE, 
   COLLECTION_BOOKINGS 
 } from "@/lib/appwrite";
-import { directCreateStudent } from "../actions";
+import { directCreateStudent, createClassServer } from "../actions";
 
 interface UseAdminActionsProps {
   studentsList: any[];
@@ -169,18 +169,15 @@ export function useAdminActions({
   const handleCreateClass = async (newClass: any) => {
     try {
       setIsUpdating(true);
-      const created = await databases.createDocument(DATABASE_ID, COLLECTION_CLASSES, ID.unique(), {
-        name: newClass.name,
-        date: newClass.date,
-        time: newClass.time,
-        coach: newClass.coach,
-        capacity: Number(newClass.capacity),
-        registeredCount: 0,
-        status: "Activa"
-      });
-
-      setClassesList([...classesList, created].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
-      return true;
+      const result = await createClassServer(newClass);
+      
+      if (result.success && result.class) {
+        setClassesList([...classesList, result.class].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+        return true;
+      } else {
+        console.error("Error creating class:", result.error);
+        return false;
+      }
     } catch (error) {
       console.error(error);
       return false;

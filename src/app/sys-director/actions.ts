@@ -145,7 +145,7 @@ export async function directCreateStudent(form: any) {
         );
 
         console.log(`[BACKDOOR] Profile ${profile.$id} linked to Auth.`);
-        return { success: true, profile };
+        return JSON.parse(JSON.stringify({ success: true, profile }));
 
     } catch (error: any) {
         console.error("[BACKDOOR] Failed to create student directly:", error);
@@ -172,6 +172,33 @@ export async function deleteAnnouncement(id: string) {
         return { success: true };
     } catch (error: any) {
         console.error("Error deleting announcement:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Create a new class (Server Side)
+ */
+export async function createClassServer(newClass: any) {
+    const { databases } = await createAdminClient();
+    try {
+        const created = await databases.createDocument(
+            DATABASE_ID,
+            COLLECTION_CLASSES,
+            sdk.ID.unique(),
+            {
+                name: newClass.name,
+                date: newClass.date,
+                time: newClass.time,
+                coach: newClass.coach,
+                capacity: Number(newClass.capacity),
+                registeredCount: 0,
+                status: "Activa"
+            }
+        );
+        return JSON.parse(JSON.stringify({ success: true, class: created }));
+    } catch (error: any) {
+        console.error("Error creating class server-side:", error);
         return { success: false, error: error.message };
     }
 }

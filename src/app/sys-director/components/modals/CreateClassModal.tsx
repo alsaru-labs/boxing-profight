@@ -15,24 +15,45 @@ interface CreateClassModalProps {
   classesList: any[];
 }
 
-export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, classesList }: CreateClassModalProps) {
-  const [newClass, setNewClass] = useState({ name: "Boxeo", date: "", time: "18:00 - 19:30", coach: "Álex Pintor", capacity: 30 });
-  const dateInputRef = useRef<HTMLInputElement>(null);
+const TIME_SLOTS = [
+  "09:00 - 10:00", "10:00 - 11:00", "11:00 - 12:00", "12:00 - 13:00",
+  "17:00 - 18:00", "18:00 - 19:00", "19:00 - 20:00", "20:00 - 21:00", "21:00 - 22:00"
+];
 
-  useEffect(() => {
-    if (isOpen) {
-      setNewClass({ name: "Boxeo", date: "", time: "18:00 - 19:30", coach: "Álex Pintor", capacity: 30 });
-    }
-  }, [isOpen]);
+export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, classesList }: CreateClassModalProps) {
+  const [newClass, setNewClass] = useState({ name: "Boxeo", date: "", time: "18:00 - 19:00", coach: "Álex Pintor", capacity: 30 });
+  const dateInputRef = useRef<HTMLInputElement>(null);
 
   const tzOffset = (new Date()).getTimezoneOffset() * 60000;
   const localTodayISO = new Date(Date.now() - tzOffset).toISOString().split('T')[0];
+  const now = new Date();
+  const currentHour = now.getHours();
+
+  useEffect(() => {
+    if (isOpen) {
+      const tzOffset = (new Date()).getTimezoneOffset() * 60000;
+      const today = new Date(Date.now() - tzOffset).toISOString().split('T')[0];
+      const hour = new Date().getHours();
+
+      // Pick the next logical slot (at least 1 hour in the future)
+      const smartDefault = TIME_SLOTS.find(slot => {
+        const slotHour = parseInt(slot.split(':')[0]);
+        return slotHour >= hour + 1;
+      }) || "18:00 - 19:00";
+
+      setNewClass(prev => ({ ...prev, date: today, time: smartDefault }));
+    }
+  }, [isOpen]);
 
   const isDuplicate = classesList.some(cls =>
     cls.name === newClass.name &&
     cls.date.substring(0, 10) === newClass.date &&
     cls.time.trim() === newClass.time.trim()
   );
+
+  // Validation: Check if selected time is in the past for today
+  const selectedStartHour = parseInt(newClass.time.split(':')[0]);
+  const isPastTime = newClass.date === localTodayISO && selectedStartHour <= currentHour;
 
   const handleSubmit = async () => {
     const success = await onSave(newClass);
@@ -106,12 +127,15 @@ export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, cla
               </div>
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Horario</Label>
-                <Input
-                  placeholder="18:00 - 19:30"
+                <select
                   value={newClass.time}
                   onChange={(e) => setNewClass({ ...newClass, time: e.target.value })}
-                  className="bg-white/5 border-white/10 h-12 focus:border-emerald-500/50 transition-all font-bold"
-                />
+                  className="w-full bg-white/5 border border-white/10 text-white rounded-xl h-12 px-4 transition-all focus:border-emerald-500/50 font-bold text-sm appearance-none cursor-pointer"
+                >
+                  {TIME_SLOTS.map(slot => (
+                    <option key={slot} value={slot} className="bg-zinc-900">{slot}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -128,10 +152,12 @@ export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, cla
               </div>
             </div>
 
-            {isDuplicate && (
+            {(isDuplicate || isPastTime) && (
               <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl text-[11px] font-bold italic text-red-500 flex items-center gap-2">
                 <AlertCircle className="w-4 h-4" />
-                <span>Conflicto: Ya existe una clase a esta misma hora.</span>
+                <span>
+                  {isDuplicate ? "Conflicto: Ya existe una clase a esta misma hora." : "Error: No puedes programar clases en el pasado."}
+                </span>
               </div>
             )}
           </div>
@@ -140,7 +166,7 @@ export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, cla
             <Button
               size="xl"
               onClick={handleSubmit}
-              disabled={isUpdating || isDuplicate || !newClass.date || !newClass.time}
+              disabled={isUpdating || isDuplicate || isPastTime || !newClass.date || !newClass.time}
               className="w-full bg-white text-black hover:bg-emerald-500 hover:text-white font-black tracking-widest uppercase rounded-xl shadow-xl transition-all disabled:opacity-20"
             >
               {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "PUBLICAR CLASE EN CALENDARIO"}
