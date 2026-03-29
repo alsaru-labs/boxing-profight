@@ -27,13 +27,12 @@ export async function createSessionClient() {
 export async function createAdminClient() {
   const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://fra.cloud.appwrite.io/v1";
   const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!;
-  const apiKey = process.env.APPWRITE_API_KEY || process.env.APPWRITE_KEY;
-
+  // Priorizamos el nuevo nombre personalizado para evadir bloqueos de Netlify
+  const apiKey = process.env.BOXING_AWR_KEY || process.env.APPWRITE_API_KEY || process.env.APPWRITE_KEY;
 
   if (!apiKey) {
-    throw new Error("Configuración incompleta: No se han encontrado las claves de acceso de Appwrite (APPWRITE_API_KEY / APPWRITE_KEY).");
+    throw new Error("Configuración incompleta: No se han encontrado las claves de acceso de Appwrite (BOXING_AWR_KEY / APPWRITE_API_KEY).");
   }
-
 
   const client = new Client()
     .setEndpoint(endpoint)
@@ -50,5 +49,18 @@ export async function createAdminClient() {
     get users() {
       return new Users(client);
     },
+  };
+}
+
+/**
+ * Diagnostic helper to safely check if the server is correctly configured.
+ */
+export async function getAppwriteConfigStatus() {
+  const key = process.env.BOXING_AWR_KEY || process.env.APPWRITE_API_KEY || process.env.APPWRITE_KEY;
+  return {
+    hasProjectId: !!process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID,
+    hasApiKey: !!key,
+    apiKeyLength: key?.length || 0,
+    endpoint: process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://fra.cloud.appwrite.io/v1",
   };
 }
