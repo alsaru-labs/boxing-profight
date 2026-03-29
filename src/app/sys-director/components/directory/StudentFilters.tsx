@@ -23,6 +23,8 @@ interface StudentFiltersProps {
   sortConfig: any;
   setSortConfig: (config: any) => void;
   setVisibleCount: (count: number | ((prev: number) => number)) => void;
+  filterStatus: string;
+  setFilterStatus: (value: string) => void;
 }
 
 export function StudentFilters({
@@ -34,7 +36,9 @@ export function StudentFilters({
   setFilterLevel,
   sortConfig,
   setSortConfig,
-  setVisibleCount
+  setVisibleCount,
+  filterStatus,
+  setFilterStatus
 }: StudentFiltersProps) {
   return (
     <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between mb-6 gap-4">
@@ -84,6 +88,21 @@ export function StudentFilters({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Filter Status */}
+          <div className="flex-1 sm:w-40 space-y-1">
+            <span className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Estado</span>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-full h-10">
+                <SelectValue placeholder="Activos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Todos">Todos</SelectItem>
+                <SelectItem value="Activos">Activos</SelectItem>
+                <SelectItem value="Bajas">Bajas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Reset Filters */}
@@ -94,6 +113,7 @@ export function StudentFilters({
               setSearchTerm("");
               setFilterPayment("Todos");
               setFilterLevel("Todos");
+              setFilterStatus("Activos");
               setSortConfig(null);
               setVisibleCount(30);
             }}

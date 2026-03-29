@@ -14,21 +14,20 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
         return { success: false, error: "Faltan identificadores para realizar la baja." };
     }
 
-    // 1. Initialize Server SDK
     const { databases, users } = await createAdminClient();
 
-
     try {
-        // 2. Delete from Auth (Primary Action)
-        // If the user doesn't exist in Auth (e.g., deleted manually), we proceed with profile deletion
+        // 1. Delete from Auth (Primary Action)
+        // This prevents the user from logging in ever again.
         try {
             await users.delete(userId);
-            console.log(`[ACL] User deleted from Auth: ${userId}`);
+            console.log(`[SYS-DIRECTOR] User blocked from Auth: ${userId}`);
         } catch (authError: any) {
-            console.warn(`[ACL] Auth removal skipped (User not found or already deleted): ${authError.message}`);
+            console.warn(`[SYS-DIRECTOR] Auth removal skipped: ${authError.message}`);
         }
 
-        // 3. Delete all student Bookings and LIBERATE class spots
+        // 2. Cleanup FUTURE Bookings and LIBERATE spots
+        // We only want to remove them from future classes, keeping history.
         try {
             const bookingsList = await databases.listDocuments(
                 DATABASE_ID,
@@ -37,63 +36,56 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
             );
 
             if (bookingsList.total > 0) {
-                // We clean each booking and update the associated class count
+                const now = new Date();
+                
                 for (const booking of bookingsList.documents) {
                     try {
-                        // 3.1 Decrement registeredCount in the Class document
-                        if (booking.class_id) {
-                            try {
-                                const classDoc = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, booking.class_id);
-                                await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, booking.class_id, {
-                                    registeredCount: Math.max(0, (classDoc.registeredCount || 1) - 1)
-                                });
-                            } catch (classFetchError) {
-                                console.warn(`[ACL] Class ${booking.class_id} not found, skipping capacity update.`);
-                            }
+                        // Check if the class is in the future
+                        const classDoc = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, booking.class_id);
+                        const [year, month, day] = classDoc.date.substring(0, 10).split("-").map(Number);
+                        const startTime = classDoc.time.split('-')[0].trim();
+                        const [hours, minutes] = startTime.split(":").map(Number);
+                        const classDateTime = new Date(year, month - 1, day, hours, minutes);
+
+                        if (classDateTime > now) {
+                            // LIBERATE spot
+                            await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, booking.class_id, {
+                                registeredCount: Math.max(0, (classDoc.registeredCount || 1) - 1)
+                            });
+                            // DELETE future booking
+                            await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id);
                         }
-                        
-                        // 3.2 Delete the Booking document
-                        await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id);
+                        // Past bookings are KEPT for history as requested.
                     } catch (itemError) {
-                        console.warn(`[ACL] Failed to cleanup single booking ${booking.$id}:`, itemError);
+                        console.warn(`[SYS-DIRECTOR] Cleanup skipped for booking ${booking.$id}:`, itemError);
                     }
                 }
-                console.log(`[ACL] Cleaned up ${bookingsList.total} bookings and updated class capacities.`);
             }
         } catch (bookingCleanupError) {
-            console.warn("[ACL] Booking cleanup general warning:", bookingCleanupError);
+            console.warn("[SYS-DIRECTOR] Booking cleanup limited warning:", bookingCleanupError);
         }
 
-        // 4. Delete from Database Profiles
-        await databases.deleteDocument(DATABASE_ID, COLLECTION_PROFILES, profileId);
-        console.log(`[ACL] Profile document deleted: ${profileId}`);
+        // 3. Mark Profile as INACTIVE (Soft Delete)
+        // We change 'is_active' and 'status' instead of deleting the document.
+        // This keeps the Name and Email linked to past classes and payments.
+        await databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, profileId, {
+            is_active: false,
+            status: "Baja",
+            is_paid: false // They stop paying from now on
+        });
+        console.log(`[SYS-DIRECTOR] Profile marked as 'Baja': ${profileId}`);
 
-        // 5. Cleanup Invitation Tokens
+        // 4. Cleanup Invitation Tokens (No longer needed)
         try {
-            const tokensList = await databases.listDocuments(
-                DATABASE_ID,
-                COLLECTION_INVITATION_TOKENS,
-                [sdk.Query.equal("user_id", userId)]
-            );
-            if (tokensList.total > 0) {
-                await Promise.all(tokensList.documents.map(t => 
-                    databases.deleteDocument(DATABASE_ID, COLLECTION_INVITATION_TOKENS, t.$id)
-                ));
-                console.log(`[ACL] Cleaned up ${tokensList.total} invitation tokens.`);
-            }
-        } catch (tokenCleanupError) {
-            console.warn("[ACL] Invitation token cleanup failed, but main deletion succeeded.");
-        }
-
+            const tokensList = await databases.listDocuments(DATABASE_ID, COLLECTION_INVITATION_TOKENS, [sdk.Query.equal("user_id", userId)]);
+            await Promise.all(tokensList.documents.map(t => databases.deleteDocument(DATABASE_ID, COLLECTION_INVITATION_TOKENS, t.$id)));
+        } catch (e) {}
 
         return { success: true };
 
     } catch (error: any) {
-        console.error("[ACL] Failed to delete student account:", error);
-        return { 
-            success: false, 
-            error: "Error técnico al procesar la baja. Asegúrate de tener permisos de administrador." 
-        };
+        console.error("[SYS-DIRECTOR] Failed to process student baja:", error);
+        return { success: false, error: "Error al tramitar la baja del alumno." };
     }
 }
 

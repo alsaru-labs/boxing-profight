@@ -122,7 +122,9 @@ export function ClassGrid({
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
-                                    {groupedByDate[dateKey].map((cls) => {
+                                    {groupedByDate[dateKey]
+                                        .sort((a, b) => a.time.localeCompare(b.time))
+                                        .map((cls) => {
                                         const isFull = cls.registeredCount >= cls.capacity;
 
                                         // Determine if class has passed (for admin grayscale)

@@ -36,9 +36,11 @@ export function useAdminData() {
         databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS, [Query.orderDesc("createdAt"), Query.limit(20)])
       ]);
 
-      const allStudents = profilesData.documents.filter((s: any) => s.role !== "admin");
+      const allProfiles = profilesData.documents.filter((s: any) => s.role !== "admin");
+      // All active students for management
+      const activeStudents = allProfiles.filter((s: any) => s.status !== "Baja" && s.is_active !== false);
       
-      setTotalStudents(allStudents.length);
+      setTotalStudents(activeStudents.length);
       setClassesList(classesData.documents);
       setAnnouncements(announcementsData.documents);
 
@@ -56,9 +58,9 @@ export function useAdminData() {
         console.error("Revenue fetch error:", e);
       }
 
-      const paidStudentsCount = allStudents.filter((s: any) => s.is_paid === true).length;
-      setUnpaidCount(allStudents.length - paidStudentsCount);
-      setStudentsList(allStudents);
+      const paidStudentsCount = activeStudents.filter((s: any) => s.is_paid === true).length;
+      setUnpaidCount(activeStudents.length - paidStudentsCount);
+      setStudentsList(allProfiles); // Pass all profiles to studentsList, but directory will filter them
       setLoading(false);
     } catch (error) {
       console.error("Dashboard load error:", error);

@@ -106,6 +106,10 @@ export default function BookingsPage() {
                         const classDateTime = new Date(year, month - 1, day, hours, minutes);
                         return classDateTime >= now && classDateTime.getTime() <= now.getTime() + msIn7Days;
                     } catch { return false; }
+                }).sort((a, b) => {
+                    const dateComp = new Date(a.date).getTime() - new Date(b.date).getTime();
+                    if (dateComp !== 0) return dateComp;
+                    return a.time.localeCompare(b.time);
                 });
                 setAvailableClasses(validUpcomingClasses);
                 setLoading(false);

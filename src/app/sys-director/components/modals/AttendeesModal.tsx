@@ -70,7 +70,12 @@ export function AttendeesModal({ isOpen, onOpenChange, selectedClass, allStudent
                       <AvatarFallback className="bg-zinc-800 text-white font-bold">{student.name.substring(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-bold text-white text-sm">{student.name}</p>
+                      <p className="font-bold text-white text-sm flex items-center gap-1.5">
+                        {student.name}
+                        {(student.status === 'Baja' || student.is_active === false) && (
+                          <span className="text-[9px] text-white/30 font-black uppercase tracking-tighter">(Baja)</span>
+                        )}
+                      </p>
                       <p className="text-xs text-white/50">{student.email}</p>
                     </div>
                   </div>

@@ -147,7 +147,11 @@ export default function AdminDashboard() {
         const classDateTime = new Date(year, month - 1, day, hours, minutes);
         return classDateTime >= now && classDateTime.getTime() <= now.getTime() + (7 * 24 * 60 * 60 * 1000);
       } catch { return false; }
-  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }).sort((a, b) => {
+    const dateComp = new Date(a.date).getTime() - new Date(b.date).getTime();
+    if (dateComp !== 0) return dateComp;
+    return a.time.localeCompare(b.time); // "09:00" vs "10:00" etc
+  });
 
   const recentPastClasses = [...classesList].filter(cls => {
       try {
@@ -157,7 +161,11 @@ export default function AdminDashboard() {
         const classDateTime = new Date(year, month - 1, day, hours, minutes);
         return classDateTime < now && classDateTime.getTime() >= now.getTime() - (30 * 24 * 60 * 60 * 1000);
       } catch { return false; }
-  }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }).sort((a, b) => {
+    const dateComp = new Date(b.date).getTime() - new Date(a.date).getTime();
+    if (dateComp !== 0) return dateComp;
+    return b.time.localeCompare(a.time);
+  });
 
   return (
     <div className="dark min-h-screen bg-black text-white font-sans flex flex-col relative w-full">

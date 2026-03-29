@@ -49,12 +49,17 @@ export function StudentDesktopRow({
   return (
     <TableRow className="border-white/5 hover:bg-white/[0.04] transition-all duration-300 group/row ease-out rounded-xl overflow-hidden shadow-none hover:shadow-xl hover:shadow-black/20">
       <TableCell className="font-medium pl-6 py-3">
-        <div className="flex items-center space-x-3">
+        <div className={`flex items-center space-x-3 ${(student.status === 'Baja' || student.is_active === false) ? 'opacity-50 grayscale' : ''}`}>
           <div className="h-9 w-9 rounded-full bg-white/5 flex items-center justify-center border border-white/5 text-[10px] font-black">
             {(student.name?.[0] || "") + (student.last_name?.[0] || "")}
           </div>
           <div>
-            <p className="text-white font-bold leading-tight">{student.name} {student.last_name || ""}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-white font-bold leading-tight">{student.name} {student.last_name || ""}</p>
+              {(student.status === 'Baja' || student.is_active === false) && (
+                <Badge variant="outline" className="bg-zinc-500/10 text-zinc-500 border-zinc-500/20 text-[8px] h-4 font-black px-1.5 uppercase tracking-tighter">Baja</Badge>
+              )}
+            </div>
             <p className="text-white/30 text-[10px] tracking-tight">{student.email}</p>
           </div>
         </div>
@@ -154,7 +159,7 @@ export function StudentDesktopRow({
                       try {
                         const result = await deleteStudentAccount(student.$id, student.user_id);
                         if (result.success) {
-                          setStudentsList(prev => prev.filter(s => s.$id !== student.$id));
+                          setStudentsList(prev => prev.map(s => s.$id === student.$id ? { ...s, status: "Baja", is_active: false } : s));
                           showAlert("Éxito", "Alumno dado de baja.", "success");
                         } else {
                           showAlert("Error", result.error || "No se pudo eliminar.", "danger");

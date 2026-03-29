@@ -64,7 +64,7 @@ export function StudentMobileCard({
             )}
           </div>
 
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center flex-wrap gap-2 mb-1">
             <Badge
               variant="outline"
               className={`
@@ -77,12 +77,15 @@ export function StudentMobileCard({
             >
               {student.is_paid ? "PAGADO" : "PENDIENTE"}
             </Badge>
+            {(student.status === 'Baja' || student.is_active === false) && (
+              <Badge variant="outline" className="bg-zinc-500/10 text-zinc-500 border-zinc-500/20 text-[8px] h-4 font-black px-1.5 uppercase tracking-tighter">Baja</Badge>
+            )}
           </div>
 
-          <h3 className="text-white font-bold leading-tight text-base tracking-tight mb-0.5 break-words whitespace-normal">
+          <h3 className={`text-white font-bold leading-tight text-base tracking-tight mb-0.5 break-words whitespace-normal ${(student.status === 'Baja' || student.is_active === false) ? 'opacity-50' : ''}`}>
             {student.name} {student.last_name || ""}
           </h3>
-          <p className="text-white/30 text-[10px] truncate font-medium">
+          <p className={`text-white/30 text-[10px] truncate font-medium ${(student.status === 'Baja' || student.is_active === false) ? 'opacity-30' : ''}`}>
             {student.email}
           </p>
         </div>
@@ -124,7 +127,12 @@ export function StudentMobileCard({
                       `¿Seguro borrar a ${student.name}?`,
                       async () => {
                         const res = await deleteStudentAccount(student.$id, student.user_id);
-                        if (res.success) setStudentsList(p => p.filter(s => s.$id !== student.$id));
+                        if (res.success) {
+                          setStudentsList(prev => prev.map(s => s.$id === student.$id ? { ...s, status: "Baja", is_active: false } : s));
+                          showAlert("Éxito", "Alumno dado de baja.", "success");
+                        } else {
+                          showAlert("Error", res.error || "No se pudo dar de baja", "danger");
+                        }
                       },
                       "danger"
                     );
