@@ -10,7 +10,8 @@ export async function GET(request: Request) {
     // 1. Security Check (Optional but recommended)
     // You should set a CRON_SECRET in your environment variables to prevent unauthorized calls.
     const authHeader = request.headers.get('authorization');
-    if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    const secret = process.env.CRON_SECRET;
+    if (!secret || authHeader !== `Bearer ${secret}`) {
         return new NextResponse("Unauthorized", { status: 401 });
     }
 
