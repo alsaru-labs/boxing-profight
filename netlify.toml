@@ -12,5 +12,8 @@
 [functions."api/cron/generate-classes"]
   schedule = "0 0 * * 6" # Todos los sábados a medianoche (00:00)
 
+[functions."api/cron/revenue-sync"]
+  schedule = "0 0 1 * *" # El día 1 de cada mes a medianoche (00:00)
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"

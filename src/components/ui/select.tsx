@@ -47,19 +47,28 @@ function SelectTrigger({
 function SelectContent({
   className,
   children,
-  sideOffset = 4,
+  side = "bottom",
+  sideOffset = 8,
+  align = "start",
   ...props
-}: SelectPrimitive.Popup.Props & { sideOffset?: number }) {
+}: SelectPrimitive.Popup.Props & { 
+  side?: "top" | "bottom" | "left" | "right"
+  align?: "start" | "center" | "end"
+  sideOffset?: number 
+}) {
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
-        className="z-50 outline-none"
+        className="z-50 isolate outline-none"
+        side={side}
         sideOffset={sideOffset}
+        align={align}
+        alignItemWithTrigger={false}
       >
         <SelectPrimitive.Popup
           data-slot="select-content"
           className={cn(
-            "relative z-50 max-h-96 min-w-[8rem] overflow-y-auto custom-scrollbar rounded-xl border border-white/10 bg-zinc-900/95 text-white shadow-2xl backdrop-blur-2xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+            "relative z-50 max-h-96 w-(--anchor-width) min-w-[8rem] overflow-y-auto custom-scrollbar rounded-xl border border-white/10 bg-zinc-900/95 text-white shadow-2xl backdrop-blur-2xl origin-(--transform-origin) data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
             "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
             className
           )}

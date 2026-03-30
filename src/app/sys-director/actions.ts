@@ -1,7 +1,7 @@
 "use server";
 
 import * as sdk from "node-appwrite";
-import { DATABASE_ID, COLLECTION_PROFILES, COLLECTION_INVITATION_TOKENS, COLLECTION_BOOKINGS, COLLECTION_CLASSES, COLLECTION_NOTIFICATIONS } from "@/lib/appwrite";
+import { DATABASE_ID, COLLECTION_PROFILES, COLLECTION_INVITATION_TOKENS, COLLECTION_BOOKINGS, COLLECTION_CLASSES, COLLECTION_NOTIFICATIONS, COLLECTION_REVENUE } from "@/lib/appwrite";
 import { createAdminClient } from "@/lib/server/appwrite";
 
 /**
@@ -202,6 +202,150 @@ export async function autoGenerateNextWeekClasses() {
     } catch (error: any) {
         console.error("[AUTO-GEN] Critical failure during week generation:", error);
         return { success: false, error: "Error sistémico al generar la semana." };
+    }
+}
+
+/**
+ * Fetch all revenue records for historical view
+ */
+export async function getAllRevenueRecords() {
+    const { databases } = await createAdminClient();
+    try {
+        const revenue = await databases.listDocuments(
+            DATABASE_ID,
+            COLLECTION_REVENUE,
+            [sdk.Query.limit(5000), sdk.Query.orderDesc("month")]
+        );
+        return { success: true, documents: JSON.parse(JSON.stringify(revenue.documents)) };
+    } catch (error: any) {
+        console.error("Error fetching all revenue:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+
+/**
+ * Ensures a revenue record exists for the current month AND resets all pupil payment statuses.
+ * 1. Creates document for "YYYY-MM" if missing.
+ * 2. Sets is_paid: false for all non-admin profiles.
+ */
+export async function ensureMonthlyRevenueRecord() {
+    try {
+        const { databases } = await createAdminClient();
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, "0");
+        const monthKey = `${year}-${month}`;
+
+        let syncSummary = "";
+
+        // --- SECTION 1: REVENUE RECORD ---
+        const existing = await databases.listDocuments(
+            DATABASE_ID,
+            COLLECTION_REVENUE,
+            [sdk.Query.equal("month", monthKey)]
+        );
+
+        if (existing.total === 0) {
+            console.log(`[REVENUE-SYNC] Initializing ${monthKey}...`);
+            await databases.createDocument(
+                DATABASE_ID,
+                COLLECTION_REVENUE,
+                sdk.ID.unique(),
+                { month: monthKey, amount: 0, year: String(year) }
+            );
+            syncSummary += `Record created for ${monthKey}. `;
+        } else {
+            syncSummary += `Record already exists for ${monthKey}. `;
+        }
+
+        // --- SECTION 2: STUDENT PAYMENT RESET ---
+        console.log(`[REVENUE-SYNC] Starting monthly payment reset for all students...`);
+        let offset = 0;
+        const limit = 100;
+        let totalReset = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+            const batch = await databases.listDocuments(
+                DATABASE_ID,
+                COLLECTION_PROFILES,
+                [sdk.Query.limit(limit), sdk.Query.offset(offset)]
+            );
+
+            const studentsToReset = batch.documents.filter(p => p.role !== "admin" && p.is_paid !== false);
+            
+            if (studentsToReset.length > 0) {
+                await Promise.all(
+                    studentsToReset.map(p => 
+                        databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, p.$id, { is_paid: false })
+                    )
+                );
+                totalReset += studentsToReset.length;
+                console.log(`[REVENUE-SYNC] Reset ${totalReset} students so far...`);
+            }
+
+            if (batch.documents.length < limit) {
+                hasMore = false;
+            } else {
+                offset += limit;
+            }
+        }
+
+        syncSummary += `Payment status reset for ${totalReset} students.`;
+        return { success: true, message: syncSummary };
+
+    } catch (error: any) {
+        console.error("[REVENUE-SYNC] Global failure:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Bulk updates all non-admin profiles to set is_paid: true.
+ * Useful for administrative resets or collective payment management.
+ */
+export async function markAllStudentsAsPaid() {
+    try {
+        const { databases } = await createAdminClient();
+        
+        console.log(`[BULK-PAID] Starting bulk payment update (Paid)...`);
+        let offset = 0;
+        const limit = 100;
+        let totalUpdated = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+            const batch = await databases.listDocuments(
+                DATABASE_ID,
+                COLLECTION_PROFILES,
+                [sdk.Query.limit(limit), sdk.Query.offset(offset)]
+            );
+
+            const toUpdate = batch.documents.filter(p => p.role !== "admin" && p.is_paid !== true);
+            
+            if (toUpdate.length > 0) {
+                await Promise.all(
+                    toUpdate.map(p => 
+                        databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, p.$id, { is_paid: true })
+                    )
+                );
+                totalUpdated += toUpdate.length;
+                console.log(`[BULK-PAID] Marked ${totalUpdated} students as paid...`);
+            }
+
+            if (batch.documents.length < limit) {
+                hasMore = false;
+            } else {
+                offset += limit;
+            }
+        }
+
+        return { success: true, message: `Se han marcado ${totalUpdated} alumnos como pagados.` };
+
+    } catch (error: any) {
+        console.error("[BULK-PAID] Error:", error);
+        return { success: false, error: error.message };
     }
 }
 
