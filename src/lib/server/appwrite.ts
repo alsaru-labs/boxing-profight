@@ -1,13 +1,12 @@
 import { Client, Account, Databases, Users } from "node-appwrite";
 import { cookies } from "next/headers";
+import { PROJECT_ID, ENDPOINT, getRequiredServerEnv } from "@/lib/appwrite";
 
 /**
- * Los valores públicos (Project ID y Endpoint) los hardcodeamos aquí al igual que 
- * en src/lib/appwrite.ts para reducir la dependencia de variables de entorno 
- * que puedan fallar en Netlify.
+ * Appwrite Configuration (Server & Admin) - Validadas estricto
  */
-const PUBLIC_PROJECT_ID = "69af4c53003151ed5830";
-const PUBLIC_ENDPOINT = "https://fra.cloud.appwrite.io/v1";
+const PUBLIC_PROJECT_ID = PROJECT_ID;
+const PUBLIC_ENDPOINT = ENDPOINT;
 
 export async function createSessionClient() {
   const client = new Client()
@@ -33,16 +32,11 @@ export async function createSessionClient() {
 }
 
 export async function createAdminClient() {
-  // 🥊 Diagnóstico de visibilidad de variables en el Servidor
-  const envKeys = Object.keys(process.env).filter(k => 
-    k.includes("AWR") || k.includes("APPWRITE") || k.includes("BOXING") || k.includes("NEXT_")
-  );
-  console.log(`[ACL-DEBUG] Servidor detecta estas variables: ${envKeys.join(", ")}`);
-
-  const apiKey = process.env.NEXT_BOXING_AWR_KEY || process.env.BOXING_AWR_KEY || process.env.APPWRITE_API_KEY;
+  // 🥊 Buscamos primero la clave que Netlify prefiere, luego la estándar
+  const apiKey = process.env.NEXT_BOXING_AWR_KEY || process.env.APPWRITE_API_KEY;
 
   if (!apiKey) {
-    throw new Error(`Configuración incompleta: No se han encontrado claves SECRETAS en el servidor. Variables detectadas: ${envKeys.join(", ")}`);
+    throw new Error("CRÍTICO: No se han encontrado claves SECRETAS en el servidor (Falta NEXT_BOXING_AWR_KEY o APPWRITE_API_KEY). Revisa la configuración en Netlify.");
   }
 
   const client = new Client()
@@ -67,12 +61,12 @@ export async function createAdminClient() {
  * Diagnostic helper to safely check if the server is correctly configured.
  */
 export async function getAppwriteConfigStatus() {
-  const keyUsed = process.env.NEXT_BOXING_AWR_KEY || process.env.BOXING_AWR_KEY || process.env.APPWRITE_API_KEY;
+  const apiKey = process.env.NEXT_BOXING_AWR_KEY || process.env.APPWRITE_API_KEY;
   return {
     hasProjectId: !!PUBLIC_PROJECT_ID,
-    hasApiKey: !!keyUsed,
-    apiKeyLength: keyUsed?.length || 0,
-    apiKeyPrefixName: !!process.env.NEXT_BOXING_AWR_KEY ? "NEXT_BOXING" : !!process.env.BOXING_AWR_KEY ? "BOXING" : "APPWRITE",
+    hasApiKey: !!apiKey,
+    apiKeyLength: apiKey?.length || 0,
+    apiKeyNameUsed: !!process.env.NEXT_BOXING_AWR_KEY ? "NEXT_BOXING_AWR_KEY" : "APPWRITE_API_KEY",
     endpoint: PUBLIC_ENDPOINT,
     allRelevantKeys: Object.keys(process.env).filter(k => 
       k.includes("AWR") || k.includes("APPWRITE") || k.includes("BOXING") || k.includes("NEXT_")
