@@ -25,6 +25,7 @@ interface StudentFiltersProps {
   setVisibleCount: (count: number | ((prev: number) => number)) => void;
   filterMethod: string;
   setFilterMethod: (value: string) => void;
+  totalResults: number;
 }
 
 export function StudentFilters({
@@ -38,23 +39,46 @@ export function StudentFilters({
   setSortConfig,
   setVisibleCount,
   filterMethod,
-  setFilterMethod
+  setFilterMethod,
+  totalResults
 }: StudentFiltersProps) {
   return (
     <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between mb-6 gap-4">
-      <h2 className="text-2xl font-bold tracking-tight">{LITERALS.DASHBOARD.STUDENTS_DIRECTORY}</h2>
+      <div className="flex flex-col gap-1">
+        <h2 className="text-2xl font-bold tracking-tight">{LITERALS.DASHBOARD.STUDENTS_DIRECTORY}</h2>
+        <div className="flex items-center gap-1.5 ml-0.5">
+          <div className="h-1 w-1 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500/60">
+            {totalResults} {totalResults === 1 ? 'Alumno' : 'Alumnos'}
+          </p>
+        </div>
+      </div>
 
       <div className="flex flex-col sm:flex-row w-full xl:w-auto gap-3 items-center">
         {/* Search */}
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-white/50" />
-          <Input
-            type="text"
-            placeholder="Buscar alumno o email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 bg-white/5 border-white/10 text-white focus-visible:ring-emerald-500 w-full rounded-md"
-          />
+        <div className="w-full sm:w-64 space-y-1 group/search">
+          <span className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Buscar</span>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-white/20 group-focus-within/search:text-emerald-500 transition-colors duration-300" />
+            </div>
+            <Input
+              type="text"
+              placeholder="Alumno o email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-10 bg-white/5 border-white/10 text-white focus-visible:ring-emerald-500/20 focus-visible:ring-offset-0 focus:border-emerald-500/40 w-full h-10 transition-all duration-300 rounded-xl placeholder:text-white/20 font-medium shadow-inner"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm("")}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-white/20 hover:text-white transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+            <div className="absolute -bottom-[1px] left-4 right-4 h-[1px] bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent opacity-0 group-focus-within/search:opacity-100 transition-opacity duration-500" />
+          </div>
         </div>
 
         <div className="flex w-full sm:w-auto gap-3">
@@ -69,6 +93,22 @@ export function StudentFilters({
                 <SelectItem value="Todos">{LITERALS.DASHBOARD.FILTER_ALL_PAYMENTS}</SelectItem>
                 <SelectItem value="pagado">{LITERALS.DASHBOARD.FILTER_PAID}</SelectItem>
                 <SelectItem value="pendiente">{LITERALS.DASHBOARD.FILTER_PENDING}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Filter Method */}
+          <div className="flex-1 sm:w-40 space-y-1">
+            <span className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Método</span>
+            <Select value={filterMethod} onValueChange={setFilterMethod}>
+              <SelectTrigger className="w-full h-10">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Todos">Todos</SelectItem>
+                <SelectItem value="Efectivo">Efectivo</SelectItem>
+                <SelectItem value="Bizum">Bizum</SelectItem>
+                <SelectItem value="Tarjeta">Tarjeta</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -88,23 +128,6 @@ export function StudentFilters({
               </SelectContent>
             </Select>
           </div>
-          
-          {/* Filter Method */}
-          <div className="flex-1 sm:w-40 space-y-1">
-            <span className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Método</span>
-            <Select value={filterMethod} onValueChange={setFilterMethod}>
-              <SelectTrigger className="w-full h-10">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Todos">Todos</SelectItem>
-                <SelectItem value="Efectivo">Efectivo</SelectItem>
-                <SelectItem value="Bizum">Bizum</SelectItem>
-                <SelectItem value="Tarjeta">Tarjeta</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
         </div>
 
         {/* Reset Filters */}

@@ -66,12 +66,20 @@ export function StudentDirectory({
 
     // 1. Search filter
     if (searchTerm) {
-      const lowSearch = searchTerm.toLowerCase();
-      result = result.filter(s =>
-        s.name.toLowerCase().includes(lowSearch) ||
-        (s.last_name && s.last_name.toLowerCase().includes(lowSearch)) ||
-        s.email.toLowerCase().includes(lowSearch)
-      );
+      // Accent-insensitive normalization helper
+      const normalize = (str: string) => 
+        str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+      const lowSearch = normalize(searchTerm);
+      const searchTerms = lowSearch.split(/\s+/).filter(t => t.length > 0);
+      
+      result = result.filter(s => {
+        const fullName = `${s.name} ${s.last_name || ""}`;
+        const searchTarget = normalize(`${fullName} ${s.email}`);
+        
+        // Every term in the search box must match at least something in the target
+        return searchTerms.every(term => searchTarget.includes(term));
+      });
     }
 
     // 2. Payment filter
@@ -125,6 +133,7 @@ export function StudentDirectory({
         setVisibleCount={setVisibleCount}
         filterMethod={filterMethod}
         setFilterMethod={setFilterMethod}
+        totalResults={processedStudents.length}
       />
 
       <Card className="bg-zinc-900/50 border-white/10 backdrop-blur-lg shadow-2xl overflow-hidden">
