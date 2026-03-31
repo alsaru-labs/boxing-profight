@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useState, useEffect } from "react";
-import { databases, DATABASE_ID, COLLECTION_BOOKINGS } from "@/lib/appwrite";
+import { databases, DATABASE_ID, COLLECTION_BOOKINGS, COLLECTION_PROFILES } from "@/lib/appwrite";
 import { Query } from "appwrite";
 
 interface AttendeesModalProps {
@@ -31,8 +31,24 @@ export function AttendeesModal({ isOpen, onOpenChange, selectedClass, allStudent
         );
 
         const studentIds = bookingsData.documents.map(b => b.student_id);
-        const list = allStudents.filter(student => studentIds.includes(student.$id));
-        setAttendees(list);
+        
+        // Find students we already have in the provided list
+        const foundStudents = allStudents.filter(student => studentIds.includes(student.$id));
+        const foundIds = foundStudents.map(s => s.$id);
+        const missingIds = studentIds.filter(id => !foundIds.includes(id));
+
+        // If some students (likely inactives) are not in the main list, fetch them individually
+        let extraStudents: any[] = [];
+        if (missingIds.length > 0) {
+          const fetchPromises = missingIds.map(id => 
+            databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, id)
+              .catch(() => null)
+          );
+          const results = await Promise.all(fetchPromises);
+          extraStudents = results.filter(r => r !== null);
+        }
+
+        setAttendees([...foundStudents, ...extraStudents]);
       } catch (error) {
         console.error("Error fetching attendees:", error);
       } finally {
@@ -73,7 +89,7 @@ export function AttendeesModal({ isOpen, onOpenChange, selectedClass, allStudent
                       <p className="font-bold text-white text-sm flex items-center gap-1.5">
                         {student.name}
                         {(student.status === 'Baja' || student.is_active === false) && (
-                          <span className="text-[9px] text-white/30 font-black uppercase tracking-tighter">(Baja)</span>
+                          <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20 text-[8px] h-4 font-black px-1.5 uppercase tracking-tighter">Baja</Badge>
                         )}
                       </p>
                       <p className="text-xs text-white/50">{student.email}</p>

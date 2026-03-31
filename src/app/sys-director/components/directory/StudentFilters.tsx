@@ -23,8 +23,8 @@ interface StudentFiltersProps {
   sortConfig: any;
   setSortConfig: (config: any) => void;
   setVisibleCount: (count: number | ((prev: number) => number)) => void;
-  filterStatus: string;
-  setFilterStatus: (value: string) => void;
+  filterMethod: string;
+  setFilterMethod: (value: string) => void;
 }
 
 export function StudentFilters({
@@ -37,8 +37,8 @@ export function StudentFilters({
   sortConfig,
   setSortConfig,
   setVisibleCount,
-  filterStatus,
-  setFilterStatus
+  filterMethod,
+  setFilterMethod
 }: StudentFiltersProps) {
   return (
     <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between mb-6 gap-4">
@@ -88,21 +88,23 @@ export function StudentFilters({
               </SelectContent>
             </Select>
           </div>
-
-          {/* Filter Status */}
+          
+          {/* Filter Method */}
           <div className="flex-1 sm:w-40 space-y-1">
-            <span className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Estado</span>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <span className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Método</span>
+            <Select value={filterMethod} onValueChange={setFilterMethod}>
               <SelectTrigger className="w-full h-10">
-                <SelectValue placeholder="Activos" />
+                <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Todos">Todos</SelectItem>
-                <SelectItem value="Activos">Activos</SelectItem>
-                <SelectItem value="Bajas">Bajas</SelectItem>
+                <SelectItem value="Efectivo">Efectivo</SelectItem>
+                <SelectItem value="Bizum">Bizum</SelectItem>
+                <SelectItem value="Tarjeta">Tarjeta</SelectItem>
               </SelectContent>
             </Select>
           </div>
+
         </div>
 
         {/* Reset Filters */}
@@ -113,7 +115,7 @@ export function StudentFilters({
               setSearchTerm("");
               setFilterPayment("Todos");
               setFilterLevel("Todos");
-              setFilterStatus("Activos");
+              setFilterMethod("Todos");
               setSortConfig(null);
               setVisibleCount(30);
             }}

@@ -140,7 +140,7 @@ export function StudentMobileCard({
                   disabled={isUpdating}
                 >
                   <Trash2 className="w-4 h-4" />
-                  <span>Eliminar Cuenta</span>
+                  <span>Dar de Baja</span>
                 </DropdownMenuItem>
               </DropdownMenuGroup>
             </DropdownMenuContent>

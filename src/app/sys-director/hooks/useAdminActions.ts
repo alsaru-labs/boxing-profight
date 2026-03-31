@@ -2,16 +2,16 @@
 
 import { useState } from "react";
 import { Query, ID } from "appwrite";
-import { 
-  databases, 
-  DATABASE_ID, 
-  COLLECTION_PROFILES, 
-  COLLECTION_CLASSES, 
-  COLLECTION_PAYMENTS, 
-  COLLECTION_REVENUE, 
-  COLLECTION_BOOKINGS 
+import {
+  databases,
+  DATABASE_ID,
+  COLLECTION_PROFILES,
+  COLLECTION_CLASSES,
+  COLLECTION_PAYMENTS,
+  COLLECTION_REVENUE,
+  COLLECTION_BOOKINGS
 } from "@/lib/appwrite";
-import { createClassServer } from "../actions";
+import { createClassServer, handleCreateOrReactivateStudent } from "../actions";
 
 interface UseAdminActionsProps {
   studentsList: any[];
@@ -46,50 +46,76 @@ export function useAdminActions({
       const d = new Date();
       const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
+      const existingPayments = await databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
+        Query.equal("student_id", studentId),
+        Query.equal("month", currentMonthStr),
+        Query.limit(1)
+      ]);
+
+      const hasPreviousPayment = existingPayments.total > 0;
+
+      // 1. Update Profile (Only change method if it's a brand new payment)
       await databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, studentId, {
         is_paid: newStatus,
-        payment_method: newStatus ? paymentMethod : null
+        payment_method: newStatus 
+          ? (hasPreviousPayment ? existingPayments.documents[0].method : paymentMethod) 
+          : null
       });
 
       let paymentAmountToDeduct = pAmount;
 
       try {
         if (newStatus) {
-          await databases.createDocument(DATABASE_ID, COLLECTION_PAYMENTS, ID.unique(), {
-            student_id: studentId,
-            month: currentMonthStr,
-            amount: pAmount,
-            method: paymentMethod
-          });
+          if (!hasPreviousPayment) {
+            // No payment found, create one and update revenue
+            await databases.createDocument(DATABASE_ID, COLLECTION_PAYMENTS, ID.unique(), {
+              student_id: studentId,
+              month: currentMonthStr,
+              amount: pAmount,
+              method: paymentMethod
+            });
+
+            const revData = await databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [Query.equal("month", currentMonthStr), Query.limit(1)]);
+            if (revData.documents.length > 0) {
+              const doc = revData.documents[0];
+              const updatedRev = doc.amount + pAmount;
+              await databases.updateDocument(DATABASE_ID, COLLECTION_REVENUE, doc.$id, { amount: updatedRev });
+              setMonthlyRevenue(updatedRev);
+            } else {
+              const newRevId = ID.unique();
+              await databases.createDocument(DATABASE_ID, COLLECTION_REVENUE, newRevId, { month: currentMonthStr, amount: pAmount });
+              setMonthlyRevenue(pAmount);
+            }
+          } else {
+            console.log("[useAdminActions] Payment already exists for this month, skipping document creation.");
+          }
         } else {
+          // Mark as UNPAID (Delete existing payment if any)
           const userPayments = await databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
-            Query.equal("student_id", studentId), 
-            Query.equal("month", currentMonthStr), 
+            Query.equal("student_id", studentId),
+            Query.equal("month", currentMonthStr),
             Query.limit(1)
           ]);
 
           if (userPayments.documents.length > 0) {
             paymentAmountToDeduct = userPayments.documents[0].amount;
             await databases.deleteDocument(DATABASE_ID, COLLECTION_PAYMENTS, userPayments.documents[0].$id);
-          }
-        }
 
-        const revData = await databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [Query.equal("month", currentMonthStr), Query.limit(1)]);
-        if (revData.documents.length > 0) {
-          const doc = revData.documents[0];
-          const updatedRev = newStatus ? doc.amount + pAmount : Math.max(0, doc.amount - paymentAmountToDeduct);
-          await databases.updateDocument(DATABASE_ID, COLLECTION_REVENUE, doc.$id, { amount: updatedRev });
-          setMonthlyRevenue(updatedRev);
-        } else if (newStatus) {
-          await databases.createDocument(DATABASE_ID, COLLECTION_REVENUE, ID.unique(), { month: currentMonthStr, amount: pAmount });
-          setMonthlyRevenue(pAmount);
+            const revData = await databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [Query.equal("month", currentMonthStr), Query.limit(1)]);
+            if (revData.documents.length > 0) {
+              const doc = revData.documents[0];
+              const updatedRev = Math.max(0, doc.amount - paymentAmountToDeduct);
+              await databases.updateDocument(DATABASE_ID, COLLECTION_REVENUE, doc.$id, { amount: updatedRev });
+              setMonthlyRevenue(updatedRev);
+            }
+          }
         }
       } catch (e) { console.error(e); }
 
       const newList = studentsList.map(s => s.$id === studentId ? { ...s, is_paid: newStatus, payment_method: newStatus ? paymentMethod : null } : s);
       setStudentsList(newList);
       setUnpaidCount(newList.filter(s => !s.is_paid).length);
-      
+
       return true;
     } catch (error) {
       console.error(error);
@@ -109,7 +135,7 @@ export function useAdminActions({
         level: editLevel
       });
 
-      setStudentsList(studentsList.map(s => 
+      setStudentsList(studentsList.map(s =>
         s.$id === selectedStudent.$id ? { ...s, last_name: editLastName, email: editEmail.toLowerCase(), phone: editPhone, level: editLevel } : s
       ));
       return true;
@@ -125,25 +151,32 @@ export function useAdminActions({
     try {
       setIsUpdating(true);
 
-      // Normal flow (Profile only, requires invite system)
-      const uniqueRef = ID.unique();
-      const newProfile = await databases.createDocument(DATABASE_ID, COLLECTION_PROFILES, uniqueRef, {
-        user_id: uniqueRef,
-        name: form.name,
-        last_name: form.lastName,
-        email: form.email.toLowerCase(),
-        phone: form.phone || null,
-        role: "alumno",
-        is_paid: false,
-        level: form.level
-      });
+      const result = await handleCreateOrReactivateStudent(form);
 
-      setStudentsList([newProfile, ...studentsList]);
+      if (!result.success) {
+        showAlert("Error", result.error || "No se pudo registrar al alumno.", "danger");
+        return false;
+      }
+
+      const newProfile = result.profile;
+
+      if (result.reactivated) {
+        // If it was a reactivation, we might already have it in the list (hidden by filter)
+        // or it might be a fresh load. Since the main list now ONLY has is_active: true,
+        // we just add it to the list.
+        setStudentsList([newProfile, ...studentsList]);
+        showAlert("Reactivación Exitosa", `Se ha reactivado la cuenta de ${newProfile.name} ${newProfile.last_name || ""}.`, "success");
+      } else {
+        setStudentsList([newProfile, ...studentsList]);
+        showAlert("Éxito", "Alumno registrado correctamente. Se le ha enviado el acceso.", "success");
+      }
+
       setTotalStudents((prev: number) => prev + 1);
       setUnpaidCount((prev: number) => prev + 1);
       return true;
     } catch (err) {
       console.error(err);
+      showAlert("Error", "Error de red al registrar al alumno.", "danger");
       return false;
     } finally {
       setIsUpdating(false);
@@ -155,7 +188,7 @@ export function useAdminActions({
     try {
       setIsUpdating(true);
       const result = await createClassServer(newClass);
-      
+
       if (result.success && result.class) {
         setClassesList([...classesList, result.class].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
         return true;
@@ -217,7 +250,7 @@ export function useAdminActions({
     }
 
     showConfirm(
-      "Borrar Clase", 
+      "Borrar Clase",
       "¿Seguro que quieres borrar esta clase de forma permanente? Se cancelarán también todas las reservas de los alumnos.",
       async () => {
         try {

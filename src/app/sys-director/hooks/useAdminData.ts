@@ -31,14 +31,14 @@ export function useAdminData() {
       if (!silent) setLoading(true);
 
       const [profilesData, classesData, announcementsData] = await Promise.all([
-        databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [Query.limit(500)]),
+        databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [Query.limit(500), Query.equal("is_active", true)]),
         databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [Query.limit(500), Query.orderAsc("date")]),
         databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS, [Query.orderDesc("createdAt"), Query.limit(20)])
       ]);
 
-      const allProfiles = profilesData.documents.filter((s: any) => s.role !== "admin");
-      // All active students for management
-      const activeStudents = allProfiles.filter((s: any) => s.status !== "Baja" && s.is_active !== false);
+      const activeStudents = profilesData.documents.filter((s: any) => s.role !== "admin");
+      // All active students for management (now redundantly filtered for safety)
+      const allProfiles = activeStudents;
       
       setTotalStudents(activeStudents.length);
       setClassesList(classesData.documents);

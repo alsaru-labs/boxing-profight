@@ -46,7 +46,7 @@ export function StudentDirectory({
   const [searchTerm, setSearchTerm] = useState("");
   const [filterPayment, setFilterPayment] = useState("Todos");
   const [filterLevel, setFilterLevel] = useState("Todos");
-  const [filterStatus, setFilterStatus] = useState("Activos");
+  const [filterMethod, setFilterMethod] = useState("Todos");
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
   const [visibleCount, setVisibleCount] = useState(30);
 
@@ -63,13 +63,6 @@ export function StudentDirectory({
   const processedStudents = useMemo(() => {
     let result = [...studentsList];
 
-    // 0. Status filter
-    if (filterStatus !== "Todos") {
-      result = result.filter(s => filterStatus === "Activos" 
-        ? (s.status !== "Baja" && s.is_active !== false) 
-        : (s.status === "Baja" || s.is_active === false)
-      );
-    }
 
     // 1. Search filter
     if (searchTerm) {
@@ -91,6 +84,11 @@ export function StudentDirectory({
       result = result.filter(s => (s.level || "Iniciación") === filterLevel);
     }
 
+    // 4. Payment method filter
+    if (filterMethod !== "Todos") {
+      result = result.filter(s => (s.payment_method || "") === filterMethod);
+    }
+
     // 4. Sorting
     if (sortConfig) {
       result.sort((a, b) => {
@@ -108,7 +106,7 @@ export function StudentDirectory({
     }
 
     return result;
-  }, [studentsList, searchTerm, filterPayment, filterLevel, filterStatus, sortConfig]);
+  }, [studentsList, searchTerm, filterPayment, filterLevel, filterMethod, sortConfig]);
 
   const slicedStudents = processedStudents.slice(0, visibleCount);
 
@@ -125,8 +123,8 @@ export function StudentDirectory({
         sortConfig={sortConfig}
         setSortConfig={setSortConfig}
         setVisibleCount={setVisibleCount}
-        filterStatus={filterStatus}
-        setFilterStatus={setFilterStatus}
+        filterMethod={filterMethod}
+        setFilterMethod={setFilterMethod}
       />
 
       <Card className="bg-zinc-900/50 border-white/10 backdrop-blur-lg shadow-2xl overflow-hidden">

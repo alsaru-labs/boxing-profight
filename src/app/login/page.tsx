@@ -111,8 +111,9 @@ export default function LoginPage() {
         }
       }
     } catch (err: any) {
-      if (err?.message?.includes('Invalid credentials')) {
-        setError("Las credenciales son incorrectas. Por favor, revisa tu correo y contraseña.");
+      const errorMsg = err?.message?.toLowerCase() || "";
+      if (errorMsg.includes('credentials') || errorMsg.includes('blocked') || errorMsg.includes('not found')) {
+        setError("Usuario o contraseña incorrectos.");
       } else {
         setError("Ocurrió un error al intentar iniciar sesión. Inténtalo de nuevo.");
       }

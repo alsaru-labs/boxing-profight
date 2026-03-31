@@ -135,7 +135,7 @@ export function StudentDesktopRow({
                 {student.is_paid ? (
                   <><CalendarX className="w-4 h-4 text-orange-400 group-hover:scale-110 transition-transform" /> <span className="text-orange-400">Pago Pendiente</span></>
                 ) : (
-                  <><ShieldCheck className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" /> <span className="text-emerald-400">Registrar Pago Hoy</span></>
+                  <><ShieldCheck className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" /> <span className="text-emerald-400">Registrar Pago</span></>
                 )}
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -174,7 +174,7 @@ export function StudentDesktopRow({
                 disabled={isUpdating}
               >
                 <Trash2 className="w-4 h-4" />
-                <span>Eliminar Cuenta</span>
+                <span>Dar de Baja</span>
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>

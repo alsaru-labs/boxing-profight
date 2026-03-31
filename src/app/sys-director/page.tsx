@@ -67,25 +67,25 @@ export default function AdminDashboard() {
     title: "",
     description: "",
     variant: "info",
-    onConfirm: () => {},
+    onConfirm: () => { },
   });
 
   const showAlert = (title: string, description: string, variant: "info" | "success" | "warning" | "danger" = "info") => {
     setModalConfig({
-        isOpen: true, title, description, variant,
-        onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false })),
-        showCancel: false, confirmText: "Entendido"
+      isOpen: true, title, description, variant,
+      onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false })),
+      showCancel: false, confirmText: "Entendido"
     });
   };
 
   const showConfirm = (title: string, description: string, onConfirm: () => void | Promise<void>, variant: "info" | "success" | "warning" | "danger" = "warning") => {
     setModalConfig({
-        isOpen: true, title, description, variant,
-        onConfirm: async () => {
-            await onConfirm();
-            setModalConfig(prev => ({ ...prev, isOpen: false }));
-        },
-        showCancel: true, confirmText: "Confirmar"
+      isOpen: true, title, description, variant,
+      onConfirm: async () => {
+        await onConfirm();
+        setModalConfig(prev => ({ ...prev, isOpen: false }));
+      },
+      showCancel: true, confirmText: "Confirmar"
     });
   };
 
@@ -140,13 +140,13 @@ export default function AdminDashboard() {
   // Filter logic for ClassGrid
   const now = new Date();
   const sortedClassesList = [...classesList].filter(cls => {
-      try {
-        const startTime = cls.time.split('-')[0].trim();
-        const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
-        const [hours, minutes] = startTime.split(":").map(Number);
-        const classDateTime = new Date(year, month - 1, day, hours, minutes);
-        return classDateTime >= now && classDateTime.getTime() <= now.getTime() + (7 * 24 * 60 * 60 * 1000);
-      } catch { return false; }
+    try {
+      const startTime = cls.time.split('-')[0].trim();
+      const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
+      const [hours, minutes] = startTime.split(":").map(Number);
+      const classDateTime = new Date(year, month - 1, day, hours, minutes);
+      return classDateTime >= now && classDateTime.getTime() <= now.getTime() + (7 * 24 * 60 * 60 * 1000);
+    } catch { return false; }
   }).sort((a, b) => {
     const dateComp = new Date(a.date).getTime() - new Date(b.date).getTime();
     if (dateComp !== 0) return dateComp;
@@ -154,13 +154,13 @@ export default function AdminDashboard() {
   });
 
   const recentPastClasses = [...classesList].filter(cls => {
-      try {
-        const startTime = cls.time.split('-')[0].trim();
-        const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
-        const [hours, minutes] = startTime.split(":").map(Number);
-        const classDateTime = new Date(year, month - 1, day, hours, minutes);
-        return classDateTime < now && classDateTime.getTime() >= now.getTime() - (30 * 24 * 60 * 60 * 1000);
-      } catch { return false; }
+    try {
+      const startTime = cls.time.split('-')[0].trim();
+      const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
+      const [hours, minutes] = startTime.split(":").map(Number);
+      const classDateTime = new Date(year, month - 1, day, hours, minutes);
+      return classDateTime < now && classDateTime.getTime() >= now.getTime() - (30 * 24 * 60 * 60 * 1000);
+    } catch { return false; }
   }).sort((a, b) => {
     const dateComp = new Date(b.date).getTime() - new Date(a.date).getTime();
     if (dateComp !== 0) return dateComp;
@@ -176,23 +176,23 @@ export default function AdminDashboard() {
           <AdminTabs />
 
           <TabsContent value="tablon" className="space-y-6 md:space-y-10 focus-visible:outline-none">
-            <AnnouncementManager 
-                announcements={announcements} 
-                setAnnouncements={setAnnouncements} 
-                showAlert={showAlert} 
-                showConfirm={showConfirm} 
+            <AnnouncementManager
+              announcements={announcements}
+              setAnnouncements={setAnnouncements}
+              showAlert={showAlert}
+              showConfirm={showConfirm}
             />
           </TabsContent>
 
           <TabsContent value="general" className="space-y-6 md:space-y-10 focus-visible:outline-none">
-            <DashboardStats 
-                totalStudents={totalStudents} 
-                monthlyRevenue={monthlyRevenue} 
-                unpaidCount={unpaidCount} 
-                onNewStudent={() => setIsNewStudentModalOpen(true)} 
+            <DashboardStats
+              totalStudents={totalStudents}
+              monthlyRevenue={monthlyRevenue}
+              unpaidCount={unpaidCount}
+              onNewStudent={() => setIsNewStudentModalOpen(true)}
             />
-            
-            <StudentDirectory 
+
+            <StudentDirectory
               studentsList={studentsList}
               isUpdating={isUpdating}
               handleActionClick={handleActionClick}
@@ -224,49 +224,49 @@ export default function AdminDashboard() {
             </div>
 
             <div className="space-y-4 pt-16 border-t border-white/10 pb-12">
-                <h2 className="text-2xl font-bold tracking-tight text-white/70">{LITERALS.DASHBOARD.CLASSES.HISTORY_TITLE}</h2>
-                <ClassGrid isAdmin isHistory classes={recentPastClasses} onViewAttendees={handleViewAttendees} />
+              <h2 className="text-2xl font-bold tracking-tight text-white/70">{LITERALS.DASHBOARD.CLASSES.HISTORY_TITLE}</h2>
+              <ClassGrid isAdmin isHistory classes={recentPastClasses} onViewAttendees={handleViewAttendees} />
             </div>
           </TabsContent>
         </Tabs>
       </main>
 
       {/* Modals Container */}
-      <PaymentModal 
-        isOpen={isPaymentModalOpen} 
-        onOpenChange={setIsPaymentModalOpen} 
-        student={selectedStudent} 
-        isUpdating={isUpdating} 
-        onConfirm={handleConfirmPayment} 
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onOpenChange={setIsPaymentModalOpen}
+        student={selectedStudent}
+        isUpdating={isUpdating}
+        onConfirm={handleConfirmPayment}
       />
-      <EditStudentModal 
-        isOpen={isEditModalOpen} 
-        onOpenChange={setIsEditModalOpen} 
-        student={selectedStudent} 
-        isUpdating={isUpdating} 
-        onSave={handleSaveProfile} 
+      <EditStudentModal
+        isOpen={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        student={selectedStudent}
+        isUpdating={isUpdating}
+        onSave={handleSaveProfile}
       />
-      <NewStudentModal 
-        isOpen={isNewStudentModalOpen} 
-        onOpenChange={setIsNewStudentModalOpen} 
-        isUpdating={isUpdating} 
-        onSave={handleCreateStudent} 
+      <NewStudentModal
+        isOpen={isNewStudentModalOpen}
+        onOpenChange={setIsNewStudentModalOpen}
+        isUpdating={isUpdating}
+        onSave={handleCreateStudent}
       />
-      <CreateClassModal 
-        isOpen={isClassModalOpen} 
-        onOpenChange={setIsClassModalOpen} 
-        isUpdating={isUpdating} 
-        onSave={handleCreateClass} 
-        classesList={classesList} 
+      <CreateClassModal
+        isOpen={isClassModalOpen}
+        onOpenChange={setIsClassModalOpen}
+        isUpdating={isUpdating}
+        onSave={handleCreateClass}
+        classesList={classesList}
       />
-      <AttendeesModal 
-        isOpen={isAttendeesModalOpen} 
-        onOpenChange={setIsAttendeesModalOpen} 
-        selectedClass={selectedClassForAttendees} 
-        allStudents={studentsList} 
+      <AttendeesModal
+        isOpen={isAttendeesModalOpen}
+        onOpenChange={setIsAttendeesModalOpen}
+        selectedClass={selectedClassForAttendees}
+        allStudents={studentsList}
       />
 
-      <ConfirmModal 
+      <ConfirmModal
         isOpen={modalConfig.isOpen}
         onOpenChange={(open) => setModalConfig(prev => ({ ...prev, isOpen: open }))}
         title={modalConfig.title}

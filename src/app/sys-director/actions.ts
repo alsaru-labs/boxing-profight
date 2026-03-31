@@ -1,7 +1,7 @@
 "use server";
 
 import * as sdk from "node-appwrite";
-import { DATABASE_ID, COLLECTION_PROFILES, COLLECTION_INVITATION_TOKENS, COLLECTION_BOOKINGS, COLLECTION_CLASSES, COLLECTION_NOTIFICATIONS, COLLECTION_REVENUE } from "@/lib/appwrite";
+import { DATABASE_ID, COLLECTION_PROFILES, COLLECTION_INVITATION_TOKENS, COLLECTION_BOOKINGS, COLLECTION_CLASSES, COLLECTION_NOTIFICATIONS, COLLECTION_REVENUE, COLLECTION_PAYMENTS } from "@/lib/appwrite";
 import { createAdminClient } from "@/lib/server/appwrite";
 
 /**
@@ -17,16 +17,17 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
     const { databases, users } = await createAdminClient();
 
     try {
-        // 1. Delete from Auth (Primary Action)
-        // This prevents the user from logging in ever again.
+        // 1. Block from Auth (Primary Action)
+        // This prevents the user from logging in but keeps their account.
         try {
-            await users.delete(userId);
+            await users.updateStatus(userId, false);
             console.log(`[SYS-DIRECTOR] User blocked from Auth: ${userId}`);
         } catch (authError: any) {
-            console.warn(`[SYS-DIRECTOR] Auth removal skipped: ${authError.message}`);
+            console.warn(`[SYS-DIRECTOR] Auth block failed: ${authError.message}`);
         }
 
         // 2. Cleanup FUTURE Bookings and LIBERATE spots
+        // 2. Booking Cleanup (Audit Preserve)
         // We only want to remove them from future classes, keeping history.
         try {
             const bookingsList = await databases.listDocuments(
@@ -45,9 +46,12 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
                         const [year, month, day] = classDoc.date.substring(0, 10).split("-").map(Number);
                         const startTime = classDoc.time.split('-')[0].trim();
                         const [hours, minutes] = startTime.split(":").map(Number);
+                        
+                        // IMPORTANT: Correct date object with class time
                         const classDateTime = new Date(year, month - 1, day, hours, minutes);
 
                         if (classDateTime > now) {
+                            console.log(`[SYS-DIRECTOR] Cancelling future booking for student ${userId} in class ${booking.class_id}`);
                             // LIBERATE spot
                             await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, booking.class_id, {
                                 registeredCount: Math.max(0, (classDoc.registeredCount || 1) - 1)
@@ -79,13 +83,100 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
         try {
             const tokensList = await databases.listDocuments(DATABASE_ID, COLLECTION_INVITATION_TOKENS, [sdk.Query.equal("user_id", userId)]);
             await Promise.all(tokensList.documents.map(t => databases.deleteDocument(DATABASE_ID, COLLECTION_INVITATION_TOKENS, t.$id)));
-        } catch (e) {}
+        } catch (e) { }
 
         return { success: true };
 
     } catch (error: any) {
         console.error("[SYS-DIRECTOR] Failed to process student baja:", error);
         return { success: false, error: "Error al tramitar la baja del alumno." };
+    }
+}
+
+/**
+ * Creates a new student profile or reactivates an existing one if it was previously deactivated.
+ */
+export async function handleCreateOrReactivateStudent(form: any) {
+    if (!form.email) return { success: false, error: "Email requerido para el alta." };
+
+    const { databases, users } = await createAdminClient();
+
+    try {
+        const emailLower = form.email.toLowerCase();
+
+        // 1. Check for existing profile (including inactive ones)
+        const existingProfiles = await databases.listDocuments(
+            DATABASE_ID,
+            COLLECTION_PROFILES,
+            [sdk.Query.equal("email", emailLower), sdk.Query.limit(1)]
+        );
+
+        if (existingProfiles.total > 0) {
+            const profile = existingProfiles.documents[0];
+
+            // If it's already active, we don't do anything
+            if (profile.is_active !== false && profile.status !== "Baja") {
+                return { success: false, error: "Ya existe un alumno activo con este correo electrónico." };
+            }
+
+            // REACTIVATION CASE
+            console.log(`[SYS-DIRECTOR] Reactivating student: ${emailLower}`);
+
+            // Automate payment status check
+            const d = new Date();
+            const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            
+            const existingPayment = await databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
+                sdk.Query.equal("student_id", profile.$id),
+                sdk.Query.equal("month", currentMonthStr),
+                sdk.Query.limit(1)
+            ]);
+
+            const hasPaid = existingPayment.total > 0;
+            const originalMethod = hasPaid ? existingPayment.documents[0].method : null;
+
+            const updatedProfile = await databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, profile.$id, {
+                is_active: true,
+                status: "Activa",
+                name: form.name,
+                last_name: form.lastName,
+                phone: form.phone || profile.phone,
+                level: form.level || profile.level,
+                is_paid: hasPaid,
+                payment_method: originalMethod
+            });
+
+            // Unlock Auth account
+            try {
+                await users.updateStatus(profile.user_id, true);
+                console.log(`[SYS-DIRECTOR] Auth account unlocked: ${profile.user_id}`);
+            } catch (authErr: any) {
+                console.warn(`[SYS-DIRECTOR] Auth unlock skipped (might not have auth yet): ${authErr.message}`);
+            }
+
+            return { success: true, profile: JSON.parse(JSON.stringify(updatedProfile)), reactivated: true };
+        }
+
+        // 2. NEW CREATION CASE
+        const uniqueRef = sdk.ID.unique();
+        const newProfile = await databases.createDocument(DATABASE_ID, COLLECTION_PROFILES, uniqueRef, {
+            user_id: uniqueRef,
+            name: form.name,
+            last_name: form.lastName,
+            email: emailLower,
+            phone: form.phone || null,
+            role: "alumno",
+            is_active: true,
+            is_paid: false,
+            level: form.level,
+            status: "Activa"
+        });
+
+        return { success: true, profile: JSON.parse(JSON.stringify(newProfile)), reactivated: false };
+
+    } catch (error: any) {
+        console.error("[SYS-DIRECTOR] Error in student creation/reactivation:", error);
+        return { success: false, error: "Hubo un problema procesando el alta del alumno." };
     }
 }
 
@@ -138,12 +229,12 @@ export async function createClassServer(newClass: any) {
  */
 export async function autoGenerateNextWeekClasses() {
     const { databases } = await createAdminClient();
-    
+
     try {
         const today = new Date();
         // Calculate Next Monday
         const nextMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + ((1 + 7 - today.getDay()) % 7 || 7));
-        
+
         const generatedClasses = [];
         const slots = ["10:00 - 11:00", "18:00 - 19:00", "19:00 - 20:00", "20:00 - 21:00", "21:00 - 22:00"];
 
@@ -152,11 +243,11 @@ export async function autoGenerateNextWeekClasses() {
         for (let i = 0; i < 5; i++) { // Mon to Fri
             const date = new Date(nextMonday);
             date.setDate(nextMonday.getDate() + i);
-            
+
             // Adjust to local ISO date string correctly
             const tzOffset = date.getTimezoneOffset() * 60000;
             const dStr = new Date(date.getTime() - tzOffset).toISOString().split('T')[0];
-            
+
             console.log(`[AUTO-GEN] Checking date: ${dStr}`);
 
             // Determine Discipline (Sparring on Wednesdays)
@@ -175,9 +266,9 @@ export async function autoGenerateNextWeekClasses() {
                     console.log(`[AUTO-GEN] Creating slot: ${dStr} ${time}`);
                     // 2. CREATE: Slot is free
                     const newClass = await databases.createDocument(
-                        DATABASE_ID, 
-                        COLLECTION_CLASSES, 
-                        sdk.ID.unique(), 
+                        DATABASE_ID,
+                        COLLECTION_CLASSES,
+                        sdk.ID.unique(),
                         {
                             name,
                             date: dStr,
@@ -193,10 +284,10 @@ export async function autoGenerateNextWeekClasses() {
             }
         }
 
-        return { 
-            success: true, 
-            count: generatedClasses.length, 
-            classes: JSON.parse(JSON.stringify(generatedClasses)) 
+        return {
+            success: true,
+            count: generatedClasses.length,
+            classes: JSON.parse(JSON.stringify(generatedClasses))
         };
 
     } catch (error: any) {
@@ -274,10 +365,10 @@ export async function ensureMonthlyRevenueRecord() {
             );
 
             const studentsToReset = batch.documents.filter(p => p.role !== "admin" && p.is_paid !== false);
-            
+
             if (studentsToReset.length > 0) {
                 await Promise.all(
-                    studentsToReset.map(p => 
+                    studentsToReset.map(p =>
                         databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, p.$id, { is_paid: false })
                     )
                 );
@@ -308,7 +399,7 @@ export async function ensureMonthlyRevenueRecord() {
 export async function markAllStudentsAsPaid() {
     try {
         const { databases } = await createAdminClient();
-        
+
         console.log(`[BULK-PAID] Starting bulk payment update (Paid)...`);
         let offset = 0;
         const limit = 100;
@@ -323,10 +414,10 @@ export async function markAllStudentsAsPaid() {
             );
 
             const toUpdate = batch.documents.filter(p => p.role !== "admin" && p.is_paid !== true);
-            
+
             if (toUpdate.length > 0) {
                 await Promise.all(
-                    toUpdate.map(p => 
+                    toUpdate.map(p =>
                         databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, p.$id, { is_paid: true })
                     )
                 );
