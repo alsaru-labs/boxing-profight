@@ -1,6 +1,18 @@
 import { Client, Account, Databases, Users } from "node-appwrite";
 import { cookies } from "next/headers";
-import { PROJECT_ID, ENDPOINT, getRequiredServerEnv } from "@/lib/appwrite";
+import { PROJECT_ID, ENDPOINT } from "@/lib/appwrite";
+
+/**
+ * Ayudante para variables de SERVIDOR (no públicas).
+ * Estas sí permiten acceso dinámico porque solo corren en Node.js.
+ */
+function getRequiredServerEnv(key: string): string {
+    const value = process.env[key];
+    if (!value) {
+        throw new Error(`CRÍTICO: Falta la variable de servidor '${key}'.`);
+    }
+    return value;
+}
 
 /**
  * Appwrite Configuration (Server & Admin) - Validadas estricto

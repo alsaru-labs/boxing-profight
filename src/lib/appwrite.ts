@@ -48,16 +48,4 @@ export const COLLECTION_NOTIFICATIONS_READ = process.env.NEXT_PUBLIC_COLLECTION_
 if (!process.env.NEXT_PUBLIC_COLLECTION_INVITATION_TOKENS_ID) throw new Error("Falta NEXT_PUBLIC_COLLECTION_INVITATION_TOKENS_ID");
 export const COLLECTION_INVITATION_TOKENS = process.env.NEXT_PUBLIC_COLLECTION_INVITATION_TOKENS_ID;
 
-/**
- * Ayudante para variables de SERVIDOR (no públicas).
- * Estas sí permiten acceso dinámico porque solo corren en Node.js.
- */
-export function getRequiredServerEnv(key: string): string {
-    const value = process.env[key];
-    if (!value) {
-        throw new Error(`CRÍTICO: Falta la variable de servidor '${key}'.`);
-    }
-    return value;
-}
-
 export { client, account, databases };
