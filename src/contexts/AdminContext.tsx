@@ -27,6 +27,8 @@ interface AdminContextType {
   selectedMonth: string;
   revenueRecords: any[];
   setStudentsList: React.Dispatch<React.SetStateAction<any[]>>;
+  setClassesList: React.Dispatch<React.SetStateAction<any[]>>;
+  setAnnouncements: React.Dispatch<React.SetStateAction<any[]>>;
   setMonthlyRevenue: React.Dispatch<React.SetStateAction<number>>;
   setUnpaidCount: React.Dispatch<React.SetStateAction<number>>;
   setTotalStudents: React.Dispatch<React.SetStateAction<number>>;
@@ -85,6 +87,15 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         setTotalStudents(result.totalStudents || 0);
         setMonthlyRevenue(result.totalRevenue || 0); 
         setUnpaidCount(result.unpaidCount || 0);
+
+        // ⚡️ OPTIMIZACIÓN ZERO-WASTE: Actualizar estados de pago localmente
+        if (result.paidStudentIds && studentsList.length > 0) {
+          const paidSet = new Set(result.paidStudentIds);
+          setStudentsList(prev => prev.map(s => ({
+            ...s,
+            is_paid: paidSet.has(s.$id)
+          })));
+        }
       }
     } catch (error) {
       console.error("Admin data load error:", error);
@@ -177,7 +188,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       // ⚡️ ACTUALIZACIÓN INCREMENTAL: Clases (Crear/Editar/Borrar)
       if (collectionId === COLLECTION_CLASSES) {
         if (event.includes(".create")) {
-          setClassesList(prev => [...prev, payload].sort((a,b) => a.date.localeCompare(b.date)));
+          setClassesList(prev => {
+            if (prev.some(c => c.$id === payload.$id)) return prev;
+            return [...prev, payload].sort((a,b) => a.date.localeCompare(b.date));
+          });
           return;
         }
         if (event.includes(".update")) {
@@ -196,7 +210,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       // ⚡️ ACTUALIZACIÓN INCREMENTAL: Anuncios (Tablón)
       if (collectionId === COLLECTION_NOTIFICATIONS) {
         if (event.includes(".create")) {
-          setAnnouncements(prev => [payload, ...prev].slice(0, 50));
+          setAnnouncements(prev => {
+            if (prev.some(a => a.$id === payload.$id)) return prev;
+            return [payload, ...prev].slice(0, 50);
+          });
           return;
         }
         if (event.includes(".delete")) {
@@ -237,6 +254,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     selectedMonth,
     revenueRecords,
     setStudentsList,
+    setClassesList,
+    setAnnouncements,
     setMonthlyRevenue,
     setUnpaidCount,
     setTotalStudents,
@@ -244,7 +263,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     refreshAdminData: loadDashboardData,
     refreshStudentsList: loadStudentsList,
     loadRevenueHistory
-  }), [studentsList, classesList, announcements, totalStudents, monthlyRevenue, unpaidCount, loading, studentsLoading, selectedMonth, revenueRecords, setStudentsList, setMonthlyRevenue, setUnpaidCount, setTotalStudents, loadDashboardData, loadStudentsList, loadRevenueHistory]);
+  }), [studentsList, classesList, announcements, totalStudents, monthlyRevenue, unpaidCount, loading, studentsLoading, selectedMonth, revenueRecords, setStudentsList, setClassesList, setAnnouncements, setMonthlyRevenue, setUnpaidCount, setTotalStudents, loadDashboardData, loadStudentsList, loadRevenueHistory]);
 
   return (
     <AdminContext.Provider value={value}>

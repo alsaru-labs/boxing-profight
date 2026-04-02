@@ -16,6 +16,8 @@ import {
 import { getCompleteUserData } from "@/app/sys-director/actions";
 import { Models, Query } from "appwrite";
 
+import { Loader2 } from "lucide-react";
+
 interface AuthContextType {
   user: Models.User<Models.Preferences> | null;
   profile: any | null;
@@ -40,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [availableClasses, setAvailableClasses] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [readNotifications, setReadNotifications] = useState<string[]>([]);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const isFetchingRef = useRef(false);
@@ -47,7 +50,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = React.useCallback(async () => {
     try {
-      // 1. Limpiar estado local inmediatamente para evitar re-renders con usuario fantasma
+      // 1. Activar estado de cierre de sesión para mostrar la UI de transición
+      setIsLoggingOut(true);
+
+      // 2. Limpiar estado local inmediatamente
       setUser(null);
       setProfile(null);
       setIsAdmin(false);
@@ -55,25 +61,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAvailableClasses([]);
       setAnnouncements([]);
       setReadNotifications([]);
-      // Mantenemos loading en true para evitar parpadeos visuales antes de la redirección
-      setLoading(true);
 
-      // 2. Eliminar sesión en Appwrite (Cliente)
+      // 3. Eliminar sesión en Appwrite (Cliente)
       try {
         await account.deleteSession("current");
       } catch (e) {
         console.warn("[AuthContext] Active session not found during logout");
       }
 
-      // 3. Eliminar cookies de servidor
+      // 4. Eliminar cookies de servidor
       const { logout: serverLogout } = await import("@/app/set-password/actions");
       await serverLogout();
 
-      // 4. Finalizar estado de carga para permitir navegación a login
-      setLoading(false);
+      // 5. Pequeña pausa para asegurar que el usuario vea la transición suave
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // 6. Redirección forzada al login
+      window.location.href = "/login";
 
     } catch (error) {
       console.error("[AuthContext] Logout error:", error);
+      setIsLoggingOut(false);
     }
   }, []);
 
@@ -246,6 +254,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshGlobalData: () => fetchUserAndProfile(false, true),
     logout
   }), [user, profile, loading, isAdmin, userBookings, availableClasses, announcements, readNotifications, unreadNotificationsCount, fetchUserAndProfile, logout]);
+
+  if (isLoggingOut) {
+    return (
+      <div className="relative min-h-screen bg-black overflow-hidden font-sans text-white flex items-center justify-center p-6">
+        {/* Background Gradient effects */}
+        <div className="absolute inset-0 z-0 opacity-80 mix-blend-screen pointer-events-none">
+          <div className="absolute top-[-10%] right-[-10%] w-[80%] h-[80%] animate-pulse bg-gradient-to-bl from-zinc-800 via-stone-900 to-black rounded-full blur-[100px]" />
+          <div className="absolute bottom-[20%] left-[-20%] w-[60%] h-[60%] bg-gradient-to-tr from-red-950/20 via-neutral-900/20 to-transparent rounded-full blur-[120px]" />
+        </div>
+        <div className="relative z-10 flex flex-col items-center">
+            <Loader2 className="w-12 h-12 text-white animate-spin mb-6" />
+            <p className="text-white font-black uppercase tracking-widest text-sm animate-pulse italic">Cerrando sesión...</p>
+            <p className="text-white/20 text-[10px] uppercase font-bold tracking-[0.4em] mt-4">Sincronizando seguridad</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider value={value}>

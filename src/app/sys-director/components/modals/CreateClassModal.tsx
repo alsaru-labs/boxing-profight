@@ -44,6 +44,7 @@ export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, cla
     coach: "Álex Pintor", 
     capacity: 30 
   });
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const tzOffset = (new Date()).getTimezoneOffset() * 60000;
   const localTodayISO = new Date(Date.now() - tzOffset).toISOString().split('T')[0];
@@ -67,8 +68,17 @@ export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, cla
 
   const handleSubmit = async () => {
     const success = await onSave(newClass);
-    if (success) onOpenChange(false);
+    if (success) {
+      setIsSuccess(true);
+      onOpenChange(false);
+    }
   };
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsSuccess(false);
+    }
+  }, [isOpen]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -137,7 +147,7 @@ export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, cla
             />
 
             <StatusAlert 
-              show={isDuplicate} 
+              show={isDuplicate && !isUpdating && !isSuccess} 
               message="Conflicto: Ya existe una clase a esta misma hora." 
             />
             <StatusAlert 

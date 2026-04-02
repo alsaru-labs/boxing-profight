@@ -19,7 +19,9 @@ export function useAdminData() {
     selectedMonth,
     setSelectedMonth,
     refreshAdminData,
-    refreshStudentsList
+    refreshStudentsList,
+    setClassesList,
+    setAnnouncements
   } = useAdmin();
 
   // El hook ahora es un simple puente al Contexto Global de Administración.
@@ -31,9 +33,9 @@ export function useAdminData() {
     studentsList,
     setStudentsList,
     classesList,
-    setClassesList: () => {}, // Mock o implementar si es necesario
+    setClassesList,
     announcements,
-    setAnnouncements: () => {}, // Mock o implementar si es necesario
+    setAnnouncements,
     totalStudents,
     setTotalStudents,
     monthlyRevenue,

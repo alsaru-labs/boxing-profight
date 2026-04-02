@@ -210,7 +210,7 @@ export async function bookClassAction(classId: string, userId: string) {
                 class_id: classId
             }
         );
-        revalidateTag("clases");
+        revalidateTag("clases", "max");
         return { success: true, booking: JSON.parse(JSON.stringify(booking)) };
 
     } catch (error: any) {
@@ -237,7 +237,7 @@ export async function cancelBookingAction(classId: string, bookingId: string) {
 
         // 2. Delete booking (1 write)
         await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, bookingId);
-        revalidateTag("clases");
+        revalidateTag("clases", "max");
         return { success: true };
     } catch (error: any) {
         console.error("[cancelBookingAction] Error:", error.message);
@@ -318,7 +318,7 @@ export async function publishAnnouncementAction(data: { title: string, content: 
             type: data.type,
             createdAt: new Date().toISOString()
         });
-        revalidateTag("anuncios");
+        revalidateTag("anuncios", "max");
         return { success: true, data: JSON.parse(JSON.stringify(res)) };
 
     } catch (error: any) {
@@ -333,7 +333,7 @@ export async function deleteAnnouncement(id: string) {
     const { databases } = await createAdminClient();
     try {
         await databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, id);
-        revalidateTag("anuncios");
+        revalidateTag("anuncios", "max");
         return { success: true };
 
     } catch (error: any) {
@@ -362,7 +362,7 @@ export async function createClassServer(newClass: any) {
                 status: "Activa"
             }
         );
-        revalidateTag("clases");
+        revalidateTag("clases", "max");
         return JSON.parse(JSON.stringify({ success: true, class: created }));
 
     } catch (error: any) {
@@ -432,7 +432,7 @@ export async function autoGenerateNextWeekClasses() {
                 }
             }
         }
-        revalidateTag(CACHE_TAGS.CLASSES);
+        revalidateTag(CACHE_TAGS.CLASSES, "max");
         return {
             success: true,
             count: generatedClasses.length,
@@ -510,7 +510,7 @@ export async function ensureMonthlyRevenueRecord() {
             const batch = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTION_PROFILES,
-                [sdk.Query.limit(limit), sdk.Query.offset(offset)]
+                [sdk.Query.equal("role", "alumno"), sdk.Query.limit(limit), sdk.Query.offset(offset)]
             );
 
             const studentsToReset = batch.documents.filter(p => p.role !== "admin" && p.is_paid !== false);
@@ -559,7 +559,7 @@ export async function markAllStudentsAsPaid() {
             const batch = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTION_PROFILES,
-                [sdk.Query.limit(limit), sdk.Query.offset(offset)]
+                [sdk.Query.equal("role", "alumno"), sdk.Query.limit(limit), sdk.Query.offset(offset)]
             );
 
             const toUpdate = batch.documents.filter(p => p.role !== "admin" && p.is_paid !== true);
@@ -604,7 +604,7 @@ export async function getAdminDashboardData(month?: string) {
         // 1. Fetch Summary Data (Lightweight)
         const [profilesCountData, classesData, announcementsData, currentMonthPayments] = await Promise.all([
             // Solo obtenemos el TOTAL, no los documentos (limit 1)
-            databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [sdk.Query.limit(1), sdk.Query.equal("is_active", true)]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [sdk.Query.limit(1), sdk.Query.equal("is_active", true), sdk.Query.equal("role", "alumno")]),
             databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [
                 sdk.Query.greaterThanEqual("date", thirtyDaysAgo),
                 sdk.Query.lessThanEqual("date", thirtyDaysAhead),
@@ -621,14 +621,15 @@ export async function getAdminDashboardData(month?: string) {
         
         // El conteo de impagos es aproximado: (Total Activos - Pagos Únicos realizados)
         // Esto ahorra 100+ lecturas de perfiles en cada login.
-        const paidStudentsCount = new Set(currentMonthPayments.documents.map((p: any) => p.student_id)).size;
-        const unpaidCount = Math.max(0, totalStudents - paidStudentsCount);
+        const paidStudentIds = Array.from(new Set(currentMonthPayments.documents.map((p: any) => p.student_id)));
+        const unpaidCount = Math.max(0, totalStudents - paidStudentIds.length);
 
         return {
             success: true,
             totalStudents,
             unpaidCount,
             totalRevenue,
+            paidStudentIds, // <--- Nueva propiedad
             classes: JSON.parse(JSON.stringify(classesData.documents)),
             announcements: JSON.parse(JSON.stringify(announcementsData)),
             currentMonth: currentMonthStr
@@ -650,7 +651,7 @@ export async function getAdminStudentsList(month?: string) {
 
     try {
         const [profilesData, currentMonthPayments] = await Promise.all([
-            databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [sdk.Query.limit(500), sdk.Query.equal("is_active", true)]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [sdk.Query.limit(500), sdk.Query.equal("is_active", true), sdk.Query.equal("role", "alumno")]),
             databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [sdk.Query.equal("month", currentMonthStr), sdk.Query.limit(500)]),
         ]);
 
@@ -905,10 +906,91 @@ export async function deleteClassAction(classId: string) {
 
         // 3. Delete the class itself
         await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
-        revalidateTag(CACHE_TAGS.CLASSES);
+        revalidateTag(CACHE_TAGS.CLASSES, "max");
         return { success: true };
     } catch (error: any) {
         console.error("[deleteClassAction] Error:", error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Administrative: Bootstrap Initial Admin (Security Utility)
+ * Crea el primer administrador en producción validando un secreto de entorno.
+ */
+export async function bootstrapAdminAction(data: { name: string, lastName: string, email: string, pass: string, secret: string }) {
+    const { name, lastName, email, pass, secret } = data;
+    // Saneamiento del secreto del sistema (eliminar comillas accidentales de .env)
+    const systemSecret = (process.env.ADMIN_BOOTSTRAP_SECRET || "").replace(/['"\s]/g, "");
+    const cleanSecret = (secret || "").trim();
+
+    if (!systemSecret || !cleanSecret || cleanSecret !== systemSecret) {
+        return { success: false, error: "Secreto de bootstrap inválido o no configurado en .env." };
+    }
+
+    const { databases, users } = await createAdminClient();
+
+    try {
+        // 1. Verificar si el email ya existe en Auth
+        const existing = await users.list([sdk.Query.equal("email", email)]);
+        
+        if (existing.total > 0) {
+            const authUser = existing.users[0];
+            
+            // 🔒 REFUERZO: Resetear contraseña del usuario existente en Auth
+            await users.updatePassword(authUser.$id, pass);
+
+            // Intentar promover perfil existente
+            try {
+                const profileRes = await databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [
+                    sdk.Query.equal("email", email.toLowerCase()),
+                    sdk.Query.limit(1)
+                ]);
+
+                if (profileRes.total > 0) {
+                    await databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, profileRes.documents[0].$id, {
+                        name: name,
+                        last_name: lastName,
+                        role: "admin",
+                        is_active: true,
+                        status: "Activa"
+                    });
+                    return { success: true, message: "Usuario existente promovido a Administrador y contraseña restablecida." };
+                } else {
+                    // Crear perfil si no existe pero el auth sí
+                    await databases.createDocument(DATABASE_ID, COLLECTION_PROFILES, authUser.$id, {
+                        user_id: authUser.$id,
+                        name: name,
+                        last_name: lastName,
+                        email: email.toLowerCase(),
+                        role: "admin",
+                        is_active: true,
+                        status: "Activa"
+                    });
+                    return { success: true, message: "Perfil administrativo creado para usuario Auth (Contraseña actualizada)." };
+                }
+            } catch (e: any) {
+                return { success: false, error: "El usuario existe en Auth pero hubo un error con su perfil: " + e.message };
+            }
+        }
+
+        // 2. Crear nueva cuenta completa (Auth + Profil)
+        const userId = sdk.ID.unique();
+        await users.create(userId, email, undefined, pass, name);
+
+        await databases.createDocument(DATABASE_ID, COLLECTION_PROFILES, userId, {
+            user_id: userId,
+            name: name,
+            last_name: lastName,
+            email: email.toLowerCase(),
+            role: "admin",
+            is_active: true,
+            status: "Activa"
+        });
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("[Bootstrap] Error crítico:", error.message);
         return { success: false, error: error.message };
     }
 }

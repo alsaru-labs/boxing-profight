@@ -108,11 +108,19 @@ export default function LoginPage() {
         setError("No se pudo cargar el perfil de usuario. Contacta con el administrador.");
       }
     } catch (err: any) {
-      const errorMsg = err?.message?.toLowerCase() || "";
-      if (errorMsg.includes('credentials') || errorMsg.includes('blocked') || errorMsg.includes('not found')) {
-        setError("Usuario o contraseña incorrectos.");
+      console.error("[LOGIN ERROR]", err);
+      
+      const type = err?.type || "";
+      const status = err?.code || 0;
+
+      if (type === "user_invalid_credentials" || status === 401) {
+        setError("Las credenciales no son correctas. Revisa tu email y contraseña.");
+      } else if (type === "user_blocked") {
+        setError("Esta cuenta ha sido desactivada. Contacta con el centro.");
+      } else if (status === 429) {
+        setError("Demasiados intentos. Por favor, espera unos minutos.");
       } else {
-        setError("Ocurrió un error al intentar iniciar sesión. Inténtalo de nuevo.");
+        setError("No se ha podido iniciar sesión. Revisa tu conexión o inténtalo más tarde.");
       }
     } finally {
       setLoading(false);

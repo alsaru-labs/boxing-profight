@@ -136,7 +136,7 @@ export function useAdminActions({
         setClassesList([...classesList, result.class].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
         return true;
       } else {
-        console.error("Error creating class:", result.error);
+        showAlert("Error", result.error || "No se pudo programar la clase. Revisa los datos.", "danger");
         return false;
       }
     } catch (error) {

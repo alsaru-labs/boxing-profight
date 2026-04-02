@@ -42,7 +42,6 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
   const handleLogout = async () => {
     try {
       await authLogout();
-      router.push("/login");
     } catch (e) {
       console.error("Error logging out", e);
     }
