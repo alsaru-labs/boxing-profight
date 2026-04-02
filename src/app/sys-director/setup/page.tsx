@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Loader2, ShieldCheck, CheckCircle2, AlertCircle } from "lucide-react";
-import { bootstrapAdminAction } from "../actions";
+import { bootstrapAdminAction } from "../actions-setup";
 
 export default function BootstrapPage() {
   const [formData, setFormData] = useState({

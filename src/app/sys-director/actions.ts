@@ -920,12 +920,18 @@ export async function deleteClassAction(classId: string) {
  */
 export async function bootstrapAdminAction(data: { name: string, lastName: string, email: string, pass: string, secret: string }) {
     const { name, lastName, email, pass, secret } = data;
+    const envSecret = process.env.ADMIN_BOOTSTRAP_SECRET || "";
     // Saneamiento del secreto del sistema (eliminar comillas accidentales de .env)
-    const systemSecret = (process.env.ADMIN_BOOTSTRAP_SECRET || "").replace(/['"\s]/g, "");
+    const systemSecret = envSecret.replace(/['"\s]/g, "");
     const cleanSecret = (secret || "").trim();
 
-    if (!systemSecret || !cleanSecret || cleanSecret !== systemSecret) {
-        return { success: false, error: "Secreto de bootstrap inválido o no configurado en .env." };
+    if (!envSecret) {
+        console.error("[Bootstrap] ERROR: ADMIN_BOOTSTRAP_SECRET no definida en el entorno del servidor.");
+        return { success: false, error: "Error de Servidor: La variable ADMIN_BOOTSTRAP_SECRET no está configurada en esta plataforma (Netlify/Local)." };
+    }
+
+    if (!cleanSecret || cleanSecret !== systemSecret) {
+        return { success: false, error: "Autorización fallida: El secreto universal proporcionado es incorrecto." };
     }
 
     const { databases, users } = await createAdminClient();
