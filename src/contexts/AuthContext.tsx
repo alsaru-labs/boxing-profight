@@ -42,10 +42,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isFetchingRef = useRef(false);
   const lastFetchTimeRef = useRef(0);
 
-  const fetchUserAndProfile = React.useCallback(async () => {
+  const fetchUserAndProfile = React.useCallback(async (silent = false) => {
     if (isFetchingRef.current) return;
     const now = Date.now();
+    
+    // 🛡️ COOLDOWN ABSOLUTO: Bloquear si hubo una petición exitosa hace menos de 2s
     if (now - lastFetchTimeRef.current < 2000) return;
+    
+    // 🛡️ COOLDOWN SILENCIOSO (Foco/Visibilidad): 300 segundos (5 MINUTOS)
+    if (silent && (now - lastFetchTimeRef.current < 300000)) return;
     
     isFetchingRef.current = true;
     lastFetchTimeRef.current = now;

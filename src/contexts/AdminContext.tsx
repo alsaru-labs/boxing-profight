@@ -55,8 +55,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     if (!isAdmin || isFetchingRef.current) return;
     
     const now = Date.now();
+    // 🛡️ COOLDOWN ABSOLUTO: 2 segundos
     if (now - lastFetchTimeRef.current < 2000) return;
-    if (silent && (now - lastFetchTimeRef.current < 30000)) return;
+    // 🛡️ COOLDOWN SILENCIOSO (Foco/Visibilidad): 300 segundos (5 MINUTOS)
+    if (silent && (now - lastFetchTimeRef.current < 300000)) return;
 
     try {
       isFetchingRef.current = true;
@@ -72,9 +74,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         setAnnouncements(result.announcements);
         setTotalStudents(result.students.length);
         
-        const paidCount = result.students.filter((s: any) => s.is_paid).length;
-        setMonthlyRevenue(paidCount * 60); 
-        setUnpaidCount(result.students.length - paidCount);
+        // Fix de cálculo de ingresos: sumar los importes reales
+        setMonthlyRevenue(result.totalRevenue || 0); 
+        setUnpaidCount(result.students.length - result.students.filter((s: any) => s.is_paid).length);
       }
     } catch (error) {
       console.error("Admin data load error:", error);
@@ -120,15 +122,69 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`,
       `databases.${DATABASE_ID}.collections.${COLLECTION_PAYMENTS}.documents`
     ], (response) => {
+      const event = response.events[0];
+      const payload = response.payload as any;
+
+      // ⚡️ ACTUALIZACIÓN INCREMENTAL: Pagos (Registro/Anulación)
+      const collectionId = payload.$collectionId;
+      const isPaymentEvent = collectionId === COLLECTION_PAYMENTS;
+      const isProfileEvent = collectionId === COLLECTION_PROFILES;
+
+      if (isPaymentEvent) {
+        console.log("⚡ Realtime Pago:", event, payload);
+        const isCreate = event.includes(".create");
+        const isDelete = event.includes(".delete");
+
+        if (payload.month === selectedMonth) {
+          if (isCreate) {
+            setStudentsList(prev => prev.map(s => 
+              s.$id === payload.student_id ? { ...s, is_paid: true, payment_method: payload.method } : s
+            ));
+            setMonthlyRevenue(prev => prev + (payload.amount || 0));
+            setUnpaidCount(prev => Math.max(0, prev - 1));
+            return;
+          }
+
+          if (isDelete) {
+            setStudentsList(prev => prev.map(s => 
+              s.$id === payload.student_id ? { ...s, is_paid: false, payment_method: null } : s
+            ));
+            setMonthlyRevenue(prev => Math.max(0, prev - (payload.amount || 0)));
+            setUnpaidCount(prev => prev + 1);
+            return;
+          }
+        }
+      }
+
+      if (isProfileEvent) {
+         if (event.includes(".update")) {
+            setStudentsList(prev => prev.map(s => 
+              s.$id === payload.$id ? { ...s, ...payload } : s
+            ));
+            return;
+         }
+      }
+
+      // ⚡️ ACTUALIZACIÓN INCREMENTAL: Perfiles (Cambios de estado/baja)
+      if (event.includes(`${COLLECTION_PROFILES}.documents`)) {
+         if (event.includes(".update")) {
+            setStudentsList(prev => prev.map(s => 
+              s.$id === payload.$id ? { ...s, ...payload } : s
+            ));
+            return; // Actualización visual inmediata
+         }
+      }
+
+      // Para otros eventos (Clases, Notificaciones, etc.) mantenemos el refresco debounced
       if (response.events.some(e => e.includes(".create") || e.includes(".delete") || e.includes(".update"))) {
         if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
         refreshTimeoutRef.current = setTimeout(() => {
           loadDashboardData(true);
-          // If something changes in revenue, we might want to refresh history too
+          // If something changes in revenue history history too
           if (response.events.some(e => e.includes(COLLECTION_REVENUE))) {
              loadRevenueHistory(true);
           }
-        }, 1000); 
+        }, 1200); 
       }
     });
 
@@ -136,7 +192,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       unsubscribe();
       if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
     };
-  }, [isAdmin, user?.$id, loadDashboardData, loadRevenueHistory]);
+  }, [isAdmin, user?.$id, loadDashboardData, loadRevenueHistory, selectedMonth]);
 
   const value = React.useMemo(() => ({
     studentsList,

@@ -454,7 +454,8 @@ export async function getAdminDashboardData(month?: string) {
             databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [sdk.Query.equal("month", currentMonthStr), sdk.Query.limit(500)])
         ]);
 
-        // 2. Map payments by student_id for O(1) lookup
+        // 2. Sum real payments for revenue
+        const totalRevenue = currentMonthPayments.documents.reduce((acc, p: any) => acc + (p.amount || 0), 0);
         const paidStudentsSet = new Set(currentMonthPayments.documents.map((p: any) => p.student_id));
         const paymentMethodsMap = new Map(currentMonthPayments.documents.map((p: any) => [p.student_id, p.method]));
         
@@ -471,6 +472,7 @@ export async function getAdminDashboardData(month?: string) {
             students: JSON.parse(JSON.stringify(students)),
             classes: JSON.parse(JSON.stringify(classesData.documents)),
             announcements: JSON.parse(JSON.stringify(announcementsData.documents)),
+            totalRevenue,
             currentMonth: currentMonthStr
         };
 
