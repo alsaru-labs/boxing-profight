@@ -98,15 +98,6 @@ export default function BookingsPage() {
                     databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [Query.limit(100), Query.orderAsc("date")])
                 ]);
 
-                // Sync Payment Status
-                const d = new Date();
-                const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                const paymentsData = await databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
-                    Query.equal("student_id", user.$id),
-                    Query.equal("month", currentMonthStr),
-                    Query.limit(1)
-                ]);
-
                 if (profileInfo?.role === "admin") {
                     router.push("/sys-director");
                     return;
