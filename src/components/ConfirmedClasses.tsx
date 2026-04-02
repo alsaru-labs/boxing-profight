@@ -3,6 +3,7 @@ import { CheckCircle2, ChevronDown, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
+import { isCancellable } from "@/lib/bookingUtils";
 import { LITERALS } from "@/constants/literals";
 
 interface ConfirmedClassesProps {
@@ -10,13 +11,15 @@ interface ConfirmedClassesProps {
     userBookings: any[];
     isProcessingBooking: string | null;
     handleCancelBooking: (cls: any) => void;
+    currentTime?: Date;
 }
 
 export default function ConfirmedClasses({
     availableClasses,
     userBookings,
     isProcessingBooking,
-    handleCancelBooking
+    handleCancelBooking,
+    currentTime = new Date()
 }: ConfirmedClassesProps) {
     const confirmedClasses = availableClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id));
 
@@ -92,14 +95,16 @@ export default function ConfirmedClasses({
                                                     <span>Prof. {cls.coach}</span>
                                                 </div>
                                             </div>
-                                            <Button
-                                                variant="ghost"
-                                                onClick={() => handleCancelBooking(cls)}
-                                                disabled={isProcessingBooking === cls.$id}
-                                                className="w-full sm:w-auto text-red-400 hover:text-red-500 hover:bg-red-500/10 border border-white/5 hover:border-red-500/20 px-6 h-10 md:h-12 font-bold transition-all rounded-xl"
-                                            >
-                                                {isProcessingBooking === cls.$id ? <Loader2 className="w-5 h-5 animate-spin" /> : "Anular Reserva"}
-                                            </Button>
+                                            {isCancellable(cls.date, cls.time, currentTime) && (
+                                                <Button
+                                                    variant="ghost"
+                                                    onClick={() => handleCancelBooking(cls)}
+                                                    disabled={isProcessingBooking === cls.$id}
+                                                    className="w-full sm:w-auto text-red-400 hover:text-red-500 hover:bg-red-500/10 border border-white/5 hover:border-red-500/20 px-6 h-10 md:h-12 font-bold transition-all rounded-xl"
+                                                >
+                                                    {isProcessingBooking === cls.$id ? <Loader2 className="w-5 h-5 animate-spin" /> : "Anular Reserva"}
+                                                </Button>
+                                            )}
                                         </div>
                                     ))}
                                 </div>

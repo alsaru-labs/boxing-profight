@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { isCancellable } from "@/lib/bookingUtils";
 import Navbar from "@/components/Navbar";
 import { ProfileCard } from "./components/ProfileCard";
 import { ProfileTabs } from "./components/ProfileTabs";
@@ -31,6 +32,7 @@ export default function StudentProfile() {
   const [pastClasses, setPastClasses] = useState<any[]>([]);
   const [isProcessingBooking, setIsProcessingBooking] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Custom Modal State
@@ -151,13 +153,25 @@ export default function StudentProfile() {
 
     loadData();
 
+    // Timer for cancellation limits
+    const timer = setInterval(() => {
+        setCurrentTime(new Date());
+    }, 10000);
+
     return () => {
       if (unsubscribe) unsubscribe();
       if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+      clearInterval(timer);
     };
   }, [router]);
 
   const handleCancelBooking = async (classObj: any) => {
+    // Check strict cancellation policy: at least 1 minute before
+    if (!isCancellable(classObj.date, classObj.time, new Date())) {
+        showAlert("Acción Prohibida", "Por política del club, solo se puede cancelar hasta 1 minuto antes del inicio de la clase.", "warning");
+        return;
+    }
+
     showConfirm(
         "Cancelar Reserva", 
         "¿Seguro que quieres cancelar tu plaza en esta clase? Esta acción liberará el sitio para otro compañero.",
@@ -367,14 +381,16 @@ export default function StudentProfile() {
                                 </p>
                               </div>
                             </div>
-                            <Button
-                              onClick={() => handleCancelBooking(cls)}
-                              disabled={isProcessingBooking === cls.$id}
-                              variant="ghost"
-                              className="text-red-400/50 hover:text-red-400 hover:bg-red-400/10 font-bold px-6"
-                            >
-                              {isProcessingBooking === cls.$id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Cancelar"}
-                            </Button>
+                            {isCancellable(cls.date, cls.time, currentTime) && (
+                              <Button
+                                onClick={() => handleCancelBooking(cls)}
+                                disabled={isProcessingBooking === cls.$id}
+                                variant="ghost"
+                                className="text-red-400/50 hover:text-red-400 hover:bg-red-400/10 font-bold px-6"
+                              >
+                                {isProcessingBooking === cls.$id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Cancelar"}
+                              </Button>
+                            )}
                           </div>
                         ))
                       )}

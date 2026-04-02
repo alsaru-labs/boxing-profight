@@ -14,6 +14,7 @@ import Navbar from "@/components/Navbar";
 import ConfirmedClasses from "@/components/ConfirmedClasses";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { ClassGrid } from "@/components/ClassGrid";
+import { isCancellable } from "@/lib/bookingUtils";
 import { LITERALS } from "@/constants/literals";
 
 export default function BookingsPage() {
@@ -26,6 +27,7 @@ export default function BookingsPage() {
     const [availableClasses, setAvailableClasses] = useState<any[]>([]);
     const [userBookings, setUserBookings] = useState<any[]>([]);
     const [isProcessingBooking, setIsProcessingBooking] = useState<string | null>(null);
+    const [currentTime, setCurrentTime] = useState(new Date());
     const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Custom Modal State
@@ -137,9 +139,15 @@ export default function BookingsPage() {
 
         loadData();
 
+        // Timer for cancellation limits
+        const timer = setInterval(() => {
+            setCurrentTime(new Date());
+        }, 10000);
+
         return () => {
             if (unsubscribe) unsubscribe();
             if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+            clearInterval(timer);
         };
     }, [router]);
 
@@ -194,6 +202,12 @@ export default function BookingsPage() {
     };
 
     const handleCancelBooking = async (classObj: any) => {
+        // Check strict cancellation policy: at least 1 minute before
+        if (!isCancellable(classObj.date, classObj.time, new Date())) {
+            showAlert("Acción Prohibida", "Por política del club, solo se puede cancelar hasta 1 minute antes del inicio de la clase.", "warning");
+            return;
+        }
+
         showConfirm(
             LITERALS.BOOKINGS.CANCEL_RESERVATION_TITLE, 
             LITERALS.BOOKINGS.CANCEL_RESERVATION_DESC,
@@ -276,6 +290,7 @@ export default function BookingsPage() {
                     userBookings={userBookings}
                     isProcessingBooking={isProcessingBooking}
                     handleCancelBooking={handleCancelBooking}
+                    currentTime={currentTime}
                 />
 
             </main>
