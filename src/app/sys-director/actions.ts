@@ -586,3 +586,37 @@ export async function deletePaymentAction(studentId: string, month?: string) {
     }
 }
 
+/**
+ * Atomic Class Deletion (Class + Bookings)
+ * Consolidates network calls to a single server operation.
+ */
+export async function deleteClassAction(classId: string) {
+    if (!classId) return { success: false, error: "ID de clase requerido." };
+
+    const { databases } = await createAdminClient();
+
+    try {
+        // 1. Find all related bookings
+        const bookingsList = await databases.listDocuments(
+            DATABASE_ID,
+            COLLECTION_BOOKINGS,
+            [sdk.Query.equal("class_id", classId), sdk.Query.limit(500)]
+        );
+
+        // 2. Delete bookings in parallel
+        if (bookingsList.total > 0) {
+            const deletePromises = bookingsList.documents.map(b => 
+                databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, b.$id)
+            );
+            await Promise.all(deletePromises);
+        }
+
+        // 3. Delete the class itself
+        await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("[deleteClassAction] Error:", error.message);
+        return { success: false, error: error.message };
+    }
+}

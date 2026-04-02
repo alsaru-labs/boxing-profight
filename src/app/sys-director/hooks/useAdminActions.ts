@@ -11,7 +11,7 @@ import {
   COLLECTION_REVENUE,
   COLLECTION_BOOKINGS
 } from "@/lib/appwrite";
-import { createClassServer, handleCreateOrReactivateStudent, recordPaymentAction, deletePaymentAction } from "../actions";
+import { createClassServer, handleCreateOrReactivateStudent, recordPaymentAction, deletePaymentAction, deleteClassAction } from "../actions";
 
 interface UseAdminActionsProps {
   studentsList: any[];
@@ -203,24 +203,17 @@ export function useAdminActions({
       async () => {
         try {
           setIsUpdating(true);
-          const relatedBookings = await databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
-            Query.equal("class_id", classObj.$id), Query.limit(100)
-          ]);
+          const result = await deleteClassAction(classObj.$id);
 
-          const deleteBookingPromises = relatedBookings.documents.map(booking =>
-            databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id)
-          );
-          await Promise.all(deleteBookingPromises);
-
-          await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
-
-          setClassesList(classesList.filter(c => c.$id !== classObj.$id));
-          showAlert("Éxito", "Clase eliminada correctamente.", "success");
-        } catch (error: any) {
-          if (error.code !== 404) {
-            console.error("Error al borrar la clase:", error);
-            showAlert("Error", "No se pudo borrar la clase o sus reservas.", "danger");
+          if (result.success) {
+            setClassesList(classesList.filter(c => c.$id !== classObj.$id));
+            showAlert("Éxito", "Clase eliminada correctamente.", "success");
+          } else {
+            showAlert("Error", result.error || "No se pudo borrar la clase.", "danger");
           }
+        } catch (error: any) {
+          console.error("Error al borrar la clase:", error);
+          showAlert("Error", "Error de red al intentar borrar la clase.", "danger");
         } finally {
           setIsUpdating(false);
         }
