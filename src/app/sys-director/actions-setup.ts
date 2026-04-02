@@ -1,6 +1,6 @@
 "use server";
 
-import { Client, Databases, Users } from "node-appwrite";
+import { Client, Databases, Users, Query, ID } from "node-appwrite";
 import { PROJECT_ID, ENDPOINT, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
 
 /**
@@ -39,16 +39,15 @@ export async function bootstrapAdminAction(data: { name: string, lastName: strin
 
     try {
         // 1. Verificar si el email ya existe en Auth
-        const existing = await users.list([Query.equal("email", email)]);
-        const QueryLib = (await import("node-appwrite")).Query;
+        const existing = await users.list([Query.equal("email", [email])]);
         
         if (existing.total > 0) {
             const authUser = existing.users[0];
             await users.updatePassword(authUser.$id, pass);
 
             const profileRes = await databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [
-                QueryLib.equal("email", email.toLowerCase()),
-                QueryLib.limit(1)
+                Query.equal("email", [email.toLowerCase()]),
+                Query.limit(1)
             ]);
 
             if (profileRes.total > 0) {
@@ -75,7 +74,7 @@ export async function bootstrapAdminAction(data: { name: string, lastName: strin
         }
 
         // 2. Crear nueva cuenta completa (Auth + Profil)
-        const userId = "admin_" + Date.now();
+        const userId = ID.unique();
         await users.create(userId, email, undefined, pass, name);
 
         await databases.createDocument(DATABASE_ID, COLLECTION_PROFILES, userId, {
@@ -94,8 +93,3 @@ export async function bootstrapAdminAction(data: { name: string, lastName: strin
         return { success: false, error: error.message };
     }
 }
-
-// Emular Query de Appwrite localmente para evitar problemas de importación circular rápida
-const Query = {
-    equal: (key: string, val: any) => `equal("${key}", ["${val}"])`
-} as any;
