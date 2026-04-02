@@ -22,24 +22,17 @@ export default function NotificationPanel() {
         user, 
         loading: authLoading, 
         announcements, 
+        readNotifications, // ⚡️ Usamos el estado global
         unreadNotificationsCount: unreadCount,
-        refreshGlobalData 
     } = useAuth();
     const userId = user?.$id || "";
     const isLoggedIn = !!user;
 
     const [isOpen, setIsOpen] = useState(false);
-    const [readIds, setReadIds] = useState<string[]>([]);
     const [isMarking, setIsMarking] = useState<string | null>(null);
     const [isSubscribed, setIsSubscribed] = useState(false);
 
-    useEffect(() => {
-        if (typeof window !== "undefined" && "Notification" in window) {
-            setIsSubscribed(Notification.permission === "granted");
-        }
-    }, []);
-
-    // Filter visible notifications: Strictly last 48h
+    // ... (useEffect y visibleNotifications se mantienen parecidos)
     const visibleNotifications = announcements.filter(n => {
         const createdDate = new Date(n.$createdAt);
         const fortyEightHoursAgo = new Date();
@@ -48,7 +41,7 @@ export default function NotificationPanel() {
     });
 
     const handleMarkAsRead = async (notifId: string) => {
-        if (readIds.includes(notifId) || isMarking) return;
+        if (readNotifications.includes(notifId) || isMarking) return;
 
         setIsMarking(notifId);
         try {
@@ -62,7 +55,8 @@ export default function NotificationPanel() {
                     read_at: new Date().toISOString()
                 }
             );
-            setReadIds(prev => [...prev, notifId]);
+            // 💡 No actualizamos estado local. 
+            // El Realtime en AuthContext lo detectará y actualizará readNotifications.
         } catch (e) {
             console.error("Error marking as read:", e);
         } finally {
@@ -71,7 +65,7 @@ export default function NotificationPanel() {
     };
 
     const handleMarkAllAsRead = async () => {
-        const unreadNotifs = announcements.filter((n: any) => !readIds.includes(n.$id));
+        const unreadNotifs = announcements.filter((n: any) => !readNotifications.includes(n.$id));
         if (unreadNotifs.length === 0 || isMarking) return;
 
         setIsMarking("all");
@@ -89,8 +83,7 @@ export default function NotificationPanel() {
                 )
             );
             await Promise.all(promises);
-            const markedIds = unreadNotifs.map((n: any) => n.$id);
-            setReadIds(prev => [...prev, ...markedIds]);
+            // El Realtime hará el resto
         } catch (e) {
             console.error("Error marking all as read:", e);
         } finally {
@@ -199,7 +192,7 @@ export default function NotificationPanel() {
                                         </div>
                                     ) : (
                                         visibleNotifications.map((n: any) => {
-                                            const isRead = readIds.includes(n.$id);
+                                            const isRead = readNotifications.includes(n.$id);
                                             return (
                                                 <div
                                                     key={n.$id}

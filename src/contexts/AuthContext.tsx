@@ -13,6 +13,7 @@ import {
   COLLECTION_NOTIFICATIONS_READ,
   client 
 } from "@/lib/appwrite";
+import { getStudentInitialData } from "@/app/sys-director/actions";
 import { Models, Query } from "appwrite";
 
 interface AuthContextType {
@@ -23,6 +24,7 @@ interface AuthContextType {
   userBookings: any[];
   availableClasses: any[];
   announcements: any[];
+  readNotifications: string[];
   unreadNotificationsCount: number;
   refreshProfile: () => Promise<void>;
   refreshGlobalData: () => Promise<void>;
@@ -59,54 +61,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const currentUser = await account.get();
       setUser(currentUser);
 
-      const d = new Date();
-      const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      // 🌪️ FETCH GLOBAL CONSOLIDADO (1 Petición vs 5)
+      const result = await getStudentInitialData(currentUser.$id);
 
-      // 🌪️ FETCH GLOBAL MASIVO (5 Colecciones de una sola vez)
-      const [
-        userProfile, 
-        paymentData, 
-        bookingsData, 
-        classesData, 
-        announcementsData,
-        readStatusData
-      ] = await Promise.all([
-        databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, currentUser.$id),
-        databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
-          Query.equal("student_id", currentUser.$id),
-          Query.equal("month", currentMonthStr),
-          Query.limit(1)
-        ]),
-        databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
-          Query.equal("student_id", currentUser.$id),
-          Query.limit(100)
-        ]),
-        databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [
-          Query.limit(100),
-          Query.orderAsc("date")
-        ]),
-        databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS, [
-          Query.orderDesc("$createdAt"),
-          Query.limit(50)
-        ]),
-        databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, [
-          Query.equal("user_id", currentUser.$id),
-          Query.limit(100)
-        ])
-      ]);
-      
-      const enrichedProfile = {
-        ...userProfile,
-        is_paid: paymentData.total > 0
-      };
+      if (result.success && result.data) {
+        const { classes, userBookings: bookings, isPaid, announcements: notifs, readNotifications: readIds } = result.data;
+        
+        // El perfil base lo seguimos necesitando para el rol y datos básicos
+        const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, currentUser.$id);
 
-      setProfile(enrichedProfile);
-      setIsAdmin(userProfile.role === "admin");
-      setUserBookings(bookingsData.documents);
-      setAvailableClasses(classesData.documents);
-      setAnnouncements(announcementsData.documents);
-      setReadNotifications(readStatusData.documents.map(d => d.notification_id));
-
+        setProfile({ ...userProfile, is_paid: isPaid });
+        setIsAdmin(userProfile.role === "admin");
+        setUserBookings(bookings);
+        setAvailableClasses(classes);
+        setAnnouncements(notifs);
+        setReadNotifications(readIds);
+      }
     } catch (error) {
       setUser(null);
       setProfile(null);
@@ -223,10 +193,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     userBookings,
     availableClasses,
     announcements,
+    readNotifications,
     unreadNotificationsCount,
     refreshProfile: fetchUserAndProfile,
     refreshGlobalData: fetchUserAndProfile
-  }), [user, profile, loading, isAdmin, userBookings, availableClasses, announcements, unreadNotificationsCount, fetchUserAndProfile]);
+  }), [user, profile, loading, isAdmin, userBookings, availableClasses, announcements, readNotifications, unreadNotificationsCount, fetchUserAndProfile]);
 
   return (
     <AuthContext.Provider value={value}>

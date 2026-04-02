@@ -1,7 +1,7 @@
 "use server";
 
 import * as sdk from "node-appwrite";
-import { DATABASE_ID, COLLECTION_PROFILES, COLLECTION_INVITATION_TOKENS, COLLECTION_BOOKINGS, COLLECTION_CLASSES, COLLECTION_NOTIFICATIONS, COLLECTION_REVENUE, COLLECTION_PAYMENTS } from "@/lib/appwrite";
+import { DATABASE_ID, COLLECTION_PROFILES, COLLECTION_INVITATION_TOKENS, COLLECTION_BOOKINGS, COLLECTION_CLASSES, COLLECTION_NOTIFICATIONS, COLLECTION_REVENUE, COLLECTION_PAYMENTS, COLLECTION_NOTIFICATIONS_READ } from "@/lib/appwrite";
 import { createAdminClient, checkPaymentStatus } from "@/lib/server/appwrite";
 
 /**
@@ -443,6 +443,8 @@ export async function getAdminDashboardData(month?: string) {
     const { databases } = await createAdminClient();
     
     try {
+        // ⚡️ OPTIMIZACIÓN EXTREMA: Solo traemos reservas de los últimos 30 días (Suficiente para dashboard activo + historial)
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
         const d = new Date();
         const currentMonthStr = month || `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
@@ -452,7 +454,10 @@ export async function getAdminDashboardData(month?: string) {
             databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [sdk.Query.limit(500), sdk.Query.orderAsc("date")]),
             databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS, [sdk.Query.orderDesc("$createdAt"), sdk.Query.limit(20)]),
             databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [sdk.Query.equal("month", currentMonthStr), sdk.Query.limit(500)]),
-            databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [sdk.Query.limit(5000)]) // Carga masiva para total zero-fetch
+            databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
+                sdk.Query.greaterThanEqual("$createdAt", thirtyDaysAgo), 
+                sdk.Query.limit(1000)
+            ]) 
         ]);
 
         // 2. Sum real payments for revenue
@@ -582,6 +587,43 @@ export async function deletePaymentAction(studentId: string, month?: string) {
         return { success: true };
     } catch (error: any) {
         console.error("[deletePaymentAction] Error:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Consolidated Student Initial Data Load
+ * 1 Call vs 5 Client-side calls.
+ */
+export async function getStudentInitialData(userId: string) {
+    if (!userId) return { success: false, error: "ID de usuario requerido." };
+
+    const { databases } = await createAdminClient();
+
+    try {
+        const d = new Date();
+        const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+        const [classesData, bookingsData, paymentsData, announcementsData, readData] = await Promise.all([
+            databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [sdk.Query.limit(500), sdk.Query.orderAsc("date")]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [sdk.Query.equal("student_id", userId), sdk.Query.limit(500)]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [sdk.Query.equal("student_id", userId), sdk.Query.equal("month", currentMonthStr), sdk.Query.limit(1)]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS, [sdk.Query.orderDesc("$createdAt"), sdk.Query.limit(50)]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, [sdk.Query.equal("user_id", userId), sdk.Query.limit(500)])
+        ]);
+
+        return {
+            success: true,
+            data: JSON.parse(JSON.stringify({
+                classes: classesData.documents,
+                userBookings: bookingsData.documents,
+                isPaid: paymentsData.total > 0,
+                announcements: announcementsData.documents,
+                readNotifications: readData.documents.map((r: any) => r.notification_id)
+            }))
+        };
+    } catch (error: any) {
+        console.error("[getStudentInitialData] Error:", error.message);
         return { success: false, error: error.message };
     }
 }
