@@ -225,7 +225,6 @@ export default function AdminDashboard() {
             />
 
             <StudentDirectory
-              studentsList={studentsList}
               isUpdating={isUpdating}
               handleActionClick={handleActionClick}
               handleOpenEditModal={handleOpenEditModal}

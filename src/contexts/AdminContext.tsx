@@ -18,16 +18,22 @@ interface AdminContextType {
   studentsList: any[];
   classesList: any[];
   announcements: any[];
-  bookingsList: any[]; // Nueva pieza para Zero-Fetch de asistentes
+  // bookingsList eliminada - ahora se carga bajo demanda en el modal
   totalStudents: number;
   monthlyRevenue: number;
   unpaidCount: number;
   loading: boolean;
+  studentsLoading: boolean;
   selectedMonth: string;
   revenueRecords: any[];
+  setStudentsList: React.Dispatch<React.SetStateAction<any[]>>;
+  setMonthlyRevenue: React.Dispatch<React.SetStateAction<number>>;
+  setUnpaidCount: React.Dispatch<React.SetStateAction<number>>;
+  setTotalStudents: React.Dispatch<React.SetStateAction<number>>;
   setSelectedMonth: (month: string) => void;
-  refreshAdminData: (silent?: boolean, monthOverride?: string) => Promise<void>;
-  loadRevenueHistory: (force?: boolean) => Promise<void>;
+  refreshAdminData: (silent?: boolean, month?: string) => Promise<void>;
+  refreshStudentsList: (silent?: boolean) => Promise<void>;
+  loadRevenueHistory: (silent?: boolean) => Promise<void>;
 }
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
@@ -35,10 +41,10 @@ const AdminContext = createContext<AdminContextType | undefined>(undefined);
 export function AdminProvider({ children }: { children: React.ReactNode }) {
   const { user, profile, isAdmin, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [studentsLoading, setStudentsLoading] = useState(false);
   const [studentsList, setStudentsList] = useState<any[]>([]);
   const [classesList, setClassesList] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
-  const [bookingsList, setBookingsList] = useState<any[]>([]);
   const [revenueRecords, setRevenueRecords] = useState<any[]>([]);
   const [totalStudents, setTotalStudents] = useState(0);
   const [monthlyRevenue, setMonthlyRevenue] = useState(0);
@@ -49,6 +55,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   });
 
   const isFetchingRef = useRef(false);
+  const isFetchingStudentsRef = useRef(false);
   const isFetchingRevenueRef = useRef(false);
   const lastFetchTimeRef = useRef(0);
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -68,24 +75,40 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       if (!silent) setLoading(true);
 
       const targetMonth = monthOverride || selectedMonth;
+      const { getAdminDashboardData } = await import("@/app/sys-director/actions");
       const result = await getAdminDashboardData(targetMonth);
       
       if (result.success) {
-        setStudentsList(result.students);
+        // Stats Ligeras (Sin lista de alumnos completa)
         setClassesList(result.classes);
         setAnnouncements(result.announcements);
-        setBookingsList(result.bookings || []);
-        setTotalStudents(result.students.length);
-        
-        // Fix de cálculo de ingresos: sumar los importes reales
+        setTotalStudents(result.totalStudents || 0);
         setMonthlyRevenue(result.totalRevenue || 0); 
-        setUnpaidCount(result.students.length - result.students.filter((s: any) => s.is_paid).length);
+        setUnpaidCount(result.unpaidCount || 0);
       }
     } catch (error) {
       console.error("Admin data load error:", error);
     } finally {
       setLoading(false);
       isFetchingRef.current = false;
+    }
+  }, [isAdmin, selectedMonth]);
+  
+  const loadStudentsList = React.useCallback(async (silent = false) => {
+    if (!isAdmin || isFetchingStudentsRef.current) return;
+    try {
+      if (!silent) setStudentsLoading(true);
+      isFetchingStudentsRef.current = true;
+      const { getAdminStudentsList } = await import("@/app/sys-director/actions");
+      const result = await getAdminStudentsList(selectedMonth);
+      if (result.success) {
+        setStudentsList(result.students);
+      }
+    } catch (error) {
+      console.error("[AdminContext] Error loading students:", error);
+    } finally {
+      if (!silent) setStudentsLoading(false);
+      isFetchingStudentsRef.current = false;
     }
   }, [isAdmin, selectedMonth]);
 
@@ -168,16 +191,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       }
 
       // ⚡️ ACTUALIZACIÓN INCREMENTAL: Reservas (Asistentes en tiempo real)
-      if (collectionId === COLLECTION_BOOKINGS) {
-        if (event.includes(".create")) {
-          setBookingsList(prev => [...prev, payload]);
-          return;
-        }
-        if (event.includes(".delete")) {
-          setBookingsList(prev => prev.filter(b => b.$id !== payload.$id));
-          return;
-        }
-      }
+      // Se maneja via actualización de clase (registeredCount) o bajo demanda en el modal.
 
       // ⚡️ ACTUALIZACIÓN INCREMENTAL: Anuncios (Tablón)
       if (collectionId === COLLECTION_NOTIFICATIONS) {
@@ -221,17 +235,22 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     studentsList,
     classesList,
     announcements,
-    bookingsList,
     totalStudents,
     monthlyRevenue,
     unpaidCount,
     loading,
+    studentsLoading,
     selectedMonth,
     revenueRecords,
+    setStudentsList,
+    setMonthlyRevenue,
+    setUnpaidCount,
+    setTotalStudents,
     setSelectedMonth,
     refreshAdminData: loadDashboardData,
+    refreshStudentsList: loadStudentsList,
     loadRevenueHistory
-  }), [studentsList, classesList, announcements, bookingsList, totalStudents, monthlyRevenue, unpaidCount, loading, selectedMonth, revenueRecords, loadDashboardData, loadRevenueHistory]);
+  }), [studentsList, classesList, announcements, totalStudents, monthlyRevenue, unpaidCount, loading, studentsLoading, selectedMonth, revenueRecords, setStudentsList, setMonthlyRevenue, setUnpaidCount, setTotalStudents, loadDashboardData, loadStudentsList, loadRevenueHistory]);
 
   return (
     <AdminContext.Provider value={value}>

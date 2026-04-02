@@ -443,28 +443,67 @@ export async function getAdminDashboardData(month?: string) {
     const { databases } = await createAdminClient();
     
     try {
-        // ⚡️ OPTIMIZACIÓN EXTREMA: Solo traemos reservas de los últimos 30 días (Suficiente para dashboard activo + historial)
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-        const d = new Date();
-        const currentMonthStr = month || `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        const thirtyDaysAhead = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        const currentMonthStr = month || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-        // 1. Fetch all primary data
-        const [profilesData, classesData, announcementsData, currentMonthPayments, bookingsData] = await Promise.all([
-            databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [sdk.Query.limit(500), sdk.Query.equal("is_active", true)]),
-            databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [sdk.Query.limit(500), sdk.Query.orderAsc("date")]),
+        // 1. Fetch Summary Data (Lightweight)
+        const [profilesCountData, classesData, announcementsData, currentMonthPayments] = await Promise.all([
+            // Solo obtenemos el TOTAL, no los documentos (limit 1)
+            databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [sdk.Query.limit(1), sdk.Query.equal("is_active", true)]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [
+                sdk.Query.greaterThanEqual("date", thirtyDaysAgo),
+                sdk.Query.lessThanEqual("date", thirtyDaysAhead),
+                sdk.Query.limit(500),
+                sdk.Query.orderAsc("date")
+            ]),
             databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS, [sdk.Query.orderDesc("$createdAt"), sdk.Query.limit(20)]),
-            databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [sdk.Query.equal("month", currentMonthStr), sdk.Query.limit(500)]),
-            databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
-                sdk.Query.greaterThanEqual("$createdAt", thirtyDaysAgo), 
-                sdk.Query.limit(1000)
-            ]) 
+            databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [sdk.Query.equal("month", currentMonthStr), sdk.Query.limit(500)])
         ]);
 
         // 2. Sum real payments for revenue
         const totalRevenue = currentMonthPayments.documents.reduce((acc, p: any) => acc + (p.amount || 0), 0);
+        const totalStudents = profilesCountData.total;
+        
+        // El conteo de impagos es aproximado: (Total Activos - Pagos Únicos realizados)
+        // Esto ahorra 100+ lecturas de perfiles en cada login.
+        const paidStudentsCount = new Set(currentMonthPayments.documents.map((p: any) => p.student_id)).size;
+        const unpaidCount = Math.max(0, totalStudents - paidStudentsCount);
+
+        return {
+            success: true,
+            totalStudents,
+            unpaidCount,
+            totalRevenue,
+            classes: JSON.parse(JSON.stringify(classesData.documents)),
+            announcements: JSON.parse(JSON.stringify(announcementsData.documents)),
+            currentMonth: currentMonthStr
+        };
+
+    } catch (error: any) {
+        console.error("[getAdminDashboardData] Error detectado:", error.message);
+        return { success: false, error: `Error en el servidor: ${error.message}` };
+    }
+}
+
+/**
+ * Fetch full list of students only when needed (Directory Tab)
+ */
+export async function getAdminStudentsList(month?: string) {
+    const { databases } = await createAdminClient();
+    const d = new Date();
+    const currentMonthStr = month || `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+    try {
+        const [profilesData, currentMonthPayments] = await Promise.all([
+            databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [sdk.Query.limit(500), sdk.Query.equal("is_active", true)]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [sdk.Query.equal("month", currentMonthStr), sdk.Query.limit(500)]),
+        ]);
+
         const paidStudentsSet = new Set(currentMonthPayments.documents.map((p: any) => p.student_id));
         const paymentMethodsMap = new Map(currentMonthPayments.documents.map((p: any) => [p.student_id, p.method]));
-        
+
         const students = profilesData.documents
             .filter((p: any) => p.role !== "admin")
             .map((p: any) => ({
@@ -473,19 +512,27 @@ export async function getAdminDashboardData(month?: string) {
                 payment_method: paymentMethodsMap.get(p.$id) || null
             }));
 
-        return {
-            success: true,
-            students: JSON.parse(JSON.stringify(students)),
-            classes: JSON.parse(JSON.stringify(classesData.documents)),
-            announcements: JSON.parse(JSON.stringify(announcementsData.documents)),
-            bookings: JSON.parse(JSON.stringify(bookingsData.documents)),
-            totalRevenue,
-            currentMonth: currentMonthStr
-        };
-
+        return { success: true, students: JSON.parse(JSON.stringify(students)) };
     } catch (error: any) {
-        console.error("[getAdminDashboardData] Error detectado:", error.message);
-        return { success: false, error: `Error en el servidor: ${error.message}` };
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Fetch attendees for a specific class on-demand.
+ * Reduces initial read count by hundreds of documents.
+ */
+export async function getClassAttendees(classId: string) {
+    if (!classId) return { success: false, error: "ID de clase requerido." };
+    const { databases } = await createAdminClient();
+    try {
+        const bookings = await databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
+            sdk.Query.equal("class_id", classId),
+            sdk.Query.limit(100)
+        ]);
+        return { success: true, documents: JSON.parse(JSON.stringify(bookings.documents)) };
+    } catch (error: any) {
+        return { success: false, error: error.message };
     }
 }
 
@@ -591,6 +638,17 @@ export async function deletePaymentAction(studentId: string, month?: string) {
     }
 }
 
+export async function getUserProfile(userId: string) {
+    if (!userId) return { success: false, error: "ID de usuario requerido." };
+    const { databases } = await createAdminClient();
+    try {
+        const profile = await databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, userId);
+        return { success: true, data: JSON.parse(JSON.stringify(profile)) };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+
 /**
  * Consolidated Student Initial Data Load
  * 1 Call vs 5 Client-side calls.
@@ -601,11 +659,19 @@ export async function getStudentInitialData(userId: string) {
     const { databases } = await createAdminClient();
 
     try {
-        const d = new Date();
-        const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        const thirtyDaysAhead = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-        const [classesData, bookingsData, paymentsData, announcementsData, readData] = await Promise.all([
-            databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [sdk.Query.limit(500), sdk.Query.orderAsc("date")]),
+        const [profileData, classesData, bookingsData, paymentsData, announcementsData, readData] = await Promise.all([
+            databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, userId),
+            databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [
+                sdk.Query.greaterThanEqual("date", thirtyDaysAgo),
+                sdk.Query.lessThanEqual("date", thirtyDaysAhead),
+                sdk.Query.limit(500),
+                sdk.Query.orderAsc("date")
+            ]),
             databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [sdk.Query.equal("student_id", userId), sdk.Query.limit(500)]),
             databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [sdk.Query.equal("student_id", userId), sdk.Query.equal("month", currentMonthStr), sdk.Query.limit(1)]),
             databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS, [sdk.Query.orderDesc("$createdAt"), sdk.Query.limit(50)]),
@@ -615,6 +681,7 @@ export async function getStudentInitialData(userId: string) {
         return {
             success: true,
             data: JSON.parse(JSON.stringify({
+                profile: profileData,
                 classes: classesData.documents,
                 userBookings: bookingsData.documents,
                 isPaid: paymentsData.total > 0,

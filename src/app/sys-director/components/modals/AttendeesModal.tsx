@@ -5,33 +5,45 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useState, useEffect } from "react";
-import { databases, DATABASE_ID, COLLECTION_BOOKINGS, COLLECTION_PROFILES } from "@/lib/appwrite";
-import { Query } from "appwrite";
-
 import { useAdmin } from "@/contexts/AdminContext";
 
-interface AttendeesModalProps {
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  selectedClass: any;
-}
+export function AttendeesModal({ isOpen, onOpenChange, selectedClass }: any) {
+  const { studentsList } = useAdmin();
+  const [attendees, setAttendees] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-export function AttendeesModal({ isOpen, onOpenChange, selectedClass }: AttendeesModalProps) {
-  const { bookingsList, studentsList } = useAdmin();
-
-  // 🌪️ Zero-Fetch transformation: Filter bookings locally
-  const attendees = isOpen && selectedClass ? bookingsList
-    .filter(b => b.class_id === selectedClass.$id)
-    .map(booking => {
-        const student = studentsList.find(s => s.$id === booking.student_id);
-        return student || { 
-            $id: booking.student_id, 
-            name: "Alumno (Inactivo)", 
-            email: "N/A", 
-            level: "N/A", 
-            is_active: false 
-        };
-    }) : [];
+  useEffect(() => {
+    if (isOpen && selectedClass?.$id) {
+      const fetchAttendees = async () => {
+        try {
+          setLoading(true);
+          const { getClassAttendees } = await import("@/app/sys-director/actions");
+          const result = await getClassAttendees(selectedClass.$id);
+          
+          if (result.success && result.documents) {
+            const mapped = result.documents.map((booking: any) => {
+                const student = studentsList.find(s => s.$id === booking.student_id);
+                return student || { 
+                    $id: booking.student_id, 
+                    name: "Alumno (Inactivo)", 
+                    email: "N/A", 
+                    level: "N/A", 
+                    is_active: false 
+                };
+            });
+            setAttendees(mapped);
+          }
+        } catch (err) {
+          console.error("Error loading attendees:", err);
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchAttendees();
+    } else {
+      setAttendees([]);
+    }
+  }, [isOpen, selectedClass?.$id, studentsList]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -43,8 +55,13 @@ export function AttendeesModal({ isOpen, onOpenChange, selectedClass }: Attendee
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[60vh] overflow-y-auto px-6 pb-6">
-          {attendees.length === 0 ? (
-            <div className="text-center text-white/40 py-8 italic">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <Loader2 className="w-8 h-8 text-emerald-500 animate-spin fill-emerald-500/20" />
+              <p className="text-xs text-white/30 font-black uppercase tracking-widest">Sincronizando Lista...</p>
+            </div>
+          ) : attendees.length === 0 ? (
+            <div className="text-center text-white/40 py-8 italic uppercase text-[10px] tracking-widest">
               Aún no hay ningún alumno apuntado a esta clase.
             </div>
           ) : (

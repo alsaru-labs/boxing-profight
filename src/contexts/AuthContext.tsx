@@ -28,6 +28,7 @@ interface AuthContextType {
   unreadNotificationsCount: number;
   refreshProfile: () => Promise<void>;
   refreshGlobalData: () => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,40 +45,97 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isFetchingRef = useRef(false);
   const lastFetchTimeRef = useRef(0);
 
-  const fetchUserAndProfile = React.useCallback(async (silent = false) => {
-    if (isFetchingRef.current) return;
+  const logout = React.useCallback(async () => {
+    try {
+      // 1. Limpiar estado local inmediatamente para evitar re-renders con usuario fantasma
+      setUser(null);
+      setProfile(null);
+      setIsAdmin(false);
+      setUserBookings([]);
+      setAvailableClasses([]);
+      setAnnouncements([]);
+      setReadNotifications([]);
+      // Mantenemos loading en true para evitar parpadeos visuales antes de la redirección
+      setLoading(true);
+
+      // 2. Eliminar sesión en Appwrite (Cliente)
+      try {
+        await account.deleteSession("current");
+      } catch (e) {
+        console.warn("[AuthContext] Active session not found during logout");
+      }
+
+      // 3. Eliminar cookies de servidor
+      const { logout: serverLogout } = await import("@/app/set-password/actions");
+      await serverLogout();
+
+      // 4. Finalizar estado de carga para permitir navegación a login
+      setLoading(false);
+
+    } catch (error) {
+      console.error("[AuthContext] Logout error:", error);
+    }
+  }, []);
+
+  const fetchUserAndProfile = React.useCallback(async (silent = false, force = false) => {
+    if (isFetchingRef.current && !force) return;
     const now = Date.now();
     
-    // 🛡️ COOLDOWN ABSOLUTO: Bloquear si hubo una petición exitosa hace menos de 2s
-    if (now - lastFetchTimeRef.current < 2000) return;
+    // 🛡️ COOLDOWN ABSOLUTO: Bloquear si hubo una petición exitosa hace menos de 2s (Skip if force)
+    if (!force && (now - lastFetchTimeRef.current < 2000)) return;
     
-    // 🛡️ COOLDOWN SILENCIOSO (Foco/Visibilidad): 300 segundos (5 MINUTOS)
-    if (silent && (now - lastFetchTimeRef.current < 300000)) return;
+    // 🛡️ COOLDOWN SILENCIOSO (Foco/Visibilidad): 300 segundos (Skip if force)
+    if (silent && !force && (now - lastFetchTimeRef.current < 300000)) return;
     
     isFetchingRef.current = true;
-    lastFetchTimeRef.current = now;
+    if (force) lastFetchTimeRef.current = 0; // Reset cooldown on force
+    else lastFetchTimeRef.current = now;
     
     try {
       const currentUser = await account.get();
       setUser(currentUser);
 
-      // 🌪️ FETCH GLOBAL CONSOLIDADO (1 Petición vs 5)
-      const result = await getStudentInitialData(currentUser.$id);
-
-      if (result.success && result.data) {
-        const { classes, userBookings: bookings, isPaid, announcements: notifs, readNotifications: readIds } = result.data;
-        
-        // El perfil base lo seguimos necesitando para el rol y datos básicos
-        const userProfile = await databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, currentUser.$id);
-
-        setProfile({ ...userProfile, is_paid: isPaid });
-        setIsAdmin(userProfile.role === "admin");
-        setUserBookings(bookings);
-        setAvailableClasses(classes);
-        setAnnouncements(notifs);
-        setReadNotifications(readIds);
+      // 1. Obtener Perfil Base via Server Action (API Key) para evitar errores de permisos 401/403
+      const { getUserProfile } = await import("@/app/sys-director/actions");
+      const profileResult = await getUserProfile(currentUser.$id);
+      
+      if (profileResult.success && profileResult.data) {
+        const userProfile = profileResult.data;
+        // 🚨 ES ADMIN: No cargamos datos de alumno, el AdminContext se encargará
+        if (userProfile.role === "admin") {
+          setProfile(userProfile);
+          setIsAdmin(true);
+        } else {
+          // 🥋 ES ALUMNO: Cargamos su "Student Bundle" consolidado
+          const result = await getStudentInitialData(currentUser.$id);
+          if (result.success && result.data) {
+            const { 
+              profile: fullProfile, 
+              classes, 
+              userBookings: bookings, 
+              isPaid, 
+              announcements: notifs, 
+              readNotifications: readIds 
+            } = result.data;
+            
+            setProfile({ ...fullProfile, is_paid: isPaid });
+            setIsAdmin(false);
+            setUserBookings(bookings);
+            setAvailableClasses(classes);
+            setAnnouncements(notifs);
+            setReadNotifications(readIds);
+          }
+        }
+      } else {
+        // No se pudo obtener el perfil (documento inexistente o error server)
+        throw new Error("Perfil no encontrado o inaccesible.");
       }
-    } catch (error) {
+    } catch (error: any) {
+      // 🛡️ SILENCIAR ERROR DE INVITADO: Si no hay sesión, es un estado válido (GUEST), no un error crítico.
+      if (error?.code !== 401) {
+        console.error("[AuthContext] Auth error:", error);
+      }
+      
       setUser(null);
       setProfile(null);
       setIsAdmin(false);
@@ -195,9 +253,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     announcements,
     readNotifications,
     unreadNotificationsCount,
-    refreshProfile: fetchUserAndProfile,
-    refreshGlobalData: fetchUserAndProfile
-  }), [user, profile, loading, isAdmin, userBookings, availableClasses, announcements, readNotifications, unreadNotificationsCount, fetchUserAndProfile]);
+    refreshProfile: () => fetchUserAndProfile(false, true),
+    refreshGlobalData: () => fetchUserAndProfile(false, true),
+    logout
+  }), [user, profile, loading, isAdmin, userBookings, availableClasses, announcements, readNotifications, unreadNotificationsCount, fetchUserAndProfile, logout]);
 
   return (
     <AuthContext.Provider value={value}>

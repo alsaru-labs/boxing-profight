@@ -11,8 +11,11 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
 
+import { useAuth } from "@/contexts/AuthContext";
+
 export default function LoginPage() {
   const router = useRouter();
+  const { user, profile, loading: authLoading, refreshGlobalData } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,29 +24,18 @@ export default function LoginPage() {
 
   // Redirigir a los usuarios que ya tienen sesión
   useEffect(() => {
-    const checkUserAuth = async () => {
-      try {
-        const currentUser = await account.get();
-        // Obtener el rol para saber a dónde redirigirle
-        const profile = await databases.getDocument(
-          DATABASE_ID,
-          COLLECTION_PROFILES,
-          currentUser.$id
-        );
+    if (authLoading) return;
 
-        if (profile.role === "admin") {
-          router.push("/sys-director");
-        } else {
-          router.push("/perfil");
-        }
-      } catch (error) {
-        // No hay sesión activa. Permitir ver el formulario de login.
-        setCheckingAuth(false);
+    if (user && profile) {
+      if (profile.role === "admin") {
+        router.push("/sys-director");
+      } else {
+        router.push("/perfil");
       }
-    };
-
-    checkUserAuth();
-  }, [router]);
+    } else {
+      setCheckingAuth(false);
+    }
+  }, [user, profile, authLoading, router]);
 
   const deleteAllCookies = () => {
     const cookies = document.cookie.split(";");
@@ -91,24 +83,29 @@ export default function LoginPage() {
         }
       }
 
-      // Fetch user profile to determine correct redirection route
-      const currentUser = await account.get();
-      const profile = await databases.getDocument(
-        DATABASE_ID,
-        COLLECTION_PROFILES,
-        currentUser.$id
-      );
+      // ⚡️ FORZAR ACTUALIZACIÓN DEL CONTEXTO ANTES DE REDIRIGIR
+      await refreshGlobalData();
 
-      if (profile.role === "admin") {
-        router.push("/sys-director");
-      } else {
-        const urlParams = new URLSearchParams(window.location.search);
-        const redirectPath = urlParams.get('redirect');
-        if (redirectPath && redirectPath.startsWith('/')) {
-          router.push(redirectPath);
+      // Fetch user profile to determine correct redirection route via Server Action (API Key)
+      const { getUserProfile } = await import("@/app/sys-director/actions");
+      const currentUser = await account.get();
+      const profileResult = await getUserProfile(currentUser.$id);
+
+      if (profileResult.success && profileResult.data) {
+        const profile = profileResult.data;
+        if (profile.role === "admin") {
+          router.push("/sys-director");
         } else {
-          router.push("/bookings");
+          const urlParams = new URLSearchParams(window.location.search);
+          const redirectPath = urlParams.get('redirect');
+          if (redirectPath && redirectPath.startsWith('/')) {
+            router.push(redirectPath);
+          } else {
+            router.push("/bookings");
+          }
         }
+      } else {
+        setError("No se pudo cargar el perfil de usuario. Contacta con el administrador.");
       }
     } catch (err: any) {
       const errorMsg = err?.message?.toLowerCase() || "";

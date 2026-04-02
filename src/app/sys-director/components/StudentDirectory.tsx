@@ -3,8 +3,11 @@
 import React, { useState, useMemo } from 'react';
 import {
   ArrowUpDown,
-  ChevronDown
+  ChevronDown,
+  Loader2,
+  Users
 } from 'lucide-react';
+import { useAdmin } from "@/contexts/AdminContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +36,6 @@ interface StudentDirectoryProps {
 }
 
 export function StudentDirectory({
-  studentsList,
   isUpdating,
   handleActionClick,
   handleOpenEditModal,
@@ -41,7 +43,16 @@ export function StudentDirectory({
   setStudentsList,
   showAlert,
   showConfirm
-}: StudentDirectoryProps) {
+}: Omit<StudentDirectoryProps, 'studentsList'>) {
+  const { studentsList, refreshStudentsList, studentsLoading } = useAdmin();
+  
+  // ⚡️ CARGA BAJO DEMANDA: Solo cargar si la lista está vacía
+  React.useEffect(() => {
+    if (studentsList.length === 0 && !studentsLoading) {
+      refreshStudentsList(true); // Carga silenciosa
+    }
+  }, [studentsList.length, studentsLoading, refreshStudentsList]);
+
   // Local State for Search/Filter/Sort
   const [searchTerm, setSearchTerm] = useState("");
   const [filterPayment, setFilterPayment] = useState("Todos");
@@ -137,7 +148,21 @@ export function StudentDirectory({
       />
 
       <Card className="bg-zinc-900/50 border-white/10 backdrop-blur-lg shadow-2xl overflow-hidden">
-        <div className="max-h-[700px] overflow-y-auto custom-scrollbar">
+        <div className="max-h-[700px] overflow-y-auto custom-scrollbar relative">
+          {/* Loader de Directorio */}
+          {studentsLoading && studentsList.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-24 gap-4 bg-zinc-900/20 backdrop-blur-sm">
+              <div className="relative">
+                <Users className="w-12 h-12 text-white/5 animate-pulse" />
+                <Loader2 className="w-8 h-8 text-emerald-500 animate-spin absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+              </div>
+              <div className="text-center space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500/80">Sincronizando Directorio</p>
+                <p className="text-[9px] font-medium uppercase tracking-widest text-white/20">Optimizando recursos de base de datos...</p>
+              </div>
+            </div>
+          )}
+
           {/* Desktop Table View */}
           <div className="hidden lg:block">
             <Table className="border-separate border-spacing-y-1.5">
@@ -187,7 +212,12 @@ export function StudentDirectory({
 
           {/* Mobile Card View */}
           <div className="lg:hidden max-h-[750px] overflow-y-auto custom-scrollbar-mobile bg-black/20 rounded-b-2xl shadow-inner border-t border-white/5 p-4 space-y-4">
-            {slicedStudents.length === 0 ? (
+            {studentsLoading && studentsList.length === 0 ? (
+               <div className="py-12 flex flex-col items-center justify-center gap-3">
+                  <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
+                  <p className="text-[8px] font-black uppercase tracking-widest text-white/30">Cargando Alumnos...</p>
+               </div>
+            ) : slicedStudents.length === 0 ? (
               <div className="p-8 text-center text-white/50 italic">
                 No hay alumnos registrados.
               </div>

@@ -14,13 +14,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import NotificationPanel from "./NotificationPanel";
-import { logout } from "@/app/set-password/actions";
-import { account } from "@/lib/appwrite";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function Navbar({ isHome = false }: { isHome?: boolean }) {
   const router = useRouter();
-  const { user, profile, isAdmin, loading: roleLoading } = useAuth();
+  const { user, profile, isAdmin, loading: roleLoading, logout: authLogout } = useAuth();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -43,11 +41,7 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
 
   const handleLogout = async () => {
     try {
-      // 1. Client-side Logout (Appwrite SDK)
-      await account.deleteSession("current");
-      // 2. Server-side Logout (Cookies)
-      await logout();
-      
+      await authLogout();
       router.push("/login");
     } catch (e) {
       console.error("Error logging out", e);
