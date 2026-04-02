@@ -8,56 +8,30 @@ import { useState, useEffect } from "react";
 import { databases, DATABASE_ID, COLLECTION_BOOKINGS, COLLECTION_PROFILES } from "@/lib/appwrite";
 import { Query } from "appwrite";
 
+import { useAdmin } from "@/contexts/AdminContext";
+
 interface AttendeesModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   selectedClass: any;
-  allStudents: any[];
 }
 
-export function AttendeesModal({ isOpen, onOpenChange, selectedClass, allStudents }: AttendeesModalProps) {
-  const [attendees, setAttendees] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+export function AttendeesModal({ isOpen, onOpenChange, selectedClass }: AttendeesModalProps) {
+  const { bookingsList, studentsList } = useAdmin();
 
-  useEffect(() => {
-    const fetchAttendees = async () => {
-      if (!selectedClass || !isOpen) return;
-      try {
-        setLoading(true);
-        const bookingsData = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTION_BOOKINGS,
-          [Query.equal("class_id", selectedClass.$id), Query.limit(100)]
-        );
-
-        const studentIds = bookingsData.documents.map(b => b.student_id);
-        
-        // Find students we already have in the provided list
-        const foundStudents = allStudents.filter(student => studentIds.includes(student.$id));
-        const foundIds = foundStudents.map(s => s.$id);
-        const missingIds = studentIds.filter(id => !foundIds.includes(id));
-
-        // If some students (likely inactives) are not in the main list, fetch them individually
-        let extraStudents: any[] = [];
-        if (missingIds.length > 0) {
-          const fetchPromises = missingIds.map(id => 
-            databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, id)
-              .catch(() => null)
-          );
-          const results = await Promise.all(fetchPromises);
-          extraStudents = results.filter(r => r !== null);
-        }
-
-        setAttendees([...foundStudents, ...extraStudents]);
-      } catch (error) {
-        console.error("Error fetching attendees:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAttendees();
-  }, [selectedClass, isOpen, allStudents]);
+  // 🌪️ Zero-Fetch transformation: Filter bookings locally
+  const attendees = isOpen && selectedClass ? bookingsList
+    .filter(b => b.class_id === selectedClass.$id)
+    .map(booking => {
+        const student = studentsList.find(s => s.$id === booking.student_id);
+        return student || { 
+            $id: booking.student_id, 
+            name: "Alumno (Inactivo)", 
+            email: "N/A", 
+            level: "N/A", 
+            is_active: false 
+        };
+    }) : [];
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -69,11 +43,7 @@ export function AttendeesModal({ isOpen, onOpenChange, selectedClass, allStudent
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[60vh] overflow-y-auto px-6 pb-6">
-          {loading ? (
-            <div className="flex justify-center items-center py-10">
-              <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-            </div>
-          ) : attendees.length === 0 ? (
+          {attendees.length === 0 ? (
             <div className="text-center text-white/40 py-8 italic">
               Aún no hay ningún alumno apuntado a esta clase.
             </div>

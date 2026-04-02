@@ -18,6 +18,7 @@ interface AdminContextType {
   studentsList: any[];
   classesList: any[];
   announcements: any[];
+  bookingsList: any[]; // Nueva pieza para Zero-Fetch de asistentes
   totalStudents: number;
   monthlyRevenue: number;
   unpaidCount: number;
@@ -37,6 +38,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [studentsList, setStudentsList] = useState<any[]>([]);
   const [classesList, setClassesList] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [bookingsList, setBookingsList] = useState<any[]>([]);
   const [revenueRecords, setRevenueRecords] = useState<any[]>([]);
   const [totalStudents, setTotalStudents] = useState(0);
   const [monthlyRevenue, setMonthlyRevenue] = useState(0);
@@ -72,6 +74,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         setStudentsList(result.students);
         setClassesList(result.classes);
         setAnnouncements(result.announcements);
+        setBookingsList(result.bookings || []);
         setTotalStudents(result.students.length);
         
         // Fix de cálculo de ingresos: sumar los importes reales
@@ -124,19 +127,12 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     ], (response) => {
       const event = response.events[0];
       const payload = response.payload as any;
+      const collectionId = payload.$collectionId;
 
       // ⚡️ ACTUALIZACIÓN INCREMENTAL: Pagos (Registro/Anulación)
-      const collectionId = payload.$collectionId;
-      const isPaymentEvent = collectionId === COLLECTION_PAYMENTS;
-      const isProfileEvent = collectionId === COLLECTION_PROFILES;
-
-      if (isPaymentEvent) {
-        console.log("⚡ Realtime Pago:", event, payload);
-        const isCreate = event.includes(".create");
-        const isDelete = event.includes(".delete");
-
+      if (collectionId === COLLECTION_PAYMENTS) {
         if (payload.month === selectedMonth) {
-          if (isCreate) {
+          if (event.includes(".create")) {
             setStudentsList(prev => prev.map(s => 
               s.$id === payload.student_id ? { ...s, is_paid: true, payment_method: payload.method } : s
             ));
@@ -144,8 +140,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             setUnpaidCount(prev => Math.max(0, prev - 1));
             return;
           }
-
-          if (isDelete) {
+          if (event.includes(".delete")) {
             setStudentsList(prev => prev.map(s => 
               s.$id === payload.student_id ? { ...s, is_paid: false, payment_method: null } : s
             ));
@@ -156,35 +151,63 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      if (isProfileEvent) {
+      // ⚡️ ACTUALIZACIÓN INCREMENTAL: Clases (Crear/Editar/Borrar)
+      if (collectionId === COLLECTION_CLASSES) {
+        if (event.includes(".create")) {
+          setClassesList(prev => [...prev, payload].sort((a,b) => a.date.localeCompare(b.date)));
+          return;
+        }
+        if (event.includes(".update")) {
+          setClassesList(prev => prev.map(c => c.$id === payload.$id ? payload : c));
+          return;
+        }
+        if (event.includes(".delete")) {
+          setClassesList(prev => prev.filter(c => c.$id !== payload.$id));
+          return;
+        }
+      }
+
+      // ⚡️ ACTUALIZACIÓN INCREMENTAL: Reservas (Asistentes en tiempo real)
+      if (collectionId === COLLECTION_BOOKINGS) {
+        if (event.includes(".create")) {
+          setBookingsList(prev => [...prev, payload]);
+          return;
+        }
+        if (event.includes(".delete")) {
+          setBookingsList(prev => prev.filter(b => b.$id !== payload.$id));
+          return;
+        }
+      }
+
+      // ⚡️ ACTUALIZACIÓN INCREMENTAL: Anuncios (Tablón)
+      if (collectionId === COLLECTION_NOTIFICATIONS) {
+        if (event.includes(".create")) {
+          setAnnouncements(prev => [payload, ...prev].slice(0, 50));
+          return;
+        }
+        if (event.includes(".delete")) {
+          setAnnouncements(prev => prev.filter(a => a.$id !== payload.$id));
+          return;
+        }
+      }
+
+      // ⚡️ ACTUALIZACIÓN INCREMENTAL: Perfiles (Cambios de estado/baja)
+      if (collectionId === COLLECTION_PROFILES) {
          if (event.includes(".update")) {
-            setStudentsList(prev => prev.map(s => 
-              s.$id === payload.$id ? { ...s, ...payload } : s
-            ));
+            setStudentsList(prev => prev.map(s => s.$id === payload.$id ? { ...s, ...payload } : s));
             return;
          }
       }
 
-      // ⚡️ ACTUALIZACIÓN INCREMENTAL: Perfiles (Cambios de estado/baja)
-      if (event.includes(`${COLLECTION_PROFILES}.documents`)) {
-         if (event.includes(".update")) {
-            setStudentsList(prev => prev.map(s => 
-              s.$id === payload.$id ? { ...s, ...payload } : s
-            ));
-            return; // Actualización visual inmediata
-         }
-      }
-
-      // Para otros eventos (Clases, Notificaciones, etc.) mantenemos el refresco debounced
+      // Para otros eventos o sincronización global (3s buffer)
       if (response.events.some(e => e.includes(".create") || e.includes(".delete") || e.includes(".update"))) {
         if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
         refreshTimeoutRef.current = setTimeout(() => {
           loadDashboardData(true);
-          // If something changes in revenue history history too
           if (response.events.some(e => e.includes(COLLECTION_REVENUE))) {
              loadRevenueHistory(true);
           }
-        }, 1200); 
+        }, 3000); 
       }
     });
 
@@ -198,6 +221,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     studentsList,
     classesList,
     announcements,
+    bookingsList,
     totalStudents,
     monthlyRevenue,
     unpaidCount,
@@ -207,7 +231,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setSelectedMonth,
     refreshAdminData: loadDashboardData,
     loadRevenueHistory
-  }), [studentsList, classesList, announcements, totalStudents, monthlyRevenue, unpaidCount, loading, selectedMonth, revenueRecords, loadDashboardData, loadRevenueHistory]);
+  }), [studentsList, classesList, announcements, bookingsList, totalStudents, monthlyRevenue, unpaidCount, loading, selectedMonth, revenueRecords, loadDashboardData, loadRevenueHistory]);
 
   return (
     <AdminContext.Provider value={value}>

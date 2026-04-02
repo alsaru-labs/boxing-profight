@@ -125,80 +125,93 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fetchUserAndProfile();
   }, [fetchUserAndProfile]);
 
+  // 📡 CENTRALIZACIÓN DE TIEMPO REAL (Suscripción Unificada Zero-Fetch)
   useEffect(() => {
     if (!user?.$id) return;
 
-    // 📡 CENTRALIZACIÓN DE TIEMPO REAL (5 Suscripciones en 1 efecto)
-    let unsubscribeProfile: () => void;
-    let unsubscribePayments: () => void;
-    let unsubscribeBookings: () => void;
-    let unsubscribeClasses: () => void;
-    let unsubscribeAnnouncements: () => void;
+    const unsubscribe = client.subscribe([
+      `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents.${user.$id}`,
+      `databases.${DATABASE_ID}.collections.${COLLECTION_PAYMENTS}.documents`,
+      `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`,
+      `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
+      `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`,
+      `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS_READ}.documents`
+    ], (response) => {
+      const event = response.events[0];
+      const payload = response.payload as any;
+      const collectionId = payload.$collectionId;
 
-    // 1. Suscripción al Perfil
-    unsubscribeProfile = client.subscribe(
-      [`databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents.${user.$id}`],
-      (response) => {
-        if (response.events.some(e => e.includes(".update"))) {
-          setProfile((prev: any) => ({ ...prev, ...(response.payload as any) }));
-          setIsAdmin((response.payload as any).role === "admin");
-        }
+      // ⚡️ Perfil (Cambios de rol, datos, etc.)
+      if (collectionId === COLLECTION_PROFILES && event.includes(".update")) {
+        setProfile((prev: any) => ({ ...prev, ...payload }));
+        setIsAdmin(payload.role === "admin");
+        return;
       }
-    );
 
-    // 2. Suscripción a Pagos
-    unsubscribePayments = client.subscribe(
-      [`databases.${DATABASE_ID}.collections.${COLLECTION_PAYMENTS}.documents`],
-      (response) => {
-        const payload = response.payload as any;
+      // ⚡️ Pagos (Detección de estado de pago en el perfil)
+      if (collectionId === COLLECTION_PAYMENTS) {
         if (payload.student_id === user.$id) {
-          const d = new Date();
-          const currentMonthMonth = String(d.getMonth() + 1).padStart(2, '0');
-          const currentMonthStr = `${d.getFullYear()}-${currentMonthMonth}`;
-          
-          if (payload.month === currentMonthStr) {
-            setProfile((prev: any) => prev ? { 
-              ...prev, 
-              is_paid: response.events.some(e => e.includes(".create")) 
-            } : null);
-          }
+           const d = new Date();
+           const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+           if (payload.month === currentMonthStr) {
+             setProfile((prev: any) => prev ? { ...prev, is_paid: event.includes(".create") } : null);
+           }
+        }
+        return;
+      }
+
+      // ⚡️ Reservas (Alta/Baja de clase con actualización de cupo)
+      if (collectionId === COLLECTION_BOOKINGS) {
+        const isMyBooking = payload.student_id === user.$id;
+        
+        if (event.includes(".create")) {
+          if (isMyBooking) setUserBookings(prev => [...prev, payload]);
+          setAvailableClasses(prev => prev.map(c => 
+            c.$id === payload.class_id ? { ...c, registeredCount: (c.registeredCount || 0) + 1 } : c
+          ));
+          return;
+        }
+        if (event.includes(".delete")) {
+          if (isMyBooking) setUserBookings(prev => prev.filter(b => b.$id !== payload.$id));
+          setAvailableClasses(prev => prev.map(c => 
+            c.$id === payload.class_id ? { ...c, registeredCount: Math.max(0, (c.registeredCount || 0) - 1) } : c
+          ));
+          return;
         }
       }
-    );
 
-    // 3. Suscripción a Reservas
-    unsubscribeBookings = client.subscribe(
-      [`databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`],
-      (response) => {
-        const payload = response.payload as any;
-        if (payload.student_id === user.$id) {
-          fetchUserAndProfile(); // Refresco coordinado para reservas
+      // ⚡️ Clases (Horarios globales)
+      if (collectionId === COLLECTION_CLASSES) {
+        if (event.includes(".create")) {
+          setAvailableClasses(prev => [...prev, payload].sort((a,b) => a.date.localeCompare(b.date)));
+          return;
+        }
+        if (event.includes(".update")) {
+          setAvailableClasses(prev => prev.map(c => c.$id === payload.$id ? payload : c));
+          return;
+        }
+        if (event.includes(".delete")) {
+          setAvailableClasses(prev => prev.filter(c => c.$id !== payload.$id));
+          return;
         }
       }
-    );
 
-    // 4. Suscripción a Clases y Anuncios (Globales)
-    unsubscribeClasses = client.subscribe(
-      [`databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`],
-      () => fetchUserAndProfile()
-    );
+      // ⚡️ Anuncios y Notificaciones
+      if (collectionId === COLLECTION_NOTIFICATIONS && event.includes(".create")) {
+        setAnnouncements(prev => [payload, ...prev].slice(0, 50));
+        return;
+      }
 
-    unsubscribeAnnouncements = client.subscribe(
-      [
-        `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`,
-        `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS_READ}.documents`
-      ],
-      () => fetchUserAndProfile()
-    );
+      if (collectionId === COLLECTION_NOTIFICATIONS_READ && event.includes(".create") && payload.user_id === user.$id) {
+        setReadNotifications(prev => [...prev, payload.notification_id]);
+        return;
+      }
+    });
 
     return () => {
-      if (unsubscribeProfile) unsubscribeProfile();
-      if (unsubscribePayments) unsubscribePayments();
-      if (unsubscribeBookings) unsubscribeBookings();
-      if (unsubscribeClasses) unsubscribeClasses();
-      if (unsubscribeAnnouncements) unsubscribeAnnouncements();
+      unsubscribe();
     };
-  }, [user?.$id, fetchUserAndProfile]);
+  }, [user?.$id]);
 
   const unreadNotificationsCount = announcements.filter(n => !readNotifications.includes(n.$id)).length;
 

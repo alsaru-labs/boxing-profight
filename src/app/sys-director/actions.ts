@@ -447,11 +447,12 @@ export async function getAdminDashboardData(month?: string) {
         const currentMonthStr = month || `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
         // 1. Fetch all primary data
-        const [profilesData, classesData, announcementsData, currentMonthPayments] = await Promise.all([
+        const [profilesData, classesData, announcementsData, currentMonthPayments, bookingsData] = await Promise.all([
             databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [sdk.Query.limit(500), sdk.Query.equal("is_active", true)]),
             databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [sdk.Query.limit(500), sdk.Query.orderAsc("date")]),
             databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS, [sdk.Query.orderDesc("$createdAt"), sdk.Query.limit(20)]),
-            databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [sdk.Query.equal("month", currentMonthStr), sdk.Query.limit(500)])
+            databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [sdk.Query.equal("month", currentMonthStr), sdk.Query.limit(500)]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [sdk.Query.limit(5000)]) // Carga masiva para total zero-fetch
         ]);
 
         // 2. Sum real payments for revenue
@@ -472,6 +473,7 @@ export async function getAdminDashboardData(month?: string) {
             students: JSON.parse(JSON.stringify(students)),
             classes: JSON.parse(JSON.stringify(classesData.documents)),
             announcements: JSON.parse(JSON.stringify(announcementsData.documents)),
+            bookings: JSON.parse(JSON.stringify(bookingsData.documents)),
             totalRevenue,
             currentMonth: currentMonthStr
         };

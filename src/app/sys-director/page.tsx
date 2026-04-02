@@ -295,7 +295,6 @@ export default function AdminDashboard() {
         isOpen={isAttendeesModalOpen}
         onOpenChange={setIsAttendeesModalOpen}
         selectedClass={selectedClassForAttendees}
-        allStudents={studentsList}
       />
 
       <ConfirmModal
