@@ -3,8 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { databases, DATABASE_ID, COLLECTION_CLASSES, COLLECTION_BOOKINGS } from "@/lib/appwrite";
-import { ID } from "appwrite";
+import { bookClassAction, cancelBookingAction } from "@/app/sys-director/actions";
 import Navbar from "@/components/Navbar";
 import ConfirmedClasses from "@/components/ConfirmedClasses";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -116,31 +115,19 @@ export default function BookingsPage() {
                 try {
                     setIsProcessingBooking(classObj.$id);
 
-                    const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
-                    if (freshClass.registeredCount >= freshClass.capacity) {
-                        showAlert("Clase Llena", "¡Lo sentimos! Las plazas para esta clase se acaban de llenar.", "warning");
-                        return;
-                    }
-
-                    await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id, {
-                        registeredCount: freshClass.registeredCount + 1
-                    });
-
-                    await databases.createDocument(
-                        DATABASE_ID,
-                        COLLECTION_BOOKINGS,
-                        ID.unique(),
-                        {
-                            student_id: user.$id,
-                            class_id: classObj.$id
+                    const result = await bookClassAction(classObj.$id, user.$id);
+                    
+                    if (result.success) {
+                        showAlert("¡Reserva Éxitosa!", "Tu plaza ha quedado confirmada. ¡Nos vemos en el tatami!", "success");
+                    } else {
+                        if (result.code === "FULL") {
+                            showAlert("Clase Llena", "¡Lo sentimos! Las plazas para esta clase se acaban de llenar.", "warning");
+                        } else {
+                            showAlert("Error", result.error || "No se ha podido realizar la reserva. Inténtalo de nuevo.", "danger");
                         }
-                    );
-
-                    showAlert("¡Reserva Éxitosa!", "Tu plaza ha quedado confirmada. ¡Nos vemos en el tatami!", "success");
-                } catch (err: any) {
-                    if (err.code !== 404) {
-                        showAlert("Error", "No se ha podido realizar la reserva. Inténtalo de nuevo.", "danger");
                     }
+                } catch (err: any) {
+                    showAlert("Error", "No se ha podido realizar la reserva. Inténtalo de nuevo.", "danger");
                     console.error(err);
                 } finally {
                     setIsProcessingBooking(null);
@@ -165,18 +152,16 @@ export default function BookingsPage() {
                     const bookingToCancel = userBookings.find((b: any) => b.class_id === classObj.$id);
                     if (!bookingToCancel) return;
 
-                    const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
-                    await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id, {
-                        registeredCount: Math.max(0, freshClass.registeredCount - 1)
-                    });
-                    await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, bookingToCancel.$id);
+                    const result = await cancelBookingAction(classObj.$id, bookingToCancel.$id);
                     
-                    showAlert("Éxito", "Reserva cancelada correctamente.", "success");
-                } catch (err: any) {
-                    if (err.code !== 404) {
-                        showAlert("Error", "No se ha podido cancelar la reserva.", "danger");
-                        console.error(err);
+                    if (result.success) {
+                        showAlert("Éxito", "Reserva cancelada correctamente.", "success");
+                    } else {
+                        showAlert("Error", result.error || "No se ha podido cancelar la reserva.", "danger");
                     }
+                } catch (err: any) {
+                    showAlert("Error", "No se ha podido cancelar la reserva.", "danger");
+                    console.error(err);
                 } finally {
                     setIsProcessingBooking(null);
                 }

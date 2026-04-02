@@ -15,9 +15,7 @@ import {
 } from "@/components/ui/select";
 import { LITERALS } from "@/constants/literals";
 import { useState } from "react";
-import { databases, DATABASE_ID, COLLECTION_NOTIFICATIONS } from "@/lib/appwrite";
-import { ID } from "appwrite";
-import { deleteAnnouncement } from "../../actions";
+import { publishAnnouncementAction, deleteAnnouncement } from "../../actions";
 
 interface AnnouncementManagerProps {
   announcements: any[];
@@ -38,12 +36,18 @@ export function AnnouncementManager({ announcements, setAnnouncements, showAlert
       async () => {
         setIsCreating(true);
         try {
-          const res = await databases.createDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, ID.unique(), {
+          const res = await publishAnnouncementAction({
             title: newAnnouncement.title,
             content: newAnnouncement.content,
-            type: newAnnouncement.type,
-            createdAt: new Date().toISOString()
+            type: newAnnouncement.type
           });
+          if (res.success && res.data) {
+            setAnnouncements([res.data, ...announcements]);
+            setNewAnnouncement({ title: "", content: "", type: "info" });
+            showAlert("Éxito", "Anuncio publicado.", "success");
+          } else {
+            showAlert("Error", "No se pudo publicar.", "danger");
+          }
           setAnnouncements([res, ...announcements]);
           setNewAnnouncement({ title: "", content: "", type: "info" });
           showAlert("Éxito", "Anuncio publicado.", "success");

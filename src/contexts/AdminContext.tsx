@@ -213,16 +213,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
          }
       }
 
-      // Para otros eventos o sincronización global (3s buffer)
-      if (response.events.some(e => e.includes(".create") || e.includes(".delete") || e.includes(".update"))) {
-        if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
-        refreshTimeoutRef.current = setTimeout(() => {
-          loadDashboardData(true);
-          if (response.events.some(e => e.includes(COLLECTION_REVENUE))) {
-             loadRevenueHistory(true);
-          }
-        }, 3000); 
-      }
+      // 💡 OPTIMIZACIÓN ZERO-FETCH:
+      // Hemos eliminado el fallback de re-fetch (setTimeout) porque todas las 
+      // colecciones críticas (Pagos, Clases, Perfiles, Anuncios) ya tienen lógica
+      // de actualización incremental manual arriba. Esto ahorra cientos de lecturas.
     });
 
     return () => {

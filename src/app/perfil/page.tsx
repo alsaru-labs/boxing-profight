@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Calendar, ArrowRight, Clock, CheckCircle2, History as HistoryIcon, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS, COLLECTION_PAYMENTS } from "@/lib/appwrite";
+import { account } from "@/lib/appwrite";
+import { cancelBookingAction, updateStudentProfileAction } from "../sys-director/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -135,19 +136,16 @@ export default function StudentProfile() {
               const bookingToCancel = userBookings.find((b: any) => b.class_id === classObj.$id);
               if (!bookingToCancel) return;
         
-              const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
-              await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id, {
-                registeredCount: Math.max(0, freshClass.registeredCount - 1)
-              });
-              await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, bookingToCancel.$id);
+              const result = await cancelBookingAction(classObj.$id, bookingToCancel.$id);
               
-              // No actualizamos estado local, dejamos que el Real-time del AuthContext lo haga
-              showAlert("Éxito", "Reserva cancelada correctamente.", "success");
-            } catch (err: any) {
-              if (err.code !== 404) {
-                showAlert("Error", "No se ha podido cancelar la reserva.", "danger");
-                console.error(err);
+              if (result.success) {
+                showAlert("Éxito", "Reserva cancelada correctamente.", "success");
+              } else {
+                showAlert("Error", result.error || "No se ha podido cancelar la reserva.", "danger");
               }
+            } catch (err: any) {
+              showAlert("Error", "No se ha podido cancelar la reserva.", "danger");
+              console.error(err);
             } finally {
               setIsProcessingBooking(null);
             }
@@ -159,10 +157,14 @@ export default function StudentProfile() {
   const handleUpdatePhone = async (newPhone: string) => {
     try {
       setIsUpdating(true);
-      await databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, profileInfo.$id, {
+      const result = await updateStudentProfileAction(profileInfo.$id, {
         phone: newPhone
       });
-      showAlert("Éxito", "Teléfono actualizado correctamente.", "success");
+      if (result.success) {
+        showAlert("Éxito", "Teléfono actualizado correctamente.", "success");
+      } else {
+        showAlert("Error", result.error || "No se ha podido actualizar el teléfono.", "danger");
+      }
     } catch (err) {
       showAlert("Error", "No se ha podido actualizar el teléfono.", "danger");
     } finally {

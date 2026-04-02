@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Bell, X, Info, AlertTriangle, CheckCircle2, Loader2, Signal } from "lucide-react";
-import { databases, DATABASE_ID, COLLECTION_NOTIFICATIONS, COLLECTION_NOTIFICATIONS_READ, client } from "@/lib/appwrite";
-import { Query, ID } from "appwrite";
+import { markNotificationAsReadAction, markAllNotificationsAsReadAction } from "@/app/sys-director/actions";
 import { motion, AnimatePresence } from "framer-motion";
 import { registerPushNotifications } from "@/lib/push-notifications";
 import { LITERALS } from "@/constants/literals";
@@ -45,16 +44,7 @@ export default function NotificationPanel() {
 
         setIsMarking(notifId);
         try {
-            await databases.createDocument(
-                DATABASE_ID,
-                COLLECTION_NOTIFICATIONS_READ,
-                ID.unique(),
-                {
-                    user_id: userId,
-                    notification_id: notifId,
-                    read_at: new Date().toISOString()
-                }
-            );
+            await markNotificationAsReadAction(userId, notifId);
             // 💡 No actualizamos estado local. 
             // El Realtime en AuthContext lo detectará y actualizará readNotifications.
         } catch (e) {
@@ -70,19 +60,8 @@ export default function NotificationPanel() {
 
         setIsMarking("all");
         try {
-            const promises = unreadNotifs.map((n: any) => 
-                databases.createDocument(
-                    DATABASE_ID,
-                    COLLECTION_NOTIFICATIONS_READ,
-                    ID.unique(),
-                    {
-                        user_id: userId,
-                        notification_id: n.$id,
-                        read_at: new Date().toISOString()
-                    }
-                )
-            );
-            await Promise.all(promises);
+            const unreadIds = unreadNotifs.map((n: any) => n.$id);
+            await markAllNotificationsAsReadAction(userId, unreadIds);
             // El Realtime hará el resto
         } catch (e) {
             console.error("Error marking all as read:", e);

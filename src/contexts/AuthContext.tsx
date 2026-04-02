@@ -13,7 +13,7 @@ import {
   COLLECTION_NOTIFICATIONS_READ,
   client 
 } from "@/lib/appwrite";
-import { getStudentInitialData } from "@/app/sys-director/actions";
+import { getCompleteUserData } from "@/app/sys-director/actions";
 import { Models, Query } from "appwrite";
 
 interface AuthContextType {
@@ -81,54 +81,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (isFetchingRef.current && !force) return;
     const now = Date.now();
     
-    // 🛡️ COOLDOWN ABSOLUTO: Bloquear si hubo una petición exitosa hace menos de 2s (Skip if force)
-    if (!force && (now - lastFetchTimeRef.current < 2000)) return;
+    // 🛡️ COOLDOWN ABSOLUTO: Bloquear si hubo una petición exitosa hace menos de 5s (Aumentado de 2s)
+    if (!force && (now - lastFetchTimeRef.current < 5000)) return;
     
-    // 🛡️ COOLDOWN SILENCIOSO (Foco/Visibilidad): 300 segundos (Skip if force)
+    // 🛡️ COOLDOWN SILENCIOSO (Foco/Visibilidad): 300 segundos
     if (silent && !force && (now - lastFetchTimeRef.current < 300000)) return;
     
     isFetchingRef.current = true;
-    if (force) lastFetchTimeRef.current = 0; // Reset cooldown on force
+    
+    // Si es forzado, reseteamos el tiempo para permitir la llamada inmediata
+    if (force) lastFetchTimeRef.current = 0; 
     else lastFetchTimeRef.current = now;
     
     try {
       const currentUser = await account.get();
       setUser(currentUser);
 
-      // 1. Obtener Perfil Base via Server Action (API Key) para evitar errores de permisos 401/403
-      const { getUserProfile } = await import("@/app/sys-director/actions");
-      const profileResult = await getUserProfile(currentUser.$id);
+      // 1. O(1) LOAD: Obtener TODO el contexto en una sola llamada de servidor
+      const result = await getCompleteUserData(currentUser.$id);
       
-      if (profileResult.success && profileResult.data) {
-        const userProfile = profileResult.data;
-        // 🚨 ES ADMIN: No cargamos datos de alumno, el AdminContext se encargará
-        if (userProfile.role === "admin") {
-          setProfile(userProfile);
-          setIsAdmin(true);
-        } else {
-          // 🥋 ES ALUMNO: Cargamos su "Student Bundle" consolidado
-          const result = await getStudentInitialData(currentUser.$id);
-          if (result.success && result.data) {
-            const { 
-              profile: fullProfile, 
-              classes, 
-              userBookings: bookings, 
-              isPaid, 
-              announcements: notifs, 
-              readNotifications: readIds 
-            } = result.data;
-            
-            setProfile({ ...fullProfile, is_paid: isPaid });
-            setIsAdmin(false);
-            setUserBookings(bookings);
-            setAvailableClasses(classes);
-            setAnnouncements(notifs);
-            setReadNotifications(readIds);
-          }
-        }
+      if (result.success && result.data) {
+        const { 
+          profile: fullProfile, 
+          isAdmin: userIsAdmin,
+          classes, 
+          userBookings: bookings, 
+          announcements: notifs, 
+          readNotifications: readIds 
+        } = result.data;
+        
+        setProfile(fullProfile);
+        setIsAdmin(userIsAdmin);
+        setUserBookings(bookings);
+        setAvailableClasses(classes);
+        setAnnouncements(notifs);
+        setReadNotifications(readIds);
       } else {
-        // No se pudo obtener el perfil (documento inexistente o error server)
-        throw new Error("Perfil no encontrado o inaccesible.");
+        throw new Error(result.error || "Error al cargar datos de usuario.");
       }
     } catch (error: any) {
       // 🛡️ SILENCIAR ERROR DE INVITADO: Si no hay sesión, es un estado válido (GUEST), no un error crítico.

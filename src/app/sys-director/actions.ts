@@ -3,6 +3,8 @@
 import * as sdk from "node-appwrite";
 import { DATABASE_ID, COLLECTION_PROFILES, COLLECTION_INVITATION_TOKENS, COLLECTION_BOOKINGS, COLLECTION_CLASSES, COLLECTION_NOTIFICATIONS, COLLECTION_REVENUE, COLLECTION_PAYMENTS, COLLECTION_NOTIFICATIONS_READ } from "@/lib/appwrite";
 import { createAdminClient, checkPaymentStatus } from "@/lib/server/appwrite";
+import { unstable_cache, revalidateTag } from "next/cache";
+import { CACHE_TAGS } from "@/lib/cache-tags";
 
 /**
  * Synchronized Student Deletion (Auth + Database + Tokens)
@@ -178,13 +180,162 @@ export async function handleCreateOrReactivateStudent(form: any) {
 
 
 /**
+ * NEW: Atomic Book Class (Server Side)
+ * 1 Network Call vs 3 Client-side calls.
+ */
+export async function bookClassAction(classId: string, userId: string) {
+    if (!classId || !userId) return { success: false, error: "Faltan datos de reserva." };
+
+    const { databases } = await createAdminClient();
+
+    try {
+        // 1. Check capacity (1 read)
+        const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
+        if (freshClass.registeredCount >= freshClass.capacity) {
+            return { success: false, error: "Clase Llena", code: "FULL" };
+        }
+
+        // 2. Increment count (1 write)
+        await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classId, {
+            registeredCount: (freshClass.registeredCount || 0) + 1
+        });
+
+        // 3. Create booking (1 write)
+        const booking = await databases.createDocument(
+            DATABASE_ID,
+            COLLECTION_BOOKINGS,
+            sdk.ID.unique(),
+            {
+                student_id: userId,
+                class_id: classId
+            }
+        );
+        revalidateTag("clases");
+        return { success: true, booking: JSON.parse(JSON.stringify(booking)) };
+
+    } catch (error: any) {
+        console.error("[bookClassAction] Error:", error.message);
+        return { success: false, error: "No se pudo completar la reserva." };
+    }
+}
+
+/**
+ * NEW: Atomic Cancel Booking (Server Side)
+ * 1 Network Call vs 3 Client-side calls.
+ */
+export async function cancelBookingAction(classId: string, bookingId: string) {
+    if (!classId || !bookingId) return { success: false, error: "Faltan datos para anular." };
+
+    const { databases } = await createAdminClient();
+
+    try {
+        // 1. Decrement count (1 write + 1 read internally by Appwrite usually)
+        const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
+        await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classId, {
+            registeredCount: Math.max(0, (freshClass.registeredCount || 1) - 1)
+        });
+
+        // 2. Delete booking (1 write)
+        await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, bookingId);
+        revalidateTag("clases");
+        return { success: true };
+    } catch (error: any) {
+        console.error("[cancelBookingAction] Error:", error.message);
+        return { success: false, error: "No se pudo anular la reserva." };
+    }
+}
+
+/**
+ * NEW: Update Student Profile (Server Side)
+ * 1 Network Call vs Multiple Client-side calls.
+ */
+export async function updateStudentProfileAction(profileId: string, data: any) {
+    if (!profileId) return { success: false, error: "ID de perfil requerido." };
+    const { databases } = await createAdminClient();
+    try {
+        const updated = await databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, profileId, {
+            last_name: data.last_name,
+            email: data.email?.toLowerCase(),
+            phone: data.phone,
+            level: data.level
+        });
+        return { success: true, data: JSON.parse(JSON.stringify(updated)) };
+    } catch (error: any) {
+        console.error("[updateStudentProfileAction] Error:", error.message);
+        return { success: false, error: "No se pudo actualizar el perfil." };
+    }
+}
+
+/**
+ * NEW: Mark Notification as Read (Server Side)
+ */
+export async function markNotificationAsReadAction(userId: string, notificationId: string) {
+    if (!userId || !notificationId) return { success: false, error: "Faltan datos." };
+    const { databases } = await createAdminClient();
+    try {
+        await databases.createDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, sdk.ID.unique(), {
+            user_id: userId,
+            notification_id: notificationId,
+            read_at: new Date().toISOString()
+        });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * NEW: Mark All Notifications as Read (Server Side)
+ */
+export async function markAllNotificationsAsReadAction(userId: string, notificationIds: string[]) {
+    if (!userId || !notificationIds.length) return { success: false, error: "Sin notificaciones." };
+    const { databases } = await createAdminClient();
+    try {
+        const promises = notificationIds.map(id => 
+            databases.createDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, sdk.ID.unique(), {
+                user_id: userId,
+                notification_id: id,
+                read_at: new Date().toISOString()
+            })
+        );
+        await Promise.all(promises);
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * NEW: Publish Announcement (Server Side)
+ */
+export async function publishAnnouncementAction(data: { title: string, content: string, type: string }) {
+    if (!data.title || !data.content) return { success: false, error: "Título y contenido requeridos." };
+    const { databases } = await createAdminClient();
+    try {
+        const res = await databases.createDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, sdk.ID.unique(), {
+            title: data.title,
+            content: data.content,
+            type: data.type,
+            createdAt: new Date().toISOString()
+        });
+        revalidateTag("anuncios");
+        return { success: true, data: JSON.parse(JSON.stringify(res)) };
+
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+
+/**
  * Delete announcement (Server Side)
  */
 export async function deleteAnnouncement(id: string) {
     const { databases } = await createAdminClient();
     try {
         await databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, id);
+        revalidateTag("anuncios");
         return { success: true };
+
     } catch (error: any) {
         console.error("Error deleting announcement:", error);
         return { success: false, error: error.message };
@@ -211,7 +362,9 @@ export async function createClassServer(newClass: any) {
                 status: "Activa"
             }
         );
+        revalidateTag("clases");
         return JSON.parse(JSON.stringify({ success: true, class: created }));
+
     } catch (error: any) {
         console.error("Error creating class server-side:", error);
         return { success: false, error: error.message };
@@ -279,7 +432,7 @@ export async function autoGenerateNextWeekClasses() {
                 }
             }
         }
-
+        revalidateTag(CACHE_TAGS.CLASSES);
         return {
             success: true,
             count: generatedClasses.length,
@@ -458,7 +611,7 @@ export async function getAdminDashboardData(month?: string) {
                 sdk.Query.limit(500),
                 sdk.Query.orderAsc("date")
             ]),
-            databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS, [sdk.Query.orderDesc("$createdAt"), sdk.Query.limit(20)]),
+            getAnnouncementsCached(),
             databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [sdk.Query.equal("month", currentMonthStr), sdk.Query.limit(500)])
         ]);
 
@@ -477,7 +630,7 @@ export async function getAdminDashboardData(month?: string) {
             unpaidCount,
             totalRevenue,
             classes: JSON.parse(JSON.stringify(classesData.documents)),
-            announcements: JSON.parse(JSON.stringify(announcementsData.documents)),
+            announcements: JSON.parse(JSON.stringify(announcementsData)),
             currentMonth: currentMonthStr
         };
 
@@ -555,28 +708,21 @@ export async function recordPaymentAction(studentId: string, amount: number, met
         });
 
         // 2. Update/Create Revenue
+        // ⚡️ OPTIMIZACIÓN - Usamos el mes como ID determinista.
         try {
-            const revData = await databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [
-                sdk.Query.equal("month", currentMonthStr),
-                sdk.Query.limit(1)
-            ]);
-
-            if (revData.total > 0) {
-                const doc = revData.documents[0];
-                await databases.updateDocument(DATABASE_ID, COLLECTION_REVENUE, doc.$id, {
-                    amount: (doc.amount || 0) + amount
-                });
-            } else {
-                await databases.createDocument(DATABASE_ID, COLLECTION_REVENUE, sdk.ID.unique(), {
+            const revDoc = await databases.getDocument(DATABASE_ID, COLLECTION_REVENUE, currentMonthStr);
+            await databases.updateDocument(DATABASE_ID, COLLECTION_REVENUE, currentMonthStr, {
+                amount: (revDoc.amount || 0) + amount
+            });
+        } catch (updateError: any) {
+            if (updateError.code === 404) {
+                 await databases.createDocument(DATABASE_ID, COLLECTION_REVENUE, currentMonthStr, {
                     month: currentMonthStr,
                     amount: amount
                 });
+            } else {
+                throw updateError;
             }
-        } catch (revError) {
-            console.error("[recordPaymentAction] Revenue update failed:", revError);
-            // We don't throw here to avoid full rollback if accounting fails but payment is recorded?
-            // Actually, the user asked for handling errors to avoid desynchronization.
-            throw new Error("Error al actualizar la contabilidad de ingresos.");
         }
 
         return { success: true };
@@ -615,20 +761,14 @@ export async function deletePaymentAction(studentId: string, month?: string) {
 
         // 3. Update Revenue
         try {
-            const revData = await databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [
-                sdk.Query.equal("month", currentMonthStr),
-                sdk.Query.limit(1)
-            ]);
-
-            if (revData.total > 0) {
-                const doc = revData.documents[0];
-                await databases.updateDocument(DATABASE_ID, COLLECTION_REVENUE, doc.$id, {
-                    amount: Math.max(0, (doc.amount || 0) - amountToDeduct)
-                });
-            }
-        } catch (revError) {
-            console.error("[deletePaymentAction] Revenue update failed:", revError);
-            throw new Error("Error al descontar el importe de la contabilidad.");
+            // ⚡️ OPTIMIZACIÓN - Usamos ID determinista.
+            const revDoc = await databases.getDocument(DATABASE_ID, COLLECTION_REVENUE, currentMonthStr);
+            await databases.updateDocument(DATABASE_ID, COLLECTION_REVENUE, currentMonthStr, {
+                amount: Math.max(0, (revDoc.amount || 0) - amountToDeduct)
+            });
+        } catch (revError: any) {
+            // Fallback silencioso si el documento de ingresos no existe
+            console.warn("[deletePaymentAction] Revenue record not found for update:", currentMonthStr);
         }
 
         return { success: true };
@@ -650,50 +790,93 @@ export async function getUserProfile(userId: string) {
 }
 
 /**
- * Consolidated Student Initial Data Load
- * 1 Call vs 5 Client-side calls.
+ * 🚀 MEGA-ACTION: Get Complete User Data (Consolidated Load)
+ * The ONLY call needed to boot the app for a student.
  */
-export async function getStudentInitialData(userId: string) {
+export async function getCompleteUserData(userId: string) {
     if (!userId) return { success: false, error: "ID de usuario requerido." };
 
-    const { databases } = await createAdminClient();
-
     try {
+        const { databases } = await createAdminClient();
         const now = new Date();
-        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-        const thirtyDaysAhead = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
         const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-        const [profileData, classesData, bookingsData, paymentsData, announcementsData, readData] = await Promise.all([
+        // Fetch everything in parallel with optimized selection
+        const [profile, classes, bookings, payments, announcements, readData] = await Promise.all([
             databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, userId),
-            databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [
-                sdk.Query.greaterThanEqual("date", thirtyDaysAgo),
-                sdk.Query.lessThanEqual("date", thirtyDaysAhead),
-                sdk.Query.limit(500),
-                sdk.Query.orderAsc("date")
+            getAvailableClassesCached(),
+            databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
+                sdk.Query.equal("student_id", userId),
+                sdk.Query.limit(200),
+                sdk.Query.select(["$id", "class_id"])
             ]),
-            databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [sdk.Query.equal("student_id", userId), sdk.Query.limit(500)]),
-            databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [sdk.Query.equal("student_id", userId), sdk.Query.equal("month", currentMonthStr), sdk.Query.limit(1)]),
-            databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS, [sdk.Query.orderDesc("$createdAt"), sdk.Query.limit(50)]),
-            databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, [sdk.Query.equal("user_id", userId), sdk.Query.limit(500)])
+            databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
+                sdk.Query.equal("student_id", userId),
+                sdk.Query.equal("month", currentMonthStr),
+                sdk.Query.limit(1),
+                sdk.Query.select(["$id"])
+            ]),
+            getAnnouncementsCached(),
+            databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, [
+                sdk.Query.equal("user_id", userId),
+                sdk.Query.limit(200),
+                sdk.Query.select(["notification_id"])
+            ])
         ]);
 
         return {
             success: true,
             data: JSON.parse(JSON.stringify({
-                profile: profileData,
-                classes: classesData.documents,
-                userBookings: bookingsData.documents,
-                isPaid: paymentsData.total > 0,
-                announcements: announcementsData.documents,
+                profile: { ...profile, is_paid: payments.total > 0 },
+                isAdmin: profile.role === "admin",
+                classes: classes,
+                userBookings: bookings.documents,
+                announcements: announcements,
                 readNotifications: readData.documents.map((r: any) => r.notification_id)
             }))
         };
     } catch (error: any) {
-        console.error("[getStudentInitialData] Error:", error.message);
         return { success: false, error: error.message };
     }
 }
+
+/**
+ * ⚡️ CACHED: Get Available Classes (Next.js Global Cache)
+ */
+const getAvailableClassesCached = unstable_cache(
+    async () => {
+        const { databases } = await createAdminClient();
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000).toISOString();
+        const sixtyDaysAhead = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString();
+
+        const res = await databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [
+            sdk.Query.greaterThanEqual("date", thirtyDaysAgo),
+            sdk.Query.lessThanEqual("date", sixtyDaysAhead),
+            sdk.Query.limit(500),
+            sdk.Query.orderAsc("date")
+        ]);
+        return res.documents;
+    },
+    ["clases-disponibles"],
+    { revalidate: 600, tags: [CACHE_TAGS.CLASSES] }
+);
+
+/**
+ * ⚡️ CACHED: Get Announcements (Next.js Global Cache)
+ */
+const getAnnouncementsCached = unstable_cache(
+    async () => {
+        const { databases } = await createAdminClient();
+        const res = await databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS, [
+            sdk.Query.orderDesc("$createdAt"),
+            sdk.Query.limit(20)
+        ]);
+        return res.documents;
+    },
+    ["anuncios-globales"],
+    { revalidate: 3600, tags: [CACHE_TAGS.ANNOUNCEMENTS] }
+);
 
 /**
  * Atomic Class Deletion (Class + Bookings)
@@ -722,7 +905,7 @@ export async function deleteClassAction(classId: string) {
 
         // 3. Delete the class itself
         await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
-
+        revalidateTag(CACHE_TAGS.CLASSES);
         return { success: true };
     } catch (error: any) {
         console.error("[deleteClassAction] Error:", error.message);

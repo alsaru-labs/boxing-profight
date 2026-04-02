@@ -1,17 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Query, ID } from "appwrite";
-import {
-  databases,
-  DATABASE_ID,
-  COLLECTION_PROFILES,
-  COLLECTION_CLASSES,
-  COLLECTION_PAYMENTS,
-  COLLECTION_REVENUE,
-  COLLECTION_BOOKINGS
-} from "@/lib/appwrite";
-import { createClassServer, handleCreateOrReactivateStudent, recordPaymentAction, deletePaymentAction, deleteClassAction } from "../actions";
+import { updateStudentProfileAction, createClassServer, handleCreateOrReactivateStudent, recordPaymentAction, deletePaymentAction, deleteClassAction } from "../actions";
 
 interface UseAdminActionsProps {
   studentsList: any[];
@@ -76,12 +66,17 @@ export function useAdminActions({
   const handleSaveProfile = async (selectedStudent: any, editLastName: string, editEmail: string, editPhone: string, editLevel: string) => {
     try {
       setIsUpdating(true);
-      await databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, selectedStudent.$id, {
+      const result = await updateStudentProfileAction(selectedStudent.$id, {
         last_name: editLastName,
         email: editEmail.toLowerCase(),
         phone: editPhone,
         level: editLevel
       });
+
+      if (!result.success) {
+        showAlert("Error", result.error || "No se pudo actualizar el perfil.", "danger");
+        return false;
+      }
 
       setStudentsList(studentsList.map(s =>
         s.$id === selectedStudent.$id ? { ...s, last_name: editLastName, email: editEmail.toLowerCase(), phone: editPhone, level: editLevel } : s
