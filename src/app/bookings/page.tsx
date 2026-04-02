@@ -23,7 +23,6 @@ export default function BookingsPage() {
         availableClasses: allPossibleClasses 
     } = useAuth();
     
-    const [simulatedDay, setSimulatedDay] = useState<number | undefined>(undefined);
     const [isProcessingBooking, setIsProcessingBooking] = useState<string | null>(null);
     const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -115,7 +114,7 @@ export default function BookingsPage() {
                 try {
                     setIsProcessingBooking(classObj.$id);
 
-                    const result = await bookClassAction(classObj.$id, user.$id);
+                    const result: any = await bookClassAction(classObj.$id, user.$id);
                     
                     if (result.success) {
                         showAlert("¡Reserva Éxitosa!", "Tu plaza ha quedado confirmada. ¡Nos vemos en el tatami!", "success");
@@ -192,50 +191,16 @@ export default function BookingsPage() {
                     <p className="text-white/40 text-lg font-medium">{LITERALS.BOOKINGS.SUBTITLE}</p>
                 </div>
 
-                <div className="bg-black/40 border border-white/5 p-6 rounded-2xl backdrop-blur-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-                    <div className="space-y-1 text-left">
-                        <h3 className="text-sm font-black uppercase tracking-widest text-emerald-500">Modo de Prueba: Periodo de Gracia</h3>
-                        <p className="text-white/40 text-xs font-medium">Verifica el acceso según el día del mes (Días 1-10: Libre | Día 11+: Requiere Pago).</p>
-                    </div>
-                    <div className="flex items-center gap-4 bg-zinc-900/50 p-2 rounded-xl border border-white/10 w-full sm:w-auto">
-                        <span className="text-xs font-black text-white/30 uppercase px-2 italic">Día {simulatedDay || new Date().getDate()}</span>
-                        <input 
-                            type="range" 
-                            min="1" 
-                            max="31" 
-                            value={simulatedDay || new Date().getDate()}
-                            onChange={(e) => setSimulatedDay(parseInt(e.target.value))}
-                            className="flex-1 sm:w-48 accent-emerald-500 cursor-pointer"
-                        />
-                        <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => setSimulatedDay(undefined)}
-                            className="text-[10px] font-black uppercase text-white/40 hover:text-white"
-                        >
-                            Reset
-                        </Button>
-                    </div>
-                </div>
 
                 <div className="space-y-12">
-                    <ClassGrid
-                        classes={availableClasses}
+                    <ConfirmedClasses
+                        availableClasses={availableClasses}
                         userBookings={userBookings}
-                        profileInfo={profileInfo}
                         isProcessingBooking={isProcessingBooking}
-                        onBookClass={handleBookClass}
-                        simulatedDay={simulatedDay}
+                        handleCancelBooking={handleCancelBooking}
+                        currentTime={currentTime}
                     />
                 </div>
-
-                <ConfirmedClasses
-                    availableClasses={availableClasses}
-                    userBookings={userBookings}
-                    isProcessingBooking={isProcessingBooking}
-                    handleCancelBooking={handleCancelBooking}
-                    currentTime={currentTime}
-                />
             </main>
             <ConfirmModal
                 isOpen={modalConfig.isOpen}

@@ -6,7 +6,7 @@ import { Calendar, ArrowRight, Clock, CheckCircle2, History as HistoryIcon, Load
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { account } from "@/lib/appwrite";
-import { cancelBookingAction, updateStudentProfileAction } from "../sys-director/actions";
+import { cancelBookingAction, updateStudentProfileAction, bookClassAction } from "../sys-director/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,8 @@ import { ProfileTabs } from "./components/ProfileTabs";
 import { ProfileSettings } from "./components/ProfileSettings";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useAuth } from "@/contexts/AuthContext";
+import { ClassGrid } from "@/components/ClassGrid";
+import { LITERALS } from "@/constants/literals";
 
 export default function StudentProfile() {
   const router = useRouter();
@@ -31,6 +33,7 @@ export default function StudentProfile() {
   } = useAuth();
   
   const [activeTab, setActiveTab] = useState("resumen");
+  const [simulatedDay, setSimulatedDay] = useState<number | undefined>(undefined);
   const [isProcessingBooking, setIsProcessingBooking] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -151,6 +154,36 @@ export default function StudentProfile() {
             }
         },
         "danger"
+    );
+  };
+
+  const handleBookClass = async (classObj: any) => {
+    if (!user) return;
+    showConfirm(
+        LITERALS.BOOKINGS.CONFIRM_RESERVATION_TITLE, 
+        LITERALS.BOOKINGS.CONFIRM_RESERVATION_DESC(classObj.name, classObj.coach),
+        async () => {
+            try {
+                setIsProcessingBooking(classObj.$id);
+                const result: any = await bookClassAction(classObj.$id, user.$id);
+                
+                if (result.success) {
+                    showAlert("¡Reserva Éxitosa!", "Tu plaza ha quedado confirmada. ¡Nos vemos en el tatami!", "success");
+                } else {
+                    if (result.code === "FULL") {
+                        showAlert("Clase Llena", "¡Lo sentimos! Las plazas para esta clase se acaban de llenar.", "warning");
+                    } else {
+                        showAlert("Error", result.error || "No se ha podido realizar la reserva. Inténtalo de nuevo.", "danger");
+                    }
+                }
+            } catch (err: any) {
+                showAlert("Error", "No se ha podido realizar la reserva. Inténtalo de nuevo.", "danger");
+                console.error(err);
+            } finally {
+                setIsProcessingBooking(null);
+            }
+        },
+        "info"
     );
   };
 
@@ -288,39 +321,42 @@ export default function StudentProfile() {
               <TabsContent key="clases" value="clases" className="focus-visible:outline-none">
                 <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-12">
                   <div className="space-y-6">
-                    <h4 className="text-xl font-black uppercase tracking-widest text-white flex items-center gap-3">
-                      <span className="w-8 h-1 bg-emerald-500 rounded-full" /> Próximas Sesiones
-                    </h4>
-                    <div className="grid grid-cols-1 gap-4">
-                      {validUpcomingClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).length === 0 ? (
-                        <div className="text-white/30 italic text-sm py-4">No hay reservas activas.</div>
-                      ) : (
-                        validUpcomingClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).map(cls => (
-                          <div key={cls.$id} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col md:flex-row justify-between items-center gap-4 hover:border-emerald-500/30 transition-colors text-center md:text-left">
-                            <div className="flex flex-col md:flex-row items-center gap-6">
-                              <div className={`p-4 rounded-xl ${cls.name === 'Boxeo' ? 'bg-amber-500/20 text-amber-500' : 'bg-red-500/20 text-red-500'} font-black text-xs min-w-[100px]`}>
-                                {cls.name.toUpperCase()}
-                              </div>
-                              <div>
-                                <h6 className="font-black text-xl">{cls.coach}</h6>
-                                <p className="text-white/40 text-sm font-medium">
-                                  {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase()} • {cls.time.split('-')[0].trim()}
-                                </p>
-                              </div>
-                            </div>
-                            {isCancellable(cls.date, cls.time, currentTime) && (
-                              <Button
-                                onClick={() => handleCancelBooking(cls)}
-                                disabled={isProcessingBooking === cls.$id}
-                                variant="ghost"
-                                className="text-red-400/50 hover:text-red-400 hover:bg-red-400/10 font-bold px-6"
-                              >
-                                {isProcessingBooking === cls.$id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Cancelar"}
-                              </Button>
-                            )}
-                          </div>
-                        ))
-                      )}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                      <h4 className="text-xl font-black uppercase tracking-widest text-white flex items-center gap-3">
+                        <span className="w-8 h-1 bg-emerald-500 rounded-full" /> Clases Disponibles
+                      </h4>
+                      
+                      {/* Modo de Prueba - Trasladado de Bookings */}
+                      <div className="flex items-center gap-4 bg-zinc-900/50 p-2 rounded-xl border border-white/10 w-full md:w-auto">
+                          <span className="text-[10px] font-black text-white/30 uppercase px-2 italic">Día {simulatedDay || new Date().getDate()}</span>
+                          <input 
+                              type="range" 
+                              min="1" 
+                              max="31" 
+                              value={simulatedDay || new Date().getDate()}
+                              onChange={(e) => setSimulatedDay(parseInt(e.target.value))}
+                              className="w-32 accent-emerald-500 cursor-pointer"
+                          />
+                          <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => setSimulatedDay(undefined)}
+                              className="text-[9px] font-black uppercase text-white/40 hover:text-white"
+                          >
+                              Reset
+                          </Button>
+                      </div>
+                    </div>
+
+                    <div className="bg-black/20 p-2 md:p-6 rounded-3xl border border-white/5">
+                      <ClassGrid
+                          classes={validUpcomingClasses}
+                          userBookings={userBookings}
+                          profileInfo={profileInfo}
+                          isProcessingBooking={isProcessingBooking}
+                          onBookClass={handleBookClass}
+                          simulatedDay={simulatedDay}
+                      />
                     </div>
                   </div>
 

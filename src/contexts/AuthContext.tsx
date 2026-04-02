@@ -186,39 +186,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // ⚡️ Reservas (Alta/Baja de clase con actualización de cupo)
-      if (collectionId === COLLECTION_BOOKINGS) {
-        const isMyBooking = payload.student_id === user.$id;
-        
-        if (event.includes(".create")) {
-          if (isMyBooking) setUserBookings(prev => [...prev, payload]);
-          setAvailableClasses(prev => prev.map(c => 
-            c.$id === payload.class_id ? { ...c, registeredCount: (c.registeredCount || 0) + 1 } : c
-          ));
-          return;
-        }
-        if (event.includes(".delete")) {
-          if (isMyBooking) setUserBookings(prev => prev.filter(b => b.$id !== payload.$id));
-          setAvailableClasses(prev => prev.map(c => 
-            c.$id === payload.class_id ? { ...c, registeredCount: Math.max(0, (c.registeredCount || 0) - 1) } : c
-          ));
-          return;
-        }
-      }
-
-      // ⚡️ Clases (Horarios globales)
+      // ⚡️ Clases (Horarios globales y plazas en tiempo real)
       if (collectionId === COLLECTION_CLASSES) {
         if (event.includes(".create")) {
-          setAvailableClasses(prev => [...prev, payload].sort((a,b) => a.date.localeCompare(b.date)));
+          setAvailableClasses(prev => {
+            if (prev.some(c => c.$id === payload.$id)) return prev;
+            return [...prev, payload].sort((a,b) => a.date.localeCompare(b.date));
+          });
           return;
         }
         if (event.includes(".update")) {
-          setAvailableClasses(prev => prev.map(c => c.$id === payload.$id ? payload : c));
+          setAvailableClasses(prev => prev.map(c => c.$id === payload.$id ? { ...c, ...payload } : c));
           return;
         }
         if (event.includes(".delete")) {
           setAvailableClasses(prev => prev.filter(c => c.$id !== payload.$id));
           return;
+        }
+      }
+
+      // ⚡️ Reservas (Actualiza tu propia lista de reservas)
+      if (collectionId === COLLECTION_BOOKINGS) {
+        if (payload.student_id === user.$id) {
+          if (event.includes(".create")) {
+            setUserBookings(prev => {
+              if (prev.some(b => b.$id === payload.$id)) return prev;
+              return [...prev, payload];
+            });
+            return;
+          }
+          if (event.includes(".delete")) {
+            setUserBookings(prev => prev.filter(b => b.$id !== payload.$id));
+            return;
+          }
         }
       }
 

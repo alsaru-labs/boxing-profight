@@ -144,8 +144,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!authLoading && isAdmin) {
       loadDashboardData();
+      loadStudentsList(true); // Sincronizar lista de alumnos al cambiar mes
     }
-  }, [authLoading, isAdmin, loadDashboardData]);
+  }, [authLoading, isAdmin, loadDashboardData, loadStudentsList]);
 
   // Suscripción Realtime Unificada para el Administrador
   useEffect(() => {
