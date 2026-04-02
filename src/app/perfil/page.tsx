@@ -172,17 +172,30 @@ export default function StudentProfile() {
       }
     };
 
-    loadData();
-
     // Timer for cancellation limits
     const timer = setInterval(() => {
         setCurrentTime(new Date());
     }, 10000);
 
+    loadData();
+
+    // 📡 RESILIENCIA: Refresco por foco/visibilidad (Crítico para iOS PWA)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadData(true);
+      }
+    };
+    const handleFocus = () => loadData(true);
+
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
     return () => {
       if (unsubscribe) unsubscribe();
       if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
-      clearInterval(timer);
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      if (timer) clearInterval(timer);
     };
   }, [router]);
 

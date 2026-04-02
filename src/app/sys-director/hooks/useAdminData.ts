@@ -113,9 +113,22 @@ export function useAdminData() {
       }
     });
 
+    // 📡 RESILIENCIA: Refresco por foco/visibilidad (Crítico para iOS PWA)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadDashboardData(true);
+      }
+    };
+    const handleFocus = () => loadDashboardData(true);
+
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
     return () => {
       if (unsubscribe) unsubscribe();
       if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [router]);
 

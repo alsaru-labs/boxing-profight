@@ -164,9 +164,22 @@ export default function BookingsPage() {
             setCurrentTime(new Date());
         }, 10000);
 
+        // 📡 RESILIENCIA: Refresco por foco/visibilidad (Crítico para iOS PWA)
+        const handleVisibilityChange = () => {
+          if (document.visibilityState === 'visible') {
+            loadData(true);
+          }
+        };
+        const handleFocus = () => loadData(true);
+
+        window.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('focus', handleFocus);
+
         return () => {
             if (unsubscribe) unsubscribe();
             if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+            window.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('focus', handleFocus);
             clearInterval(timer);
         };
     }, [router]);
