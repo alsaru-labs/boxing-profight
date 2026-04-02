@@ -18,95 +18,32 @@ interface Notification {
 }
 
 export default function NotificationPanel() {
-    const { user, loading: authLoading } = useAuth();
+    const { 
+        user, 
+        loading: authLoading, 
+        announcements, 
+        unreadNotificationsCount: unreadCount,
+        refreshGlobalData 
+    } = useAuth();
     const userId = user?.$id || "";
     const isLoggedIn = !!user;
 
     const [isOpen, setIsOpen] = useState(false);
-    const [notifications, setNotifications] = useState<Notification[]>([]);
     const [readIds, setReadIds] = useState<string[]>([]);
-    const [loading, setLoading] = useState(true);
     const [isMarking, setIsMarking] = useState<string | null>(null);
     const [isSubscribed, setIsSubscribed] = useState(false);
-    const isFetchingRef = useRef(false);
-    const lastFetchTimeRef = useRef(0);
 
     useEffect(() => {
-        // Al montar o abrir, comprobamos si ya hay permiso concedido
         if (typeof window !== "undefined" && "Notification" in window) {
             setIsSubscribed(Notification.permission === "granted");
         }
     }, []);
 
-    const fetchNotifications = async (silent = false) => {
-        if (!isLoggedIn || !userId) return;
-        if (isFetchingRef.current) return;
-
-        const now = Date.now();
-        // Cooldown de 60s para anuncios (componente global en Navbar)
-        if (silent && (now - lastFetchTimeRef.current < 60000)) return;
-
-        try {
-            isFetchingRef.current = true;
-            lastFetchTimeRef.current = now;
-            if (!silent) setLoading(true);
-            // 1. Fetch all announcements
-            const globalResponse = await databases.listDocuments(
-                DATABASE_ID,
-                COLLECTION_NOTIFICATIONS,
-                [Query.orderDesc("createdAt"), Query.limit(50)]
-            );
-
-            const allNotifs = globalResponse.documents as unknown as Notification[];
-
-            // 2. Fetch what the user has read
-            const readResponse = await databases.listDocuments(
-                DATABASE_ID,
-                COLLECTION_NOTIFICATIONS_READ,
-                [Query.equal("user_id", userId), Query.limit(100)]
-            );
-
-            const readLogIds = readResponse.documents.map(doc => doc.notification_id);
-
-            setNotifications(allNotifs);
-            setReadIds(readLogIds);
-        } catch (e) {
-            console.error("Error fetching notifications:", e);
-        } finally {
-            setLoading(false);
-            isFetchingRef.current = false;
-        }
-    };
-
-    useEffect(() => {
-        fetchNotifications(false);
-
-        // 🟢 SUSCRIPCIÓN EN TIEMPO REAL (Appwrite Realtime)
-        const unsubscribe = client.subscribe(
-            [
-                `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`,
-                `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS_READ}.documents`
-            ],
-            (response) => {
-                if (response.events.some(e => e.includes(".create") || e.includes(".delete") || e.includes(".update"))) {
-                    fetchNotifications(true);
-                }
-            }
-        );
-
-        return () => {
-            unsubscribe();
-        };
-    }, [userId, isLoggedIn]);
-
-    const unreadCount = notifications.filter(n => !readIds.includes(n.$id)).length;
-
     // Filter visible notifications: Strictly last 48h
-    const visibleNotifications = notifications.filter(n => {
-        const createdDate = new Date(n.createdAt);
+    const visibleNotifications = announcements.filter(n => {
+        const createdDate = new Date(n.$createdAt);
         const fortyEightHoursAgo = new Date();
         fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
-
         return createdDate > fortyEightHoursAgo;
     });
 
@@ -134,13 +71,12 @@ export default function NotificationPanel() {
     };
 
     const handleMarkAllAsRead = async () => {
-        const unreadNotifs = notifications.filter(n => !readIds.includes(n.$id));
+        const unreadNotifs = announcements.filter((n: any) => !readIds.includes(n.$id));
         if (unreadNotifs.length === 0 || isMarking) return;
 
         setIsMarking("all");
         try {
-            // Create read entries for all unread
-            const promises = unreadNotifs.map(n => 
+            const promises = unreadNotifs.map((n: any) => 
                 databases.createDocument(
                     DATABASE_ID,
                     COLLECTION_NOTIFICATIONS_READ,
@@ -153,7 +89,7 @@ export default function NotificationPanel() {
                 )
             );
             await Promise.all(promises);
-            const markedIds = unreadNotifs.map(n => n.$id);
+            const markedIds = unreadNotifs.map((n: any) => n.$id);
             setReadIds(prev => [...prev, ...markedIds]);
         } catch (e) {
             console.error("Error marking all as read:", e);
@@ -252,7 +188,7 @@ export default function NotificationPanel() {
                                         </div>
                                     )}
 
-                                    {loading && notifications.length === 0 ? (
+                                    {authLoading && announcements.length === 0 ? (
                                         <div className="py-12 flex flex-col items-center justify-center text-white/40 italic">
                                             <Loader2 className="w-8 h-8 animate-spin mb-2" />
                                             Cargando anuncios...
@@ -262,7 +198,7 @@ export default function NotificationPanel() {
                                             {LITERALS.DASHBOARD.ANNOUNCEMENTS.EMPTY_STATE}
                                         </div>
                                     ) : (
-                                        visibleNotifications.map((n) => {
+                                        visibleNotifications.map((n: any) => {
                                             const isRead = readIds.includes(n.$id);
                                             return (
                                                 <div

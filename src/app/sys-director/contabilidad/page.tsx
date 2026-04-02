@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Loader2, ShieldCheck, Wallet, ChevronLeft, Calendar, ChevronDown } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -17,10 +17,17 @@ import { getAllRevenueRecords } from "../actions";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
+import { useAdmin } from "@/contexts/AdminContext";
+
 export default function AccountingPage() {
     const router = useRouter();
+    const { 
+        revenueRecords, 
+        loadRevenueHistory, 
+        loading: adminLoading 
+    } = useAdmin();
+
     const [loading, setLoading] = useState(true);
-    const [revenueRecords, setRevenueRecords] = useState<any[]>([]);
     const [availableYears, setAvailableYears] = useState<string[]>([]);
     const [availableMonths, setAvailableMonths] = useState<string[]>([]);
     const [selectedYear, setSelectedYear] = useState<string>("");
@@ -31,38 +38,33 @@ export default function AccountingPage() {
 
     useEffect(() => {
         if (authLoading) return;
+        if (!user || profile?.role !== "admin") {
+            router.push("/perfil");
+            return;
+        }
 
         const init = async () => {
-            try {
-                if (!user || profile?.role !== "admin") {
-                    router.push("/perfil");
-                    return;
-                }
-
-                const res = await getAllRevenueRecords();
-                if (res.success && res.documents) {
-                    setRevenueRecords(res.documents);
-                    
-                    const years = new Set<string>();
-                    res.documents.forEach((rec: any) => {
-                        const [year] = rec.month.split("-");
-                        years.add(year);
-                    });
-                    const sortedYears = Array.from(years).sort((a,b) => b.localeCompare(a));
-                    setAvailableYears(sortedYears);
-                    
-                    if (sortedYears.length > 0) {
-                        setSelectedYear(sortedYears[0]);
-                    }
-                }
-                setLoading(false);
-            } catch (e) {
-                console.error("Accounting init error:", e);
-                setLoading(false);
-            }
+            await loadRevenueHistory();
+            setLoading(false);
         };
         init();
-    }, [router, user, profile, authLoading]);
+    }, [authLoading, user, profile, router, loadRevenueHistory]);
+
+    useEffect(() => {
+        if (revenueRecords.length > 0) {
+            const years = new Set<string>();
+            revenueRecords.forEach((rec: any) => {
+                const [year] = rec.month.split("-");
+                years.add(year);
+            });
+            const sortedYears = Array.from(years).sort((a,b) => b.localeCompare(a));
+            setAvailableYears(sortedYears);
+            
+            if (sortedYears.length > 0 && !selectedYear) {
+                setSelectedYear(sortedYears[0]);
+            }
+        }
+    }, [revenueRecords, selectedYear]);
 
     useEffect(() => {
         if (!selectedYear) {

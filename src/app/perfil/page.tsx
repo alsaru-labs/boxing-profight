@@ -1,15 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Calendar, ArrowRight, Clock, CheckCircle2, History as HistoryIcon, Loader2 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS, COLLECTION_PAYMENTS, client } from "@/lib/appwrite";
-import { Query, ID } from "appwrite";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS, COLLECTION_PAYMENTS } from "@/lib/appwrite";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { isCancellable } from "@/lib/bookingUtils";
@@ -22,21 +20,19 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export default function StudentProfile() {
   const router = useRouter();
-  const { user, profile: profileInfo, loading: authLoading } = useAuth();
+  const { 
+    user, 
+    profile: profileInfo, 
+    loading: authLoading,
+    userBookings,
+    availableClasses: allPossibleClasses,
+    refreshGlobalData
+  } = useAuth();
   
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("resumen");
-
-  // Real-time Class & Booking States
-  const [availableClasses, setAvailableClasses] = useState<any[]>([]);
-  const [userBookings, setUserBookings] = useState<any[]>([]);
-  const [pastClasses, setPastClasses] = useState<any[]>([]);
   const [isProcessingBooking, setIsProcessingBooking] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isFetchingRef = useRef(false);
-  const lastFetchTimeRef = useRef(0);
 
   // Custom Modal State
   const [modalConfig, setModalConfig] = useState<{
@@ -82,116 +78,49 @@ export default function StudentProfile() {
     });
   };
 
-  useEffect(() => {
-    let unsubscribe: () => void;
+  // 🌪️ PROCESAMIENTO DE DATOS GLOBAL (Sin peticiones extra)
+  const { validUpcomingClasses, attendedClasses } = useMemo(() => {
+    const now = new Date();
+    const msIn7Days = 7 * 24 * 60 * 60 * 1000;
 
-    const loadData = async (silent = false) => {
-      if (isFetchingRef.current || authLoading || !user) return;
-      const fetchTime = Date.now();
-      if (silent && (fetchTime - lastFetchTimeRef.current < 10000)) return;
-
+    const upcoming = allPossibleClasses.filter((cls: any) => {
       try {
-        isFetchingRef.current = true;
-        lastFetchTimeRef.current = fetchTime;
-        if (!silent) setLoading(true);
+        const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
+        const startTime = cls.time.split('-')[0].trim();
+        const [hours, minutes] = startTime.split(":").map(Number);
+        const classDateTime = new Date(year, month - 1, day, hours, minutes);
+        return classDateTime >= now && classDateTime.getTime() <= now.getTime() + msIn7Days;
+      } catch { return false; }
+    });
 
-        // Fetch primary data (Profile already comes from Context)
-        const [bookingsData, classesData] = await Promise.all([
-          databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [Query.equal("student_id", user.$id), Query.limit(100)]),
-          databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [Query.limit(100), Query.orderAsc("date")])
-        ]);
+    const attended = allPossibleClasses.filter((cls: any) => {
+      try {
+        const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
+        const startTime = cls.time.split('-')[0].trim();
+        const [hours, minutes] = startTime.split(":").map(Number);
+        const classDateTime = new Date(year, month - 1, day, hours, minutes);
+        return classDateTime < now && userBookings.some((b: any) => b.class_id === cls.$id);
+      } catch { return false; }
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-        if (profileInfo?.role === "admin") {
-          router.push("/sys-director");
-          return;
-        }
+    return { validUpcomingClasses: upcoming, attendedClasses: attended };
+  }, [allPossibleClasses, userBookings]);
 
-        const now = new Date();
-        const msIn7Days = 7 * 24 * 60 * 60 * 1000;
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login");
+    }
+  }, [user, authLoading, router]);
 
-        // Process Classes: Upcoming
-        const validUpcomingClasses = classesData.documents.filter((cls: any) => {
-          try {
-            const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
-            const startTime = cls.time.split('-')[0].trim();
-            const [hours, minutes] = startTime.split(":").map(Number);
-            const classDateTime = new Date(year, month - 1, day, hours, minutes);
-            return classDateTime >= now && classDateTime.getTime() <= now.getTime() + msIn7Days;
-          } catch { return false; }
-        });
-
-        // Process Classes: Past
-        const attendedClasses = classesData.documents.filter((cls: any) => {
-          try {
-            const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
-            const startTime = cls.time.split('-')[0].trim();
-            const [hours, minutes] = startTime.split(":").map(Number);
-            const classDateTime = new Date(year, month - 1, day, hours, minutes);
-            return classDateTime < now && bookingsData.documents.some((b: any) => b.class_id === cls.$id);
-          } catch { return false; }
-        }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-        setAvailableClasses(validUpcomingClasses);
-        setPastClasses(attendedClasses);
-        setUserBookings(bookingsData.documents);
-        setLoading(false);
-
-        // 🟢 TIEMPO REAL: Suscripción a cambios
-        if (!unsubscribe) {
-          unsubscribe = client.subscribe([
-            `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents.${user.$id}`,
-            `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
-            `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`,
-            `databases.${DATABASE_ID}.collections.${COLLECTION_PAYMENTS}.documents`
-          ], (response) => {
-            if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
-            refreshTimeoutRef.current = setTimeout(() => {
-              loadData(true);
-            }, 800);
-          });
-        }
-
-      } catch (error: any) {
-        setLoading(false);
-        if (error.code === 401 || error.code === 403) {
-          router.push("/login?redirect=/perfil");
-        } else {
-          console.error("Critical error in loadData:", error);
-        }
-      } finally {
-        isFetchingRef.current = false;
-      }
-    };
-
-    // Timer for cancellation limits
+  // Timer para límites de cancelación
+  useEffect(() => {
     const timer = setInterval(() => {
         setCurrentTime(new Date());
     }, 10000);
-
-    loadData();
-
-    // 📡 RESILIENCIA: Refresco por foco/visibilidad (Crítico para iOS PWA)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        loadData(true);
-      }
-    };
-    const handleFocus = () => loadData(true);
-
-    window.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-      if (timer) clearInterval(timer);
-    };
-  }, [router, user, authLoading]);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleCancelBooking = async (classObj: any) => {
-    // Check strict cancellation policy: at least 1 minute before
     if (!isCancellable(classObj.date, classObj.time, new Date())) {
         showAlert("Acción Prohibida", "Por política del club, solo se puede cancelar hasta 1 minuto antes del inicio de la clase.", "warning");
         return;
@@ -203,26 +132,16 @@ export default function StudentProfile() {
         async () => {
             try {
               setIsProcessingBooking(classObj.$id);
-        
-              // Find the specific booking document id for this class and user
               const bookingToCancel = userBookings.find((b: any) => b.class_id === classObj.$id);
               if (!bookingToCancel) return;
         
               const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id);
-        
-              // Free the slot
               await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classObj.$id, {
                 registeredCount: Math.max(0, freshClass.registeredCount - 1)
               });
-        
-              // Remove from Bookings collection database
               await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, bookingToCancel.$id);
-        
-              // Update UI 
-              setUserBookings(prev => prev.filter((b: any) => b.$id !== bookingToCancel.$id));
-              setAvailableClasses(prev => prev.map(c =>
-                c.$id === classObj.$id ? { ...c, registeredCount: Math.max(0, c.registeredCount - 1) } : c
-              ));
+              
+              // No actualizamos estado local, dejamos que el Real-time del AuthContext lo haga
               showAlert("Éxito", "Reserva cancelada correctamente.", "success");
             } catch (err: any) {
               if (err.code !== 404) {
@@ -258,17 +177,14 @@ export default function StudentProfile() {
       showAlert("Éxito", "Contraseña actualizada correctamente.", "success");
     } catch (err: any) {
       console.error(err);
-      if (err.code === 401) {
-        throw new Error("La contraseña actual es incorrecta.");
-      }
+      if (err.code === 401) throw new Error("La contraseña actual es incorrecta.");
       throw new Error("No se ha podido cambiar la contraseña. Inténtalo más tarde.");
     } finally {
       setIsUpdating(false);
     }
   };
 
-  if (loading) {
-
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <Loader2 className="w-10 h-10 text-white animate-spin" />
@@ -276,12 +192,9 @@ export default function StudentProfile() {
     );
   }
 
-  // Get user initials for Avatars
-  // 🟢 Cálculo de iniciales basado en el perfil de la base de datos (prioridad)
   const initials = profileInfo?.name 
     ? `${profileInfo.name.charAt(0)}${profileInfo.last_name?.charAt(0) || profileInfo.name.charAt(1) || ""}`.toUpperCase()
     : user?.name ? user.name.substring(0, 2).toUpperCase() : "US";
-
 
   return (
     <div className="dark min-h-screen bg-black text-white font-sans flex flex-col relative w-full">
@@ -290,24 +203,15 @@ export default function StudentProfile() {
       <main className="flex-1 w-full max-w-[1400px] mx-auto pt-4 md:pt-6 lg:pt-8 px-6 md:px-8 lg:px-12 pb-12 z-10">
         <Tabs defaultValue="resumen" className="w-full" onValueChange={setActiveTab}>
           <div className="flex flex-col gap-8">
-            {/* Tabs List at the top */}
             <ProfileTabs />
 
             <AnimatePresence mode="wait">
-              {/* Resumen Tab */}
               <TabsContent key="resumen" value="resumen" className="focus-visible:outline-none focus:outline-none outline-none">
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }} 
-                  animate={{ opacity: 1, y: 0 }} 
-                  exit={{ opacity: 0, y: -10 }} 
-                  className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12"
-                >
-                  {/* Left part: Profile Information */}
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
                   <div className="lg:col-span-4 space-y-6">
                     <ProfileCard user={user} profileInfo={profileInfo} initials={initials} />
                   </div>
 
-                  {/* Right part: Summary Cards & Next Class */}
                   <div className="lg:col-span-8 space-y-8">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <Card className="bg-white/5 border-white/5 hover:border-white/10 transition-colors">
@@ -317,7 +221,7 @@ export default function StudentProfile() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <div className="text-4xl font-black">{availableClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).length}</div>
+                          <div className="text-4xl font-black">{validUpcomingClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).length}</div>
                         </CardContent>
                       </Card>
                       <Card className="bg-white/5 border-white/5 hover:border-white/10 transition-colors">
@@ -327,34 +231,33 @@ export default function StudentProfile() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <div className="text-4xl font-black">{pastClasses.length}</div>
+                          <div className="text-4xl font-black">{attendedClasses.length}</div>
                         </CardContent>
                       </Card>
                     </div>
 
-                    {/* Proxima Clase Destacada */}
                     <div className="space-y-4">
                       <h4 className="text-lg font-bold flex items-center gap-2"><Clock className="w-5 h-5 text-emerald-500" /> Próxima Cita</h4>
-                      {availableClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).length > 0 ? (
+                      {validUpcomingClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).length > 0 ? (
                         <div className="bg-gradient-to-r from-emerald-500/20 to-emerald-500/5 border border-emerald-500/20 rounded-2xl p-6 relative overflow-hidden group">
                           <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-700">
-                            <BicepsFlexed className="w-40 h-40 text-emerald-400" />
+                             <BicepsFlexed className="w-40 h-40 text-emerald-400" />
                           </div>
                           <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
                             <div>
                               <div className="flex items-center gap-3 mb-2">
                                 <Badge className="bg-emerald-500 text-black font-black uppercase">CONFIRMADA</Badge>
                                 <span className="text-emerald-400 font-bold text-sm tracking-widest uppercase">
-                                  {availableClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id))[0].name}
+                                  {validUpcomingClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id))[0].name}
                                 </span>
                               </div>
                               <h5 className="text-3xl font-black tracking-tighter mb-1">
-                                {availableClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id))[0].coach}
+                                {validUpcomingClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id))[0].coach}
                               </h5>
-                              <p className="text-white/60 font-medium whitespace-nowrap overflow-hidden text-ellipsis">
-                                {new Date(availableClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id))[0].date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                              <p className="text-white/60 font-medium truncate max-w-[250px]">
+                                {new Date(validUpcomingClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id))[0].date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
                                 {" - "}
-                                {availableClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id))[0].time.split('-')[0].trim()}
+                                {validUpcomingClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id))[0].time.split('-')[0].trim()}
                               </p>
                             </div>
                             <Link href="/bookings">
@@ -380,22 +283,20 @@ export default function StudentProfile() {
                 </motion.div>
               </TabsContent>
 
-              {/* Clases Tab */}
               <TabsContent key="clases" value="clases" className="focus-visible:outline-none">
                 <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-12">
-                  {/* Próximas */}
                   <div className="space-y-6">
                     <h4 className="text-xl font-black uppercase tracking-widest text-white flex items-center gap-3">
                       <span className="w-8 h-1 bg-emerald-500 rounded-full" /> Próximas Sesiones
                     </h4>
                     <div className="grid grid-cols-1 gap-4">
-                      {availableClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).length === 0 ? (
+                      {validUpcomingClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).length === 0 ? (
                         <div className="text-white/30 italic text-sm py-4">No hay reservas activas.</div>
                       ) : (
-                        availableClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).map(cls => (
-                          <div key={cls.$id} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col md:flex-row justify-between items-center gap-4 hover:border-emerald-500/30 transition-colors">
-                            <div className="flex items-center gap-6">
-                              <div className={`p-4 rounded-xl ${cls.name === 'Boxeo' ? 'bg-amber-500/20 text-amber-500' : 'bg-red-500/20 text-red-500'} font-black text-xs`}>
+                        validUpcomingClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).map(cls => (
+                          <div key={cls.$id} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col md:flex-row justify-between items-center gap-4 hover:border-emerald-500/30 transition-colors text-center md:text-left">
+                            <div className="flex flex-col md:flex-row items-center gap-6">
+                              <div className={`p-4 rounded-xl ${cls.name === 'Boxeo' ? 'bg-amber-500/20 text-amber-500' : 'bg-red-500/20 text-red-500'} font-black text-xs min-w-[100px]`}>
                                 {cls.name.toUpperCase()}
                               </div>
                               <div>
@@ -421,17 +322,16 @@ export default function StudentProfile() {
                     </div>
                   </div>
 
-                  {/* Historial */}
                   <div className="space-y-6">
                     <h4 className="text-xl font-black uppercase tracking-widest text-white/40 flex items-center gap-3">
                       <span className="w-8 h-1 bg-white/10 rounded-full" /> Historial de Asistencia
                     </h4>
                     <div className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden">
-                      {pastClasses.length === 0 ? (
+                      {attendedClasses.length === 0 ? (
                         <div className="p-12 text-center text-white/20 italic">Aún no has asistido a ninguna clase.</div>
                       ) : (
                         <div className="divide-y divide-white/5">
-                          {pastClasses.map(cls => (
+                          {attendedClasses.map(cls => (
                             <div key={cls.$id} className="p-4 flex justify-between items-center hover:bg-white/5 transition-colors">
                               <div className="flex items-center gap-4">
                                 <CheckCircle2 className="w-4 h-4 text-emerald-500/40" />
@@ -452,7 +352,6 @@ export default function StudentProfile() {
                 </motion.div>
               </TabsContent>
 
-              {/* Ajustes Tab */}
               <TabsContent key="ajustes" value="ajustes" className="focus-visible:outline-none">
                 <ProfileSettings 
                   profileInfo={profileInfo} 

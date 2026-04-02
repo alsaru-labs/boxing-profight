@@ -1,6 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useState, useEffect, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,13 +9,28 @@ import { Button } from "@/components/ui/button";
 import { Instagram, MapPin, Youtube, Calendar } from "lucide-react";
 import Link from "next/link";
 
-const classes = [
-  { title: "Boxeo", type: "Técnica / Física", time: "10:00 - 11:00 AM", slots: "Verde" },
-  { title: "Boxeo", type: "General / Sparring", time: "18:00 - 19:30 PM", slots: "Amarillo" },
-  { title: "K1", type: "Kickboxing & Muay Thai", time: "19:30 - 21:00 PM", slots: "Verde" },
-];
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Home() {
+  const { availableClasses, announcements, user, loading } = useAuth();
+
+  // 🌪️ Filtrar clases para la Home (Próximas 7 días, limitadas a 3 principales)
+  const displayClasses = useMemo(() => {
+    if (!availableClasses || availableClasses.length === 0) {
+      return [
+        { title: "Boxeo", type: "Técnica / Física", time: "10:00 - 11:00 AM", slots: "Verde" },
+        { title: "Boxeo", type: "General / Sparring", time: "18:00 - 19:30 PM", slots: "Amarillo" },
+        { title: "K1", type: "Kickboxing & Muay Thai", time: "19:30 - 21:00 PM", slots: "Verde" },
+      ];
+    }
+    return availableClasses.slice(0, 3).map(c => ({
+      title: c.name,
+      type: c.coach,
+      time: `${c.time.split('-')[0].trim()} (${new Date(c.date).toLocaleDateString('es-ES', { weekday: 'short' })})`,
+      slots: c.registeredCount >= c.capacity ? 'Rojo' : c.registeredCount >= c.capacity * 0.8 ? 'Amarillo' : 'Verde'
+    }));
+  }, [availableClasses]);
+
   return (
     <div className="relative min-h-screen bg-black overflow-hidden font-sans text-white">
       {/* Background Video Simulator - Abstract Gradient Flow simulating slow motion */}
@@ -135,7 +151,7 @@ export default function Home() {
           </motion.div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
-            {classes.map((cls, idx) => (
+            {displayClasses.map((cls, idx) => (
               <motion.div
                 key={idx}
                 initial={{ opacity: 0, y: 20 }}
