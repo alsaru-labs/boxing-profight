@@ -18,11 +18,12 @@ import { ProfileCard } from "./components/ProfileCard";
 import { ProfileTabs } from "./components/ProfileTabs";
 import { ProfileSettings } from "./components/ProfileSettings";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function StudentProfile() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [profileInfo, setProfileInfo] = useState<any>(null);
+  const { user, profile: profileInfo, loading: authLoading } = useAuth();
+  
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("resumen");
 
@@ -34,6 +35,8 @@ export default function StudentProfile() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isFetchingRef = useRef(false);
+  const lastFetchTimeRef = useRef(0);
 
   // Custom Modal State
   const [modalConfig, setModalConfig] = useState<{
@@ -83,35 +86,22 @@ export default function StudentProfile() {
     let unsubscribe: () => void;
 
     const loadData = async (silent = false) => {
-      try {
-        if (!silent) setLoading(true);
-        const currentUser = await account.get();
-        setUser(currentUser);
+      if (isFetchingRef.current || authLoading || !user) return;
+      const fetchTime = Date.now();
+      if (silent && (fetchTime - lastFetchTimeRef.current < 10000)) return;
 
-        // Fetch all primary data
-        const [profile, bookingsData, classesData] = await Promise.all([
-          databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, currentUser.$id),
-          databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [Query.equal("student_id", currentUser.$id), Query.limit(100)]),
+      try {
+        isFetchingRef.current = true;
+        lastFetchTimeRef.current = fetchTime;
+        if (!silent) setLoading(true);
+
+        // Fetch primary data (Profile already comes from Context)
+        const [bookingsData, classesData] = await Promise.all([
+          databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [Query.equal("student_id", user.$id), Query.limit(100)]),
           databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [Query.limit(100), Query.orderAsc("date")])
         ]);
 
-        // PASO 3: Verificar pago en la nueva tabla payments
-        const d = new Date();
-        const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        
-        const paymentsData = await databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
-          Query.equal("student_id", currentUser.$id),
-          Query.equal("month", currentMonthStr),
-          Query.limit(1)
-        ]);
-
-        // Enriquecemos el perfil con el estado de pago real
-        const profileWithPayment = {
-          ...profile,
-          is_paid: paymentsData.total > 0
-        };
-
-        if (profile.role === "admin") {
+        if (profileInfo?.role === "admin") {
           router.push("/sys-director");
           return;
         }
@@ -144,13 +134,12 @@ export default function StudentProfile() {
         setAvailableClasses(validUpcomingClasses);
         setPastClasses(attendedClasses);
         setUserBookings(bookingsData.documents);
-        setProfileInfo(profileWithPayment);
         setLoading(false);
 
         // 🟢 TIEMPO REAL: Suscripción a cambios
         if (!unsubscribe) {
           unsubscribe = client.subscribe([
-            `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents.${currentUser.$id}`,
+            `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents.${user.$id}`,
             `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
             `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`,
             `databases.${DATABASE_ID}.collections.${COLLECTION_PAYMENTS}.documents`
@@ -169,6 +158,8 @@ export default function StudentProfile() {
         } else {
           console.error("Critical error in loadData:", error);
         }
+      } finally {
+        isFetchingRef.current = false;
       }
     };
 
@@ -197,7 +188,7 @@ export default function StudentProfile() {
       window.removeEventListener('focus', handleFocus);
       if (timer) clearInterval(timer);
     };
-  }, [router]);
+  }, [router, user, authLoading]);
 
   const handleCancelBooking = async (classObj: any) => {
     // Check strict cancellation policy: at least 1 minute before
@@ -252,7 +243,6 @@ export default function StudentProfile() {
       await databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, profileInfo.$id, {
         phone: newPhone
       });
-      setProfileInfo({ ...profileInfo, phone: newPhone });
       showAlert("Éxito", "Teléfono actualizado correctamente.", "success");
     } catch (err) {
       showAlert("Error", "No se ha podido actualizar el teléfono.", "danger");

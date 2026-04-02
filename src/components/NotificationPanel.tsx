@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Bell, X, Info, AlertTriangle, CheckCircle2, Loader2, Signal } from "lucide-react";
 import { databases, DATABASE_ID, COLLECTION_NOTIFICATIONS, COLLECTION_NOTIFICATIONS_READ, client } from "@/lib/appwrite";
 import { Query, ID } from "appwrite";
 import { motion, AnimatePresence } from "framer-motion";
 import { registerPushNotifications } from "@/lib/push-notifications";
 import { LITERALS } from "@/constants/literals";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Notification {
     $id: string;
@@ -16,18 +17,19 @@ interface Notification {
     createdAt: string;
 }
 
-interface NotificationPanelProps {
-    userId: string;
-    isLoggedIn: boolean;
-}
+export default function NotificationPanel() {
+    const { user, loading: authLoading } = useAuth();
+    const userId = user?.$id || "";
+    const isLoggedIn = !!user;
 
-export default function NotificationPanel({ userId, isLoggedIn }: NotificationPanelProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [readIds, setReadIds] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [isMarking, setIsMarking] = useState<string | null>(null);
     const [isSubscribed, setIsSubscribed] = useState(false);
+    const isFetchingRef = useRef(false);
+    const lastFetchTimeRef = useRef(0);
 
     useEffect(() => {
         // Al montar o abrir, comprobamos si ya hay permiso concedido
@@ -36,11 +38,18 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
         }
     }, []);
 
-    const fetchNotifications = async () => {
+    const fetchNotifications = async (silent = false) => {
         if (!isLoggedIn || !userId) return;
+        if (isFetchingRef.current) return;
+
+        const now = Date.now();
+        // Cooldown de 60s para anuncios (componente global en Navbar)
+        if (silent && (now - lastFetchTimeRef.current < 60000)) return;
 
         try {
-            setLoading(true);
+            isFetchingRef.current = true;
+            lastFetchTimeRef.current = now;
+            if (!silent) setLoading(true);
             // 1. Fetch all announcements
             const globalResponse = await databases.listDocuments(
                 DATABASE_ID,
@@ -65,23 +74,22 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
             console.error("Error fetching notifications:", e);
         } finally {
             setLoading(false);
+            isFetchingRef.current = false;
         }
     };
 
     useEffect(() => {
-        fetchNotifications();
+        fetchNotifications(false);
 
         // 🟢 SUSCRIPCIÓN EN TIEMPO REAL (Appwrite Realtime)
-        // Escucha cambios en anuncios y en el estado de lectura
         const unsubscribe = client.subscribe(
             [
                 `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`,
                 `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS_READ}.documents`
             ],
             (response) => {
-                // Si alguien crea o borra un anuncio, o lo marca como leído desde otro sitio...
                 if (response.events.some(e => e.includes(".create") || e.includes(".delete") || e.includes(".update"))) {
-                    fetchNotifications();
+                    fetchNotifications(true);
                 }
             }
         );

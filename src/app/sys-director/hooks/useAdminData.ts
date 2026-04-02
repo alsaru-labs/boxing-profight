@@ -2,12 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 import { Query } from "appwrite";
 import { 
-  account, 
   databases, 
   DATABASE_ID, 
-  COLLECTION_PROFILES, 
   COLLECTION_CLASSES, 
   COLLECTION_NOTIFICATIONS, 
   COLLECTION_REVENUE, 
@@ -19,7 +18,10 @@ import { getAdminDashboardData } from "../actions";
 
 export function useAdminData() {
   const router = useRouter();
+  const { user: userData, profile: profileData, loading: authLoading } = useAuth();
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isFetchingRef = useRef(false);
+  const lastFetchTimeRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [studentsList, setStudentsList] = useState<any[]>([]);
   const [classesList, setClassesList] = useState<any[]>([]);
@@ -33,7 +35,15 @@ export function useAdminData() {
   const [unpaidCount, setUnpaidCount] = useState(0);
 
   const loadDashboardData = async (silent = false, monthOverride?: string) => {
+    if (isFetchingRef.current) return;
+    const now = Date.now();
+    
+    // Cooldown: No refrescar más de una vez cada 10s en modo silencioso (evita bucles infinitos)
+    if (silent && (now - lastFetchTimeRef.current < 10000)) return;
+
     try {
+      isFetchingRef.current = true;
+      lastFetchTimeRef.current = now;
       if (!silent) setLoading(true);
       const targetMonth = monthOverride || selectedMonth;
       const result = await getAdminDashboardData(targetMonth);
@@ -41,64 +51,64 @@ export function useAdminData() {
       if (!result.success) {
         console.error(result.error);
         setLoading(false);
+        isFetchingRef.current = false;
         return;
       }
 
-      const { students, classes, announcements, currentMonth = "" } = result;
+      const { students, classes, announcements } = result;
+      
+      // Calculate revenue 
+      const paidStudents = students.filter((s: any) => s.is_paid);
+      const paidStudentsCount = paidStudents.length;
       
       setTotalStudents(students.length);
       setClassesList(classes);
       setAnnouncements(announcements);
-
-      // Fetch Revenue (Keep client-side or move to server action later if needed)
-      try {
-        const revData = await databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [Query.equal("month", currentMonth), Query.limit(1)]);
-        if (revData.documents.length > 0) {
-          setMonthlyRevenue(revData.documents[0].amount);
-        } else {
-          setMonthlyRevenue(0);
-        }
-      } catch (e) {
-        console.error("Revenue fetch error:", e);
-      }
-
-      const paidStudentsCount = students.filter((s: any) => s.is_paid === true).length;
+      setMonthlyRevenue(paidStudentsCount * 60);
       setUnpaidCount(students.length - paidStudentsCount);
       setStudentsList(students);
       setLoading(false);
     } catch (error) {
       console.error("Dashboard load error:", error);
       setLoading(false);
+    } finally {
+      isFetchingRef.current = false;
     }
   };
 
   useEffect(() => {
-    const initDashboard = async () => {
-      try {
-        const userData = await account.get();
-        let profile;
-        try {
-          profile = await databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, userData.$id);
-        } catch (e: any) {
-          if (e.code === 404) { router.push("/login"); return; }
-          throw e;
-        }
+    if (authLoading) return;
+    
+    // Redirección si no es admin (Seguridad en el cliente)
+    if (!userData || profileData?.role !== "admin") {
+      router.push("/login?redirect=/sys-director");
+      return;
+    }
 
-        if (profile.role !== "admin") {
-          router.push("/perfil");
-          return;
-        }
+    loadDashboardData();
 
-        await loadDashboardData();
-      } catch (error) {
-        router.push("/login");
+    // 📡 RESILIENCIA: Refresco por foco/visibilidad
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadDashboardData(true);
       }
     };
+    const handleFocus = () => loadDashboardData(true);
 
-    initDashboard();
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
 
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [router, authLoading, userData, profileData]);
+
+  // Suscripción Realtime para el Dashboard
+  useEffect(() => {
+    if (!userData) return;
+    
     const unsubscribe = client.subscribe([
-      `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents`,
       `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
       `databases.${DATABASE_ID}.collections.${COLLECTION_REVENUE}.documents`,
       `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`,
@@ -113,24 +123,10 @@ export function useAdminData() {
       }
     });
 
-    // 📡 RESILIENCIA: Refresco por foco/visibilidad (Crítico para iOS PWA)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        loadDashboardData(true);
-      }
-    };
-    const handleFocus = () => loadDashboardData(true);
-
-    window.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-
     return () => {
       if (unsubscribe) unsubscribe();
-      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
     };
-  }, [router]);
+  }, [userData]);
 
   return {
     loading,

@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
-import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
-import { User, ShieldCheck, CalendarDays, LogOut, Loader2, Wallet } from "lucide-react";
+import { User, ShieldCheck, CalendarDays, LogOut, Wallet } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { LITERALS } from "@/constants/literals";
 import {
@@ -16,16 +15,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import NotificationPanel from "./NotificationPanel";
 import { logout } from "@/app/set-password/actions";
+import { account } from "@/lib/appwrite";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Navbar({ isHome = false }: { isHome?: boolean }) {
   const router = useRouter();
-  const pathname = usePathname();
+  const { user, profile, isAdmin, loading: roleLoading } = useAuth();
   const [scrolled, setScrolled] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [userId, setUserId] = useState("");
-  const [profileName, setProfileName] = useState("Usuario");
-  const [roleLoading, setRoleLoading] = useState(true);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -36,31 +32,14 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
       window.addEventListener("scroll", handleScroll);
     }
 
-    const checkUserRole = async () => {
-      try {
-        const currentUser = await account.get();
-        setIsLoggedIn(true);
-        setUserId(currentUser.$id);
-        const profile = await databases.getDocument(
-          DATABASE_ID,
-          COLLECTION_PROFILES,
-          currentUser.$id
-        );
-        setIsAdmin(profile.role === "admin");
-        setProfileName(profile.name || "Usuario");
-      } catch (error) {
-        setIsLoggedIn(false);
-        setIsAdmin(false);
-      } finally {
-        setRoleLoading(false);
-      }
-    };
-
-    checkUserRole();
     return () => {
       if (isHome) window.removeEventListener("scroll", handleScroll);
     };
   }, [isHome]);
+
+  const isLoggedIn = !!user;
+  const profileName = profile?.name || "Usuario";
+  const userId = user?.$id || "";
 
   const handleLogout = async () => {
     try {
@@ -118,12 +97,15 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
         {/* Right Side */}
         <div className="flex w-1/3 items-center justify-end gap-2 md:gap-4">
           {roleLoading ? (
-            <div className="w-10 h-10 rounded-full bg-white/10 animate-pulse"></div>
+            <div className="flex items-center gap-3 pr-2 animate-pulse">
+              <div className="h-4 w-20 bg-white/10 rounded hidden sm:block"></div>
+              <div className="h-10 w-10 bg-white/10 rounded-full"></div>
+            </div>
           ) : isLoggedIn ? (
             <div className="flex items-center gap-2 sm:gap-4">
               {/* Notificaciones Reales */}
               {!isAdmin && (
-                <NotificationPanel userId={userId} isLoggedIn={isLoggedIn} />
+                <NotificationPanel />
               )}
 
               <DropdownMenu>

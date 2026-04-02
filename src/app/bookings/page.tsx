@@ -17,19 +17,23 @@ import { ClassGrid } from "@/components/ClassGrid";
 import { isCancellable } from "@/lib/bookingUtils";
 import { LITERALS } from "@/constants/literals";
 
+import { useAuth } from "@/contexts/AuthContext";
+
 export default function BookingsPage() {
     const router = useRouter();
-    const [user, setUser] = useState<any>(null);
-    const [profileInfo, setProfileInfo] = useState<any>(null);
+    const { user, profile: profileInfo, loading: authLoading } = useAuth();
+    
     const [loading, setLoading] = useState(true);
     const [simulatedDay, setSimulatedDay] = useState<number | undefined>(undefined);
 
     // Real-time Class & Booking States
+    const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const isFetchingRef = useRef(false);
+    const lastFetchTimeRef = useRef(0);
     const [availableClasses, setAvailableClasses] = useState<any[]>([]);
     const [userBookings, setUserBookings] = useState<any[]>([]);
     const [isProcessingBooking, setIsProcessingBooking] = useState<string | null>(null);
     const [currentTime, setCurrentTime] = useState(new Date());
-    const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Custom Modal State
     const [modalConfig, setModalConfig] = useState<{
@@ -79,15 +83,18 @@ export default function BookingsPage() {
         let unsubscribe: () => void;
 
         const loadData = async (silent = false) => {
-            try {
-                if (!silent) setLoading(true);
-                const currentUser = await account.get();
-                setUser(currentUser);
+            if (isFetchingRef.current || authLoading || !user) return;
+            const fetchTime = Date.now();
+            if (silent && (fetchTime - lastFetchTimeRef.current < 10000)) return;
 
-                // Fetch data for the first time
-                const [profile, bookingsData, classesData] = await Promise.all([
-                    databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, currentUser.$id),
-                    databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [Query.equal("student_id", currentUser.$id), Query.limit(100)]),
+            try {
+                isFetchingRef.current = true;
+                lastFetchTimeRef.current = fetchTime;
+                if (!silent) setLoading(true);
+
+                // Fetch data for the first time (Profile already comes from Context)
+                const [bookingsData, classesData] = await Promise.all([
+                    databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [Query.equal("student_id", user.$id), Query.limit(100)]),
                     databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [Query.limit(100), Query.orderAsc("date")])
                 ]);
 
@@ -95,22 +102,16 @@ export default function BookingsPage() {
                 const d = new Date();
                 const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
                 const paymentsData = await databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
-                    Query.equal("student_id", currentUser.$id),
+                    Query.equal("student_id", user.$id),
                     Query.equal("month", currentMonthStr),
                     Query.limit(1)
                 ]);
 
-                const profileWithPayment = {
-                    ...profile,
-                    is_paid: paymentsData.total > 0
-                };
-
-                if (profile.role === "admin") {
+                if (profileInfo?.role === "admin") {
                     router.push("/sys-director");
                     return;
                 }
 
-                setProfileInfo(profileWithPayment);
                 setUserBookings(bookingsData.documents);
 
                 const now = new Date();
@@ -134,7 +135,7 @@ export default function BookingsPage() {
                 // 🟢 TIEMPO REAL: Suscripción a cambios
                 if (!unsubscribe) {
                     unsubscribe = client.subscribe([
-                        `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents.${currentUser.$id}`,
+                        `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents.${user.$id}`,
                         `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
                         `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`,
                         `databases.${DATABASE_ID}.collections.${COLLECTION_PAYMENTS}.documents`
@@ -154,6 +155,8 @@ export default function BookingsPage() {
                 } else {
                     console.error("Critical error in loadData (bookings):", error);
                 }
+            } finally {
+                isFetchingRef.current = false;
             }
         };
 
@@ -180,11 +183,12 @@ export default function BookingsPage() {
             if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
             window.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('focus', handleFocus);
-            clearInterval(timer);
+            if (timer) clearInterval(timer);
         };
-    }, [router]);
+    }, [router, user, authLoading]);
 
     const handleBookClass = async (classObj: any) => {
+        if (!user) return;
         showConfirm(
             LITERALS.BOOKINGS.CONFIRM_RESERVATION_TITLE, 
             LITERALS.BOOKINGS.CONFIRM_RESERVATION_DESC(classObj.name, classObj.coach),

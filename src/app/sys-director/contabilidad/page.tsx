@@ -15,7 +15,7 @@ import { LITERALS } from "@/constants/literals";
 import Navbar from "@/components/Navbar";
 import { getAllRevenueRecords } from "../actions";
 import { useRouter } from "next/navigation";
-import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function AccountingPage() {
     const router = useRouter();
@@ -27,12 +27,14 @@ export default function AccountingPage() {
     const [selectedMonth, setSelectedMonth] = useState<string>("");
     const [currentRevenue, setCurrentRevenue] = useState<number | null>(null);
 
+    const { user, profile, loading: authLoading } = useAuth();
+
     useEffect(() => {
+        if (authLoading) return;
+
         const init = async () => {
             try {
-                const userData = await account.get();
-                const profile = await databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, userData.$id);
-                if (profile.role !== "admin") {
+                if (!user || profile?.role !== "admin") {
                     router.push("/perfil");
                     return;
                 }
@@ -55,11 +57,12 @@ export default function AccountingPage() {
                 }
                 setLoading(false);
             } catch (e) {
-                router.push("/login");
+                console.error("Accounting init error:", e);
+                setLoading(false);
             }
         };
         init();
-    }, [router]);
+    }, [router, user, profile, authLoading]);
 
     useEffect(() => {
         if (!selectedYear) {
