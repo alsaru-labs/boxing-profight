@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { User, CalendarClock, LogOut, ArrowLeft, CheckCircle2, History, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS, client } from "@/lib/appwrite";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS, COLLECTION_PAYMENTS, client } from "@/lib/appwrite";
 import { Query, ID } from "appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +22,7 @@ export default function BookingsPage() {
     const [user, setUser] = useState<any>(null);
     const [profileInfo, setProfileInfo] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [simulatedDay, setSimulatedDay] = useState<number | undefined>(undefined);
 
     // Real-time Class & Booking States
     const [availableClasses, setAvailableClasses] = useState<any[]>([]);
@@ -90,12 +91,26 @@ export default function BookingsPage() {
                     databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [Query.limit(100), Query.orderAsc("date")])
                 ]);
 
+                // Sync Payment Status
+                const d = new Date();
+                const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                const paymentsData = await databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
+                    Query.equal("student_id", currentUser.$id),
+                    Query.equal("month", currentMonthStr),
+                    Query.limit(1)
+                ]);
+
+                const profileWithPayment = {
+                    ...profile,
+                    is_paid: paymentsData.total > 0
+                };
+
                 if (profile.role === "admin") {
                     router.push("/sys-director");
                     return;
                 }
 
-                setProfileInfo(profile);
+                setProfileInfo(profileWithPayment);
                 setUserBookings(bookingsData.documents);
 
                 const now = new Date();
@@ -121,7 +136,8 @@ export default function BookingsPage() {
                     unsubscribe = client.subscribe([
                         `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents.${currentUser.$id}`,
                         `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
-                        `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`
+                        `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`,
+                        `databases.${DATABASE_ID}.collections.${COLLECTION_PAYMENTS}.documents`
                     ], (response) => {
                         // Refrescamos los datos con un pequeño retraso para agrupar cambios
                         if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
@@ -132,8 +148,12 @@ export default function BookingsPage() {
                 }
 
             } catch (error: any) {
-                if (error.code === 404) return;
-                router.push("/login?redirect=/bookings");
+                setLoading(false);
+                if (error.code === 401 || error.code === 403) {
+                    router.push("/login?redirect=/bookings");
+                } else {
+                    console.error("Critical error in loadData (bookings):", error);
+                }
             }
         };
 
@@ -273,6 +293,33 @@ export default function BookingsPage() {
                     <p className="text-white/40 text-lg font-medium">{LITERALS.BOOKINGS.SUBTITLE}</p>
                 </div>
 
+                {/* Simulador de Fecha para Tests */}
+                <div className="bg-black/40 border border-white/5 p-6 rounded-2xl backdrop-blur-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+                    <div className="space-y-1">
+                        <h3 className="text-sm font-black uppercase tracking-widest text-emerald-500">Modo de Prueba: Periodo de Gracia</h3>
+                        <p className="text-white/40 text-xs font-medium">Verifica el acceso según el día del mes (Días 1-10: Libre | Día 11+: Requiere Pago).</p>
+                    </div>
+                    <div className="flex items-center gap-4 bg-zinc-900/50 p-2 rounded-xl border border-white/10">
+                        <span className="text-xs font-black text-white/30 uppercase px-2 italic">Día {simulatedDay || new Date().getDate()}</span>
+                        <input 
+                            type="range" 
+                            min="1" 
+                            max="31" 
+                            value={simulatedDay || new Date().getDate()}
+                            onChange={(e) => setSimulatedDay(parseInt(e.target.value))}
+                            className="w-32 md:w-48 accent-emerald-500 cursor-pointer"
+                        />
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => setSimulatedDay(undefined)}
+                            className="text-[10px] font-black uppercase text-white/40 hover:text-white"
+                        >
+                            Reset
+                        </Button>
+                    </div>
+                </div>
+
                 {/* Disponibles Para Reservar (Componentized & Grouped) */}
                 <div className="space-y-12">
                     <ClassGrid
@@ -281,6 +328,7 @@ export default function BookingsPage() {
                         profileInfo={profileInfo}
                         isProcessingBooking={isProcessingBooking}
                         onBookClass={handleBookClass}
+                        simulatedDay={simulatedDay}
                     />
                 </div>
 

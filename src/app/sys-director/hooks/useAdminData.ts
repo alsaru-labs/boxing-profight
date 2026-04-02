@@ -12,8 +12,10 @@ import {
   COLLECTION_NOTIFICATIONS, 
   COLLECTION_REVENUE, 
   client,
-  COLLECTION_BOOKINGS
+  COLLECTION_BOOKINGS,
+  COLLECTION_PAYMENTS
 } from "@/lib/appwrite";
+import { getAdminDashboardData } from "../actions";
 
 export function useAdminData() {
   const router = useRouter();
@@ -22,33 +24,35 @@ export function useAdminData() {
   const [studentsList, setStudentsList] = useState<any[]>([]);
   const [classesList, setClassesList] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [totalStudents, setTotalStudents] = useState(0);
   const [monthlyRevenue, setMonthlyRevenue] = useState(0);
   const [unpaidCount, setUnpaidCount] = useState(0);
 
-  const loadDashboardData = async (silent = false) => {
+  const loadDashboardData = async (silent = false, monthOverride?: string) => {
     try {
       if (!silent) setLoading(true);
-
-      const [profilesData, classesData, announcementsData] = await Promise.all([
-        databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [Query.limit(500), Query.equal("is_active", true)]),
-        databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [Query.limit(500), Query.orderAsc("date")]),
-        databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS, [Query.orderDesc("createdAt"), Query.limit(20)])
-      ]);
-
-      const activeStudents = profilesData.documents.filter((s: any) => s.role !== "admin");
-      // All active students for management (now redundantly filtered for safety)
-      const allProfiles = activeStudents;
+      const targetMonth = monthOverride || selectedMonth;
+      const result = await getAdminDashboardData(targetMonth);
       
-      setTotalStudents(activeStudents.length);
-      setClassesList(classesData.documents);
-      setAnnouncements(announcementsData.documents);
+      if (!result.success) {
+        console.error(result.error);
+        setLoading(false);
+        return;
+      }
 
-      const d = new Date();
-      const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const { students, classes, announcements, currentMonth = "" } = result;
+      
+      setTotalStudents(students.length);
+      setClassesList(classes);
+      setAnnouncements(announcements);
 
+      // Fetch Revenue (Keep client-side or move to server action later if needed)
       try {
-        const revData = await databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [Query.equal("month", currentMonthStr), Query.limit(1)]);
+        const revData = await databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [Query.equal("month", currentMonth), Query.limit(1)]);
         if (revData.documents.length > 0) {
           setMonthlyRevenue(revData.documents[0].amount);
         } else {
@@ -58,9 +62,9 @@ export function useAdminData() {
         console.error("Revenue fetch error:", e);
       }
 
-      const paidStudentsCount = activeStudents.filter((s: any) => s.is_paid === true).length;
-      setUnpaidCount(activeStudents.length - paidStudentsCount);
-      setStudentsList(allProfiles); // Pass all profiles to studentsList, but directory will filter them
+      const paidStudentsCount = students.filter((s: any) => s.is_paid === true).length;
+      setUnpaidCount(students.length - paidStudentsCount);
+      setStudentsList(students);
       setLoading(false);
     } catch (error) {
       console.error("Dashboard load error:", error);
@@ -98,7 +102,8 @@ export function useAdminData() {
       `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
       `databases.${DATABASE_ID}.collections.${COLLECTION_REVENUE}.documents`,
       `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`,
-      `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`
+      `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`,
+      `databases.${DATABASE_ID}.collections.${COLLECTION_PAYMENTS}.documents`
     ], (response) => {
       if (response.events.some(e => e.includes(".create") || e.includes(".delete") || e.includes(".update"))) {
         if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
@@ -128,6 +133,8 @@ export function useAdminData() {
     setMonthlyRevenue,
     unpaidCount,
     setUnpaidCount,
+    selectedMonth,
+    setSelectedMonth,
     loadDashboardData
   };
 }

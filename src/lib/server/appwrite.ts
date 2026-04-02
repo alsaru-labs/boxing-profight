@@ -1,7 +1,7 @@
 import "server-only";
-import { Client, Account, Databases, Users } from "node-appwrite";
+import { Client, Account, Databases, Users, Query } from "node-appwrite";
 import { cookies } from "next/headers";
-import { PROJECT_ID, ENDPOINT } from "@/lib/appwrite";
+import { PROJECT_ID, ENDPOINT, DATABASE_ID, COLLECTION_PAYMENTS } from "@/lib/appwrite";
 
 /**
  * Ayudante para variables de SERVIDOR (no públicas).
@@ -85,4 +85,27 @@ export async function getAppwriteConfigStatus() {
       k.includes("AWR") || k.includes("APPWRITE") || k.includes("BOXING") || k.includes("NEXT_")
     )
   };
+}
+
+/**
+ * PASO 1: Helper para comprobar estado de pago de un alumno en el mes actual.
+ */
+export async function checkPaymentStatus(userId: string, currentMonth: string): Promise<boolean> {
+    const { databases } = await createAdminClient();
+    
+    try {
+        const response = await databases.listDocuments(
+            DATABASE_ID,
+            COLLECTION_PAYMENTS,
+            [
+                Query.equal("student_id", userId),
+                Query.equal("month", currentMonth),
+                Query.limit(1)
+            ]
+        );
+        return response.total > 0;
+    } catch (error) {
+        console.error(`[checkPaymentStatus] Error checking payment for ${userId}:`, error);
+        return false;
+    }
 }

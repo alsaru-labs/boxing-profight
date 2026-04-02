@@ -2,7 +2,7 @@
 
 import * as sdk from "node-appwrite";
 import { DATABASE_ID, COLLECTION_PROFILES, COLLECTION_INVITATION_TOKENS, COLLECTION_BOOKINGS, COLLECTION_CLASSES, COLLECTION_NOTIFICATIONS, COLLECTION_REVENUE, COLLECTION_PAYMENTS } from "@/lib/appwrite";
-import { createAdminClient } from "@/lib/server/appwrite";
+import { createAdminClient, checkPaymentStatus } from "@/lib/server/appwrite";
 
 /**
  * Synchronized Student Deletion (Auth + Database + Tokens)
@@ -74,8 +74,7 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
         // This keeps the Name and Email linked to past classes and payments.
         await databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, profileId, {
             is_active: false,
-            status: "Baja",
-            is_paid: false // They stop paying from now on
+            status: "Baja"
         });
         console.log(`[SYS-DIRECTOR] Profile marked as 'Baja': ${profileId}`);
 
@@ -141,9 +140,7 @@ export async function handleCreateOrReactivateStudent(form: any) {
                 name: form.name,
                 last_name: form.lastName,
                 phone: form.phone || profile.phone,
-                level: form.level || profile.level,
-                is_paid: hasPaid,
-                payment_method: originalMethod
+                level: form.level || profile.level
             });
 
             // Unlock Auth account
@@ -167,7 +164,6 @@ export async function handleCreateOrReactivateStudent(form: any) {
             phone: form.phone || null,
             role: "alumno",
             is_active: true,
-            is_paid: false,
             level: form.level,
             status: "Activa"
         });
@@ -343,7 +339,7 @@ export async function ensureMonthlyRevenueRecord() {
                 DATABASE_ID,
                 COLLECTION_REVENUE,
                 sdk.ID.unique(),
-                { month: monthKey, amount: 0, year: String(year) }
+                { mes: monthKey, amount: 0 }
             );
             syncSummary += `Record created for ${monthKey}. `;
         } else {
@@ -436,6 +432,152 @@ export async function markAllStudentsAsPaid() {
 
     } catch (error: any) {
         console.error("[BULK-PAID] Error:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * PASO 2: Obtener datos del Dashboard sincronizados con pagos reales.
+ */
+export async function getAdminDashboardData(month?: string) {
+    const { databases } = await createAdminClient();
+    
+    try {
+        const d = new Date();
+        const currentMonthStr = month || `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+        // 1. Fetch all primary data
+        const [profilesData, classesData, announcementsData, currentMonthPayments] = await Promise.all([
+            databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [sdk.Query.limit(500), sdk.Query.equal("is_active", true)]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [sdk.Query.limit(500), sdk.Query.orderAsc("date")]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS, [sdk.Query.orderDesc("$createdAt"), sdk.Query.limit(20)]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [sdk.Query.equal("month", currentMonthStr), sdk.Query.limit(500)])
+        ]);
+
+        // 2. Map payments by student_id for O(1) lookup
+        const paidStudentsSet = new Set(currentMonthPayments.documents.map((p: any) => p.student_id));
+        const paymentMethodsMap = new Map(currentMonthPayments.documents.map((p: any) => [p.student_id, p.method]));
+        
+        const students = profilesData.documents
+            .filter((p: any) => p.role !== "admin")
+            .map((p: any) => ({
+                ...p,
+                is_paid: paidStudentsSet.has(p.$id),
+                payment_method: paymentMethodsMap.get(p.$id) || null
+            }));
+
+        return {
+            success: true,
+            students: JSON.parse(JSON.stringify(students)),
+            classes: JSON.parse(JSON.stringify(classesData.documents)),
+            announcements: JSON.parse(JSON.stringify(announcementsData.documents)),
+            currentMonth: currentMonthStr
+        };
+
+    } catch (error: any) {
+        console.error("[getAdminDashboardData] Error detectado:", error.message);
+        return { success: false, error: `Error en el servidor: ${error.message}` };
+    }
+}
+
+/**
+ * PASO 5: Registrar un nuevo pago (Dual: payments + ingresos)
+ */
+export async function recordPaymentAction(studentId: string, amount: number, method: string, month?: string) {
+    const { databases } = await createAdminClient();
+    
+    try {
+        const d = new Date();
+        const currentMonthStr = month || `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+        // 1. Create payment document
+        await databases.createDocument(DATABASE_ID, COLLECTION_PAYMENTS, sdk.ID.unique(), {
+            student_id: studentId,
+            amount: amount,
+            method: method,
+            month: currentMonthStr
+        });
+
+        // 2. Update/Create Revenue
+        try {
+            const revData = await databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [
+                sdk.Query.equal("month", currentMonthStr),
+                sdk.Query.limit(1)
+            ]);
+
+            if (revData.total > 0) {
+                const doc = revData.documents[0];
+                await databases.updateDocument(DATABASE_ID, COLLECTION_REVENUE, doc.$id, {
+                    amount: (doc.amount || 0) + amount
+                });
+            } else {
+                await databases.createDocument(DATABASE_ID, COLLECTION_REVENUE, sdk.ID.unique(), {
+                    month: currentMonthStr,
+                    amount: amount
+                });
+            }
+        } catch (revError) {
+            console.error("[recordPaymentAction] Revenue update failed:", revError);
+            // We don't throw here to avoid full rollback if accounting fails but payment is recorded?
+            // Actually, the user asked for handling errors to avoid desynchronization.
+            throw new Error("Error al actualizar la contabilidad de ingresos.");
+        }
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("[recordPaymentAction] Error:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * PASO 5: Eliminar un pago (Dual: payments + ingresos)
+ */
+export async function deletePaymentAction(studentId: string, month?: string) {
+    const { databases } = await createAdminClient();
+    
+    try {
+        const d = new Date();
+        const currentMonthStr = month || `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+        // 1. Find the payment
+        const payments = await databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
+            sdk.Query.equal("student_id", studentId),
+            sdk.Query.equal("month", currentMonthStr),
+            sdk.Query.limit(1)
+        ]);
+
+        if (payments.total === 0) {
+            return { success: false, error: "No se encontró ningún pago para este alumno en el mes actual." };
+        }
+
+        const paymentDoc = payments.documents[0];
+        const amountToDeduct = paymentDoc.amount;
+
+        // 2. Delete payment document
+        await databases.deleteDocument(DATABASE_ID, COLLECTION_PAYMENTS, paymentDoc.$id);
+
+        // 3. Update Revenue
+        try {
+            const revData = await databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [
+                sdk.Query.equal("month", currentMonthStr),
+                sdk.Query.limit(1)
+            ]);
+
+            if (revData.total > 0) {
+                const doc = revData.documents[0];
+                await databases.updateDocument(DATABASE_ID, COLLECTION_REVENUE, doc.$id, {
+                    amount: Math.max(0, (doc.amount || 0) - amountToDeduct)
+                });
+            }
+        } catch (revError) {
+            console.error("[deletePaymentAction] Revenue update failed:", revError);
+            throw new Error("Error al descontar el importe de la contabilidad.");
+        }
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("[deletePaymentAction] Error:", error);
         return { success: false, error: error.message };
     }
 }

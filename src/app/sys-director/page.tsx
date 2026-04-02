@@ -41,7 +41,10 @@ export default function AdminDashboard() {
     monthlyRevenue,
     setMonthlyRevenue,
     unpaidCount,
-    setUnpaidCount
+    setUnpaidCount,
+    selectedMonth,
+    setSelectedMonth,
+    loadDashboardData
   } = useAdminData();
 
   // Modal States
@@ -100,7 +103,7 @@ export default function AdminDashboard() {
   } = useAdminActions({
     studentsList, setStudentsList, classesList, setClassesList,
     setMonthlyRevenue, setUnpaidCount, setTotalStudents,
-    showAlert, showConfirm
+    showAlert, showConfirm, selectedMonth
   });
 
   const handleActionClick = (student: any) => {
@@ -185,10 +188,39 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="general" className="space-y-6 md:space-y-10 focus-visible:outline-none">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 bg-zinc-900/40 p-6 rounded-2xl border border-white/5">
+              <div className="space-y-1">
+                <h3 className="text-sm font-black uppercase tracking-widest text-emerald-500">Periodo de Gestión</h3>
+                <p className="text-white/40 text-xs">Consulta y valida pagos de cualquier mes.</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <select 
+                  value={selectedMonth}
+                  onChange={(e) => {
+                    const newMonth = e.target.value;
+                    setSelectedMonth(newMonth);
+                    loadDashboardData(false, newMonth);
+                  }}
+                  className="bg-black/60 border border-white/10 text-white font-black uppercase tracking-widest p-3 rounded-xl outline-none focus:border-emerald-500/50 transition-all cursor-pointer min-w-[220px]"
+                >
+                  {/* Generar los últimos 12 meses y los próximos 6 como opciones */}
+                  {Array.from({ length: 24 }).map((_, i) => {
+                    const d = new Date();
+                    d.setDate(1); // Evitar problemas de fin de mes
+                    d.setMonth(d.getMonth() - 12 + i);
+                    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                    const label = d.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+                    return <option key={val} value={val} className="bg-zinc-900 border-none">{label}</option>;
+                  })}
+                </select>
+              </div>
+            </div>
+
             <DashboardStats
               totalStudents={totalStudents}
               monthlyRevenue={monthlyRevenue}
               unpaidCount={unpaidCount}
+              selectedMonth={selectedMonth}
               onNewStudent={() => setIsNewStudentModalOpen(true)}
             />
 

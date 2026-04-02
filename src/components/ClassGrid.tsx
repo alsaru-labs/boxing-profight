@@ -24,6 +24,7 @@ interface ClassGridProps {
     isProcessingBooking?: string | null;
     profileInfo?: any;
     userBookings?: any[]; // Only for students to filter
+    simulatedDay?: number;
 }
 
 export function ClassGrid({
@@ -35,7 +36,8 @@ export function ClassGrid({
     onViewAttendees,
     isProcessingBooking,
     profileInfo,
-    userBookings = []
+    userBookings = [],
+    simulatedDay
 }: ClassGridProps) {
     // Filter out classes if student is already booked
     const displayClasses = isAdmin
@@ -220,22 +222,31 @@ export function ClassGrid({
                                                         </div>
 
                                                         {!isAdmin && (
-                                                            <Button
-                                                                onClick={() => onBookClass?.(cls)}
-                                                                disabled={isFull || isProcessingBooking === cls.$id || !profileInfo?.is_paid}
-                                                                className={`w-full font-black h-8 md:h-14 text-[9px] md:text-sm uppercase tracking-widest rounded-xl transition-all duration-300 ${isFull
-                                                                    ? 'bg-red-500/10 text-red-500/50 border border-red-500/20 cursor-not-allowed shadow-none'
-                                                                    : !profileInfo?.is_paid
-                                                                        ? 'bg-amber-500/10 text-amber-500/50 border border-amber-500/20 cursor-not-allowed shadow-none'
-                                                                        : 'bg-white text-black hover:bg-emerald-500 hover:text-white hover:scale-[1.02] shadow-[0_10px_20px_rgba(0,0,0,0.2)] hover:shadow-[0_15px_30px_rgba(16,185,129,0.3)] active:scale-95'
-                                                                    }`}
-                                                            >
-                                                                {isProcessingBooking === cls.$id ? (
-                                                                    <Loader2 className="w-6 h-6 animate-spin" />
-                                                                ) : (
-                                                                    !profileInfo?.is_paid ? LITERALS.CLASS_CARD.PENDING_PAYMENT : isFull ? LITERALS.CLASS_CARD.NO_SPACES : LITERALS.CLASS_CARD.RESERVE_BUTTON
-                                                                )}
-                                                            </Button>
+                                                            (() => {
+                                                                const today = new Date();
+                                                                const dayOfMonth = simulatedDay || today.getDate();
+                                                                const isGracePeriod = dayOfMonth >= 1 && dayOfMonth <= 10;
+                                                                const canBook = isGracePeriod || profileInfo?.is_paid;
+                                                                
+                                                                return (
+                                                                    <Button
+                                                                        onClick={() => onBookClass?.(cls)}
+                                                                        disabled={isFull || isProcessingBooking === cls.$id || !canBook}
+                                                                        className={`w-full font-black h-8 md:h-14 text-[9px] md:text-sm uppercase tracking-widest rounded-xl transition-all duration-300 ${isFull
+                                                                            ? 'bg-red-500/10 text-red-500/50 border border-red-500/20 cursor-not-allowed shadow-none'
+                                                                            : !canBook
+                                                                                ? 'bg-amber-500/10 text-amber-500/50 border border-amber-500/20 cursor-not-allowed shadow-none'
+                                                                                : 'bg-white text-black hover:bg-emerald-500 hover:text-white hover:scale-[1.02] shadow-[0_10px_20px_rgba(0,0,0,0.2)] hover:shadow-[0_15px_30px_rgba(16,185,129,0.3)] active:scale-95'
+                                                                            }`}
+                                                                    >
+                                                                        {isProcessingBooking === cls.$id ? (
+                                                                            <Loader2 className="w-6 h-6 animate-spin" />
+                                                                        ) : (
+                                                                            !canBook ? LITERALS.CLASS_CARD.PENDING_PAYMENT : isFull ? LITERALS.CLASS_CARD.NO_SPACES : LITERALS.CLASS_CARD.RESERVE_BUTTON
+                                                                        )}
+                                                                    </Button>
+                                                                );
+                                                            })()
                                                         )}
 
                                                         {isAdmin && (

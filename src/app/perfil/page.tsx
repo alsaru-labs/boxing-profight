@@ -6,7 +6,7 @@ import { Calendar, ArrowRight, Clock, CheckCircle2, History as HistoryIcon, Load
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS, client } from "@/lib/appwrite";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES, COLLECTION_CLASSES, COLLECTION_BOOKINGS, COLLECTION_PAYMENTS, client } from "@/lib/appwrite";
 import { Query, ID } from "appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -95,6 +95,22 @@ export default function StudentProfile() {
           databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [Query.limit(100), Query.orderAsc("date")])
         ]);
 
+        // PASO 3: Verificar pago en la nueva tabla payments
+        const d = new Date();
+        const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        
+        const paymentsData = await databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
+          Query.equal("student_id", currentUser.$id),
+          Query.equal("month", currentMonthStr),
+          Query.limit(1)
+        ]);
+
+        // Enriquecemos el perfil con el estado de pago real
+        const profileWithPayment = {
+          ...profile,
+          is_paid: paymentsData.total > 0
+        };
+
         if (profile.role === "admin") {
           router.push("/sys-director");
           return;
@@ -128,7 +144,7 @@ export default function StudentProfile() {
         setAvailableClasses(validUpcomingClasses);
         setPastClasses(attendedClasses);
         setUserBookings(bookingsData.documents);
-        setProfileInfo(profile);
+        setProfileInfo(profileWithPayment);
         setLoading(false);
 
         // 🟢 TIEMPO REAL: Suscripción a cambios
@@ -136,7 +152,8 @@ export default function StudentProfile() {
           unsubscribe = client.subscribe([
             `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents.${currentUser.$id}`,
             `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
-            `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`
+            `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`,
+            `databases.${DATABASE_ID}.collections.${COLLECTION_PAYMENTS}.documents`
           ], (response) => {
             if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
             refreshTimeoutRef.current = setTimeout(() => {
@@ -146,8 +163,12 @@ export default function StudentProfile() {
         }
 
       } catch (error: any) {
-        if (error.code === 404) return;
-        router.push("/login?redirect=/perfil");
+        setLoading(false);
+        if (error.code === 401 || error.code === 403) {
+          router.push("/login?redirect=/perfil");
+        } else {
+          console.error("Critical error in loadData:", error);
+        }
       }
     };
 

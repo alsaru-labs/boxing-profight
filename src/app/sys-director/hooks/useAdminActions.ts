@@ -11,7 +11,7 @@ import {
   COLLECTION_REVENUE,
   COLLECTION_BOOKINGS
 } from "@/lib/appwrite";
-import { createClassServer, handleCreateOrReactivateStudent } from "../actions";
+import { createClassServer, handleCreateOrReactivateStudent, recordPaymentAction, deletePaymentAction } from "../actions";
 
 interface UseAdminActionsProps {
   studentsList: any[];
@@ -23,6 +23,7 @@ interface UseAdminActionsProps {
   setTotalStudents: (val: any) => void;
   showAlert: (title: string, description: string, variant?: any) => void;
   showConfirm: (title: string, description: string, onConfirm: () => void | Promise<void>, variant?: any) => void;
+  selectedMonth: string;
 }
 
 export function useAdminActions({
@@ -34,7 +35,8 @@ export function useAdminActions({
   setUnpaidCount,
   setTotalStudents,
   showAlert,
-  showConfirm
+  showConfirm,
+  selectedMonth
 }: UseAdminActionsProps) {
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -43,75 +45,20 @@ export function useAdminActions({
     try {
       setIsUpdating(true);
       const pAmount = Number(paymentAmount) || 55;
-      const d = new Date();
-      const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
-      const existingPayments = await databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
-        Query.equal("student_id", studentId),
-        Query.equal("month", currentMonthStr),
-        Query.limit(1)
-      ]);
+      let result;
+      if (newStatus) {
+        result = await recordPaymentAction(studentId, pAmount, paymentMethod || "Efectivo", selectedMonth);
+      } else {
+        result = await deletePaymentAction(studentId, selectedMonth);
+      }
 
-      const hasPreviousPayment = existingPayments.total > 0;
+      if (!result.success) {
+        showAlert("Error", result.error || "No se pudo procesar el pago.", "danger");
+        return false;
+      }
 
-      // 1. Update Profile (Only change method if it's a brand new payment)
-      await databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, studentId, {
-        is_paid: newStatus,
-        payment_method: newStatus 
-          ? (hasPreviousPayment ? existingPayments.documents[0].method : paymentMethod) 
-          : null
-      });
-
-      let paymentAmountToDeduct = pAmount;
-
-      try {
-        if (newStatus) {
-          if (!hasPreviousPayment) {
-            // No payment found, create one and update revenue
-            await databases.createDocument(DATABASE_ID, COLLECTION_PAYMENTS, ID.unique(), {
-              student_id: studentId,
-              month: currentMonthStr,
-              amount: pAmount,
-              method: paymentMethod
-            });
-
-            const revData = await databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [Query.equal("month", currentMonthStr), Query.limit(1)]);
-            if (revData.documents.length > 0) {
-              const doc = revData.documents[0];
-              const updatedRev = doc.amount + pAmount;
-              await databases.updateDocument(DATABASE_ID, COLLECTION_REVENUE, doc.$id, { amount: updatedRev });
-              setMonthlyRevenue(updatedRev);
-            } else {
-              const newRevId = ID.unique();
-              await databases.createDocument(DATABASE_ID, COLLECTION_REVENUE, newRevId, { month: currentMonthStr, amount: pAmount });
-              setMonthlyRevenue(pAmount);
-            }
-          } else {
-            console.log("[useAdminActions] Payment already exists for this month, skipping document creation.");
-          }
-        } else {
-          // Mark as UNPAID (Delete existing payment if any)
-          const userPayments = await databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
-            Query.equal("student_id", studentId),
-            Query.equal("month", currentMonthStr),
-            Query.limit(1)
-          ]);
-
-          if (userPayments.documents.length > 0) {
-            paymentAmountToDeduct = userPayments.documents[0].amount;
-            await databases.deleteDocument(DATABASE_ID, COLLECTION_PAYMENTS, userPayments.documents[0].$id);
-
-            const revData = await databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [Query.equal("month", currentMonthStr), Query.limit(1)]);
-            if (revData.documents.length > 0) {
-              const doc = revData.documents[0];
-              const updatedRev = Math.max(0, doc.amount - paymentAmountToDeduct);
-              await databases.updateDocument(DATABASE_ID, COLLECTION_REVENUE, doc.$id, { amount: updatedRev });
-              setMonthlyRevenue(updatedRev);
-            }
-          }
-        }
-      } catch (e) { console.error(e); }
-
+      // Update local state for immediate feedback
       const newList = studentsList.map(s => s.$id === studentId ? { ...s, is_paid: newStatus, payment_method: newStatus ? paymentMethod : null } : s);
       setStudentsList(newList);
       setUnpaidCount(newList.filter(s => !s.is_paid).length);
@@ -119,6 +66,7 @@ export function useAdminActions({
       return true;
     } catch (error) {
       console.error(error);
+      showAlert("Error", "Error de red al procesar el pago.", "danger");
       return false;
     } finally {
       setIsUpdating(false);

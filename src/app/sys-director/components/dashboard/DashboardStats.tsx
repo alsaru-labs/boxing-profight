@@ -10,11 +10,14 @@ interface DashboardStatsProps {
   monthlyRevenue: number;
   unpaidCount: number;
   onNewStudent: () => void;
+  selectedMonth: string;
 }
 
-export function DashboardStats({ totalStudents, monthlyRevenue, unpaidCount, onNewStudent }: DashboardStatsProps) {
-  const currentMonth = new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(new Date());
-  const monthLabel = currentMonth.charAt(0).toUpperCase() + currentMonth.slice(1);
+export function DashboardStats({ totalStudents, monthlyRevenue, unpaidCount, onNewStudent, selectedMonth }: DashboardStatsProps) {
+  const [y, m] = selectedMonth.split('-').map(Number);
+  const dateObj = new Date(y, m - 1, 2); // 2nd to avoid timezone shifts
+  const monthName = new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(dateObj);
+  const monthLabel = monthName.charAt(0).toUpperCase() + monthName.slice(1);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
