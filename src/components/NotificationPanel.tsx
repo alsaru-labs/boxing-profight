@@ -185,12 +185,16 @@ export default function NotificationPanel() {
                                                         <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${isRead ? 'bg-transparent' : 'bg-red-500 animate-pulse'}`} />
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex justify-between items-start mb-1">
-                                                                <span className={`text-[10px] uppercase tracking-widest font-bold ${n.type === 'warning' ? 'text-amber-400' : n.type === 'success' ? 'text-emerald-400' : 'text-blue-400'
+                                                                 <span className={`text-[10px] uppercase tracking-widest font-black ${
+                                                                    n.type === 'urgent' ? 'text-red-500' : 
+                                                                    n.type === 'warning' ? 'text-amber-400' : 
+                                                                    n.type === 'success' ? 'text-emerald-400' : 
+                                                                    'text-blue-400'
                                                                     }`}>
-                                                                    {n.type || 'info'}
+                                                                    {n.type === 'urgent' ? 'Importante' : (n.type || 'Información')}
                                                                 </span>
                                                                 <span className="text-[10px] text-white/30 whitespace-nowrap">
-                                                                    {new Date(n.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                                                                    {new Date(n.createdAt || n.$createdAt || Date.now()).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
                                                                 </span>
                                                             </div>
                                                             <h4 className={`font-bold leading-tight mb-1 text-white ${isRead ? 'text-white/80' : 'text-white'}`}>

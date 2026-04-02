@@ -178,9 +178,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (payload.student_id === user.$id) {
            const d = new Date();
            const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-           if (payload.month === currentMonthStr) {
-             setProfile((prev: any) => prev ? { ...prev, is_paid: event.includes(".create") } : null);
-           }
+            if (payload.month === currentMonthStr) {
+              const hasPaid = !event.includes(".delete");
+              setProfile((prev: any) => prev ? { ...prev, is_paid: hasPaid } : null);
+            }
         }
         return;
       }
