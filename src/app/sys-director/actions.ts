@@ -644,15 +644,23 @@ export async function autoGenerateNextWeekClasses() {
             const dStr = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().split('T')[0];
 
             for (const time of slots) {
-                const newClass = await databases.createDocument(DATABASE_ID, COLLECTION_CLASSES, sdk.ID.unique(), {
-                    name: date.getDay() === 3 ? "Sparring" : "Boxeo y K1",
-                    date: dStr, time, coach: "Álex Pintor", capacity: 30, registeredCount: 0, status: "Activa"
-                });
-                generatedClasses.push(newClass);
+                // Check if class already exists to avoid duplicates
+                const existing = await databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [
+                    sdk.Query.equal("date", dStr),
+                    sdk.Query.equal("time", time)
+                ]);
+                
+                if (existing.total === 0) {
+                    const newClass = await databases.createDocument(DATABASE_ID, COLLECTION_CLASSES, sdk.ID.unique(), {
+                        name: date.getDay() === 3 ? "Sparring" : "Boxeo y K1",
+                        date: dStr, time, coach: "Álex Pintor", capacity: 30, registeredCount: 0, status: "Activa"
+                    });
+                    generatedClasses.push(newClass);
+                }
             }
         }
         revalidateTag(CACHE_TAGS.CLASSES, "max");
-        return { success: true, count: generatedClasses.length };
+        return { success: true, count: generatedClasses.length, classes: JSON.parse(JSON.stringify(generatedClasses)) };
     } catch (error: any) {
         return { success: false, error: error.message };
     }

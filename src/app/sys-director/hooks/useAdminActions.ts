@@ -161,7 +161,7 @@ export function useAdminActions({
             if (result.count === 0) {
               showAlert("Info", "No se han generado clases nuevas porque ya existían todas.", "info");
             } else {
-              setClassesList([...classesList, ...result.classes].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+              setClassesList([...classesList, ...(result.classes || [])].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
               showAlert("Éxito", `Se han generado ${result.count} clases nuevas.`, "success");
             }
           } else {
