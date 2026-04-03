@@ -212,9 +212,7 @@ export async function getCompleteUserData(userId: string) {
         if (results[0].status === "fulfilled") {
             profile = results[0].value;
         } else {
-            const err = results[0].reason as any;
-            console.error(`[getCompleteUserData] Error crucial al obtener perfil (User ID: ${userId}):`, err.message || err);
-            return { success: false, error: `Perfil de usuario inaccesible: ${err.message || "Error desconocido"}. Revisa que el ID del Perfil coincida con el ID del Usuario en Appwrite.` };
+            return { success: false, error: "No se ha podido sincronizar tu perfil. Inténtalo de nuevo más tarde." };
         }
         
         if (results[1].status === "fulfilled") classes = results[1].value;
@@ -731,7 +729,6 @@ export async function getUserProfile(userId: string) {
     if (!userId) return { success: false, error: "ID de usuario requerido." };
     const { databases } = await createAdminClient();
     try {
-        console.log(`[getUserProfile] Buscando perfil para user_id: ${userId} en DB: ${DATABASE_ID} / COL: ${COLLECTION_PROFILES}`);
         const profile = await databases.getDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_PROFILES, documentId: userId });
         return { success: true, data: JSON.parse(JSON.stringify(profile)) };
     } catch (error: any) {

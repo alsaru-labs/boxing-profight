@@ -101,7 +101,7 @@ export async function bootstrapAdminAction(data: { name: string, lastName: strin
         if (error.message.includes("not authorized") || error.code === 401) {
             return { 
                 success: false, 
-                error: `Appwrite rechazó la llave de API para el proyecto ID: '${PROJECT_ID}'. Asegúrate de que tu clave pertenece a este proyecto específico y tiene todos los SCOPES (permisos) de 'users' y 'databases' activados.` 
+                error: "Error de autorización. Verifica tu clave de administración." 
             };
         }
         return { success: false, error: error.message };

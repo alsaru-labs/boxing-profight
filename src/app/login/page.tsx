@@ -57,9 +57,6 @@ export default function LoginPage() {
     try {
       setLoading(true);
       setError("");
-      // @ts-ignore
-      const { PROJECT_ID } = await import("@/lib/appwrite");
-      console.log(`[LOGIN] Intento de sesión para Proyecto: ${PROJECT_ID}`);
 
       // Create session safely
       try {
@@ -108,7 +105,7 @@ export default function LoginPage() {
           }
         }
       } else {
-        setError(profileResult.error || "No se pudo cargar el perfil de usuario. Contacta con el administrador.");
+        setError("No se ha podido acceder a la cuenta. Por favor, inténtalo de nuevo.");
       }
     } catch (err: any) {
       console.error("[LOGIN ERROR]", err);
@@ -117,13 +114,13 @@ export default function LoginPage() {
       const status = err?.code || 0;
 
       if (type === "user_invalid_credentials" || status === 401) {
-        setError("Las credenciales no son correctas. Revisa tu email y contraseña.");
+        setError("Credenciales incorrectas.");
       } else if (type === "user_blocked") {
-        setError("Esta cuenta ha sido desactivada. Contacta con el centro.");
+        setError("Acceso denegado.");
       } else if (status === 429) {
         setError("Demasiados intentos. Por favor, espera unos minutos.");
       } else {
-        setError("No se ha podido iniciar sesión. Revisa tu conexión o inténtalo más tarde.");
+        setError("Error al iniciar sesión. Por favor, inténtalo más tarde.");
       }
     } finally {
       setLoading(false);
