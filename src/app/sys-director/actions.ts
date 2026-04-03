@@ -209,13 +209,20 @@ export async function getCompleteUserData(userId: string) {
             getAnnouncementsCached()
         ]);
 
-        if (results[0].status === "fulfilled") profile = results[0].value;
+        if (results[0].status === "fulfilled") {
+            profile = results[0].value;
+        } else {
+            const err = results[0].reason as any;
+            console.error(`[getCompleteUserData] Error crucial al obtener perfil (User ID: ${userId}):`, err.message || err);
+            return { success: false, error: `Perfil de usuario inaccesible: ${err.message || "Error desconocido"}. Revisa que el ID del Perfil coincida con el ID del Usuario en Appwrite.` };
+        }
+        
         if (results[1].status === "fulfilled") classes = results[1].value;
         if (results[2].status === "fulfilled") bookings = results[2].value;
         if (results[3].status === "fulfilled") payments = results[3].value;
         if (results[4].status === "fulfilled") announcements = results[4].value;
 
-        if (!profile) return { success: false, error: "Perfil no encontrado." };
+        if (!profile) return { success: false, error: "Perfil no encontrado (Inconsistencia de datos)." };
 
         let readNotificationsIds: string[] = [];
         try {
