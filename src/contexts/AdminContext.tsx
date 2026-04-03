@@ -36,7 +36,9 @@ interface AdminContextType {
   refreshAdminData: (silent?: boolean, month?: string) => Promise<void>;
   refreshStudentsList: (silent?: boolean) => Promise<void>;
   loadRevenueHistory: (silent?: boolean) => Promise<void>;
+  paidStudentIds: Set<string>;
 }
+
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
@@ -69,16 +71,25 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
+  
+  const [paidStudentIds, setPaidStudentIds] = useState<Set<string>>(new Set());
+  const paidStudentIdsRef = useRef<Set<string>>(new Set());
 
   const selectedMonthRef = useRef(selectedMonth);
   const subscriptionRef = useRef<any>(null);
   const processedProfilesRef = useRef<Set<string>>(new Set()); // 🛡️ ESCUDO DE DUPLICADOS
 
+
   // 1️⃣ MEGA-HIDRATACIÓN "OMNI" DESDE AUTH (Zero-Waste Inicial)
   useEffect(() => {
     if (isAdmin && adminOmniData && !isHydrated) {
+      const paidSet = new Set<string>(adminOmniData.dashboard?.paidStudentIds || []);
+      setPaidStudentIds(paidSet);
+      paidStudentIdsRef.current = paidSet; // Fix: Actualizar Ref al instante para el listener
+
+      // El servidor ya nos da hydratedProfiles con is_paid! Zero client computation.
       setStudentsList(adminOmniData.studentsList || []);
-      setClassesList(adminOmniData.classes || []); // AuthContext already has classes but whatever
+      setClassesList(adminOmniData.classes || []); 
       setTotalStudents(adminOmniData.dashboard?.totalStudents || 0);
       setMonthlyRevenue(adminOmniData.dashboard?.totalRevenue || 0);
       setUnpaidCount(adminOmniData.dashboard?.unpaidCount || 0);
@@ -89,6 +100,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       setStudentsLoading(false);
     }
   }, [isAdmin, adminOmniData, isHydrated]);
+
+
 
 
   // Reset del escudo al cargar datos iniciales para sincronizar con la realidad
@@ -125,20 +138,23 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         const result = await getAdminDashboardData(targetMonth);
         
         if (result.success) {
+          const paidSet = new Set<string>(result.paidStudentIds || []);
+          setPaidStudentIds(paidSet);
+          paidStudentIdsRef.current = paidSet; // Fix: Actualizar Ref al instante para el listener
+          
           setClassesList(result.classes);
           setAnnouncements(result.announcements);
           setTotalStudents(result.totalStudents || 0);
           setMonthlyRevenue(result.totalRevenue || 0); 
           setUnpaidCount(result.unpaidCount || 0);
 
-          if (result.paidStudentIds) {
-            setStudentsList(prev => {
-              if(prev.length === 0) return prev;
-              const paidSet = new Set(result.paidStudentIds);
-              return prev.map(s => ({ ...s, is_paid: paidSet.has(s.$id) }));
-            });
-          }
+          setStudentsList(prev => {
+            if(prev.length === 0) return prev;
+            return prev.map(s => ({ ...s, is_paid: paidSet.has(s.$id) }));
+          });
         }
+
+
       } catch (error) {
         console.error("Admin data load error:", error);
       } finally {
@@ -267,27 +283,47 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       const collectionId = payload.$collectionId;
       const currentMonth = selectedMonthRef.current; // Usar REF para evitar stale closure
 
-      // ⚡️ ACTUALIZACIÓN INCREMENTAL: Pagos (Registro/Anulación)
+      // 1. ⚡️ ACTUALIZACIÓN INCREMENTAL: Pagos (Source of Truth)
       if (collectionId === COLLECTION_PAYMENTS) {
         if (payload.month === currentMonth) {
           if (event.includes(".create")) {
-            setStudentsList(prev => prev.map(s => 
-              s.$id === payload.student_id ? { ...s, is_paid: true, payment_method: payload.method } : s
-            ));
-            setUnpaidCount(prev => Math.max(0, prev - 1));
-            return;
+             // Actualizamos el Set de IDs de pago (esto dispara el re-render de la tabla)
+             setPaidStudentIds(prev => {
+                const next = new Set([...prev, payload.student_id]);
+                paidStudentIdsRef.current = next;
+                return next;
+             });
+             
+             // Actualizamos datos adicionales en la lista de alumnos
+             setStudentsList(prev => prev.map(s => 
+               s.$id === payload.student_id ? { ...s, payment_method: payload.method } : s
+             ));
+             
+             setUnpaidCount(u => Math.max(0, u - 1));
+             setMonthlyRevenue(r => r + (payload.amount || 0));
+             return;
           }
+
           if (event.includes(".delete")) {
-            setStudentsList(prev => prev.map(s => 
-              s.$id === payload.student_id ? { ...s, is_paid: false, payment_method: null } : s
-            ));
-            setUnpaidCount(prev => prev + 1);
-            return;
+             setPaidStudentIds(prev => {
+                const next = new Set(prev);
+                next.delete(payload.student_id);
+                paidStudentIdsRef.current = next;
+                return next;
+             });
+
+             setStudentsList(prev => prev.map(s => 
+               s.$id === payload.student_id ? { ...s, payment_method: null } : s
+             ));
+             
+             setUnpaidCount(u => u + 1);
+             setMonthlyRevenue(r => Math.max(0, r - (payload.amount || 0)));
+             return;
           }
         }
       }
 
-      // ⚡️ ACTUALIZACIÓN INCREMENTAL: Ingresos Totales (Contabilidad)
+      // 2. ⚡️ ACTUALIZACIÓN INCREMENTAL: Ingresos Totales (Contabilidad)
       if (collectionId === COLLECTION_REVENUE) {
         if (event.includes(".update") || event.includes(".create")) {
           if (payload.month === currentMonth) {
@@ -304,7 +340,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // ⚡️ ACTUALIZACIÓN INCREMENTAL: Clases (Crear/Editar/Borrar)
+      // 3. ⚡️ ACTUALIZACIÓN INCREMENTAL: Clases (Crear/Editar/Borrar)
       if (collectionId === COLLECTION_CLASSES) {
         if (event.includes(".create")) {
           setClassesList(prev => {
@@ -323,7 +359,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // ⚡️ ACTUALIZACIÓN INCREMENTAL: Anuncios (Tablón)
+      // 4. ⚡️ ACTUALIZACIÓN INCREMENTAL: Anuncios (Tablón)
       if (collectionId === COLLECTION_NOTIFICATIONS) {
         if (event.includes(".create")) {
           setAnnouncements(prev => {
@@ -338,59 +374,69 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // ⚡️ ACTUALIZACIÓN INCREMENTAL: Perfiles (Registro/Baja)
+      // 5. ⚡️ ACTUALIZACIÓN INCREMENTAL: Perfiles (Registro/Baja)
       if (collectionId === COLLECTION_PROFILES) {
          if (event.includes(".create")) {
+            if (payload.role !== "alumno" || payload.is_active === false || payload.status === "Baja") return;
+
             setStudentsList(prev => {
               if (prev.some(s => s.$id === payload.$id)) return prev;
-              
-              // 🛡️ ESCUDO: Solo sumamos si NO está en el Set de procesados
               if (!processedProfilesRef.current.has(payload.$id)) {
-                  console.log(`[Realtime] 🛡️ Adding student to stats (NEW): ${payload.name}`);
                   processedProfilesRef.current.add(payload.$id);
                   setTotalStudents(t => t + 1);
-                  setUnpaidCount(u => u + 1);
+                  if (!paidStudentIdsRef.current.has(payload.$id)) {
+                      setUnpaidCount(u => u + 1);
+                  }
               }
-              
-              return [payload, ...prev];
+              return [payload, ...prev.filter(s => s.$id !== payload.$id)];
             });
             return;
          }
-         if (event.includes(".update")) {
+
+        if (event.includes(".update")) {
             setStudentsList(prev => {
               const exists = prev.find(s => s.$id === payload.$id);
-              
-              // Si pasa de inactivo a activo, sumamos SOLO si no lo habíamos contado ya
-              if (payload.is_active === true && (!exists || exists.is_active === false)) {
+              const nowActive = payload.is_active === true && payload.status !== "Baja" && payload.role === "alumno";
+              const wasActive = !!exists;
+
+              // Activación / Re-registro
+              if (nowActive && !wasActive) {
                 if (!processedProfilesRef.current.has(payload.$id)) {
-                    console.log(`[Realtime] 🛡️ Reactivating Student (ADD): ${payload.name}`);
                     processedProfilesRef.current.add(payload.$id);
                     setTotalStudents(t => t + 1);
-                    setUnpaidCount(u => u + 1);
+                    if (!paidStudentIdsRef.current.has(payload.$id)) {
+                        setUnpaidCount(u => u + 1);
+                    }
                 }
+                return [payload, ...prev.filter(s => s.$id !== payload.$id)];
               } 
-              // Si pasa de activo a inactivo, restamos
-              else if (payload.is_active === false && exists && exists.is_active !== false) {
+              // Baja / Desactivación
+              else if (!nowActive && wasActive) {
                 if (processedProfilesRef.current.has(payload.$id)) {
-                    console.log(`[Realtime] 🛡️ Deactivating Student (SUB): ${payload.name}`);
                     processedProfilesRef.current.delete(payload.$id);
                     setTotalStudents(t => Math.max(0, t - 1));
-                    if (!exists.is_paid) setUnpaidCount(u => Math.max(0, u - 1));
+                    const isPaid = paidStudentIdsRef.current.has(payload.$id);
+                    if (!isPaid) setUnpaidCount(u => Math.max(0, u - 1));
                 }
+                return prev.filter(s => s.$id !== payload.$id);
               }
-              
-              return prev.map(s => s.$id === payload.$id ? { ...s, ...payload } : s);
+              // Actualización normal de datos
+              else if (nowActive && wasActive) {
+                return prev.map(s => s.$id === payload.$id ? { ...s, ...payload } : s);
+              }
+              return prev;
             });
             return;
          }
+
          if (event.includes(".delete")) {
             setStudentsList(prev => {
               const exists = prev.find(s => s.$id === payload.$id);
               if (exists || processedProfilesRef.current.has(payload.$id)) {
-                console.log(`[Realtime] 🛡️ PERMANENT Delete (SUB): ${payload.$id}`);
                 processedProfilesRef.current.delete(payload.$id);
                 setTotalStudents(t => Math.max(0, t - 1));
-                if (exists && !exists.is_paid) setUnpaidCount(u => Math.max(0, u - 1));
+                const isPaid = paidStudentIdsRef.current.has(payload.$id);
+                if (!isPaid) setUnpaidCount(u => Math.max(0, u - 1));
                 return prev.filter(s => s.$id !== payload.$id);
               }
               return prev;
@@ -432,8 +478,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setSelectedMonth,
     refreshAdminData: loadDashboardData,
     refreshStudentsList: loadStudentsList,
-    loadRevenueHistory
-  }), [studentsList, classesList, announcements, totalStudents, monthlyRevenue, unpaidCount, loading, studentsLoading, selectedMonth, revenueRecords, setStudentsList, setClassesList, setAnnouncements, setMonthlyRevenue, setUnpaidCount, setTotalStudents, loadDashboardData, loadStudentsList, loadRevenueHistory]);
+    loadRevenueHistory,
+    paidStudentIds
+  }), [studentsList, classesList, announcements, totalStudents, monthlyRevenue, unpaidCount, loading, studentsLoading, selectedMonth, revenueRecords, setStudentsList, setClassesList, setAnnouncements, setMonthlyRevenue, setUnpaidCount, setTotalStudents, loadDashboardData, loadStudentsList, loadRevenueHistory, paidStudentIds]);
 
   return (
     <AdminContext.Provider value={value}>

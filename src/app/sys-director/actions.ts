@@ -242,17 +242,23 @@ export async function getPlatformOmniData(userId: string, monthOverride?: string
             const fullRevenueHistory = results[8].status === "fulfilled" ? (results[8].value as any).documents : [];
 
             const totalRevenue = monthlyRevenueDoc ? (monthlyRevenueDoc.amount || 0) : 0;
+            const paidStudentIds = new Set(currentMonthPayments.map((p: any) => p.student_id));
+            const hydratedProfiles = allProfiles.map((p: any) => ({
+                ...p,
+                is_paid: paidStudentIds.has(p.$id)
+            }));
             const totalStudents = allProfiles.length;
-            const paidStudentIds = Array.from(new Set(currentMonthPayments.map((p: any) => p.student_id)));
-            const unpaidCount = Math.max(0, totalStudents - paidStudentIds.length);
+            const activePaidCount = hydratedProfiles.filter((p: any) => p.is_paid).length;
+            const unpaidCount = Math.max(0, totalStudents - activePaidCount);
+            const paidStudentIdsArray = Array.from(paidStudentIds);
 
             adminData = {
-                studentsList: allProfiles,
+                studentsList: hydratedProfiles,
                 dashboard: {
                     totalStudents,
                     unpaidCount,
                     totalRevenue,
-                    paidStudentIds
+                    paidStudentIds: paidStudentIdsArray
                 },
                 revenueHistory: fullRevenueHistory
             };
@@ -441,11 +447,12 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
         }
 
         await databases.updateDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_PROFILES, documentId: profileId, data: {
-                    is_active: false,
+                    is_active: true,
                     status: "Baja"
                 } });
 
         revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
+
 
 
         return { success: true };
@@ -884,9 +891,11 @@ export const getActiveProfilesCached = async () => {
             sdk.Query.limit(500), 
             sdk.Query.equal("is_active", true), 
             sdk.Query.equal("role", "alumno"),
+            sdk.Query.notEqual("status", "Baja"),
             sdk.Query.select(["$id", "user_id", "name", "last_name", "email", "phone", "status", "role", "level"])
         ] 
     );
+
     return res.documents;
 };
 

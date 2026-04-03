@@ -117,7 +117,7 @@ export default function LoginPage() {
       if (type === "user_invalid_credentials" || status === 401) {
         setError("Credenciales incorrectas.");
       } else if (type === "user_blocked") {
-        setError("Acceso denegado.");
+        setError("Usuario dado de baja.");
       } else if (status === 429) {
         setError("Demasiados intentos. Por favor, espera unos minutos.");
       } else {

@@ -46,7 +46,8 @@ export function StudentDirectory({
   showAlert,
   showConfirm
 }: Omit<StudentDirectoryProps, 'studentsList'>) {
-  const { studentsList, studentsLoading } = useAdmin();
+  const { studentsList, studentsLoading, paidStudentIds } = useAdmin();
+
   
   // Local State for Search/Filter/Sort
   const [searchTerm, setSearchTerm] = useState("");
@@ -66,9 +67,18 @@ export function StudentDirectory({
     setSortConfig({ key, direction });
   };
 
+  // 0. Pre-processing: Inyectar is_paid desde el Set centralizado (Source of Truth)
+  const studentsWithStatus = useMemo(() => {
+    return studentsList.map(s => ({
+      ...s,
+      is_paid: paidStudentIds.has(s.$id)
+    }));
+  }, [studentsList, paidStudentIds]);
+
   // Processing Students Logic
   const processedStudents = useMemo(() => {
-    let result = [...studentsList];
+    let result = [...studentsWithStatus];
+
 
 
     // 1. Search filter
