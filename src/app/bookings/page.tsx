@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useOptimistic, startTransition } from "react";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import AuthTransition from "@/components/AuthTransition";
 import { bookClassAction, cancelBookingAction } from "@/app/sys-director/actions";
 import Navbar from "@/components/Navbar";
 import ConfirmedClasses from "@/components/ConfirmedClasses";
@@ -196,13 +197,10 @@ export default function BookingsPage() {
         );
     };
 
-    if (authLoading) {
-        return (
-            <div className="min-h-screen bg-black flex items-center justify-center">
-                <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
-            </div>
-        );
+    if (authLoading || !user || profileInfo?.role === "admin") {
+        return <AuthTransition message="Verificando acceso..." subMessage="Preparando tatami" />;
     }
+
 
     return (
         <div className="dark min-h-screen bg-black text-white font-sans flex flex-col relative text-center md:text-left">

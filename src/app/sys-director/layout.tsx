@@ -15,8 +15,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isSetupPath = pathname === "/sys-director/setup";
 
   useEffect(() => {
-    if (!isSetupPath && !authLoading && (!user || profile?.role !== "admin")) {
-      router.push("/perfil");
+    if (!isSetupPath && !authLoading) {
+      if (!user) {
+        router.push("/login?redirect=/sys-director");
+      } else if (profile?.role !== "admin") {
+        router.push("/perfil");
+      }
     }
   }, [user, profile, isAdmin, authLoading, router, isSetupPath]);
 

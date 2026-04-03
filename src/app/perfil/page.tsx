@@ -112,10 +112,14 @@ export default function StudentProfile() {
   }, [allPossibleClasses, userBookings]);
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push("/login");
+    if (!authLoading) {
+      if (!user) {
+        router.push("/login");
+      } else if (profileInfo?.role === "admin") {
+        router.push("/sys-director");
+      }
     }
-  }, [user, authLoading, router]);
+  }, [user, profileInfo, authLoading, router]);
 
   // Timer para límites de cancelación
   useEffect(() => {
@@ -220,8 +224,8 @@ export default function StudentProfile() {
     }
   };
 
-  if (authLoading || (!user && !authLoading)) {
-    return <AuthTransition message="Cargando tu perfil..." subMessage="Sincronizando seguridad" />;
+  if (authLoading || !user || profileInfo?.role === "admin") {
+    return <AuthTransition message="Calculando área de acceso..." subMessage="Sincronizando seguridad" />;
   }
 
   const initials = profileInfo?.name 
