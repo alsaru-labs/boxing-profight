@@ -724,6 +724,7 @@ export async function getUserProfile(userId: string) {
     if (!userId) return { success: false, error: "ID de usuario requerido." };
     const { databases } = await createAdminClient();
     try {
+        console.log(`[getUserProfile] Buscando perfil para user_id: ${userId} en DB: ${DATABASE_ID} / COL: ${COLLECTION_PROFILES}`);
         const profile = await databases.getDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_PROFILES, documentId: userId });
         return { success: true, data: JSON.parse(JSON.stringify(profile)) };
     } catch (error: any) {

@@ -105,7 +105,7 @@ export default function LoginPage() {
           }
         }
       } else {
-        setError("No se pudo cargar el perfil de usuario. Contacta con el administrador.");
+        setError(profileResult.error || "No se pudo cargar el perfil de usuario. Contacta con el administrador.");
       }
     } catch (err: any) {
       console.error("[LOGIN ERROR]", err);
