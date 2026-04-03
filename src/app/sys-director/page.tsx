@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, ShieldCheck, CalendarDays } from "lucide-react";
+import { Loader2, ShieldCheck, CalendarDays, Plus } from "lucide-react";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { AdminTabs } from "./components/AdminTabs";
@@ -30,6 +30,7 @@ import { AttendeesModal } from "./components/modals/AttendeesModal";
 export default function AdminDashboard() {
   const {
     loading,
+    studentsLoading,
     studentsList,
     setStudentsList,
     classesList,
@@ -44,7 +45,8 @@ export default function AdminDashboard() {
     setUnpaidCount,
     selectedMonth,
     setSelectedMonth,
-    loadDashboardData
+    loadDashboardData,
+    refreshStudentsList
   } = useAdminData();
 
   // Modal States
@@ -154,7 +156,7 @@ export default function AdminDashboard() {
   }).sort((a, b) => {
     const dateComp = new Date(a.date).getTime() - new Date(b.date).getTime();
     if (dateComp !== 0) return dateComp;
-    return a.time.localeCompare(b.time); // "09:00" vs "10:00" etc
+    return a.time.localeCompare(b.time);
   });
 
   const recentPastClasses = [...classesList].filter(cls => {
@@ -189,6 +191,7 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="general" className="space-y-6 md:space-y-10 focus-visible:outline-none">
+            {/* Month Selector */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 bg-zinc-900/40 p-6 rounded-2xl border border-white/5">
               <div className="space-y-1">
                 <h3 className="text-sm font-black uppercase tracking-widest text-emerald-500">Periodo de Gestión</h3>
@@ -204,10 +207,9 @@ export default function AdminDashboard() {
                   }}
                   className="bg-black/60 border border-white/10 text-white font-black uppercase tracking-widest p-3 rounded-xl outline-none focus:border-emerald-500/50 transition-all cursor-pointer min-w-[220px]"
                 >
-                  {/* Generar los últimos 12 meses y los próximos 6 como opciones */}
                   {Array.from({ length: 24 }).map((_, i) => {
                     const d = new Date();
-                    d.setDate(1); // Evitar problemas de fin de mes
+                    d.setDate(1);
                     d.setMonth(d.getMonth() - 12 + i);
                     const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
                     const label = d.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
@@ -230,7 +232,9 @@ export default function AdminDashboard() {
               handleActionClick={handleActionClick}
               handleOpenEditModal={handleOpenEditModal}
               deleteStudentAccount={deleteStudentAccount}
-              handlePermanentDeleteStudent={handlePermanentDeleteStudent}
+              handlePermanentDeleteStudent={(pId, uId, name) => {
+                handlePermanentDeleteStudent(pId, uId, name);
+              }}
               setStudentsList={setStudentsList}
               showAlert={showAlert as any}
               showConfirm={showConfirm as any}
@@ -249,7 +253,7 @@ export default function AdminDashboard() {
                     <CalendarDays className="w-4 h-4 mr-2 text-blue-400" /> {LITERALS.DASHBOARD.CLASSES.AUTO_GENERATE}
                   </Button>
                   <Button onClick={() => setIsClassModalOpen(true)} className="bg-emerald-500 hover:bg-emerald-600 text-white">
-                    {LITERALS.DASHBOARD.CLASSES.SCHEDULE_BUTTON}
+                    <Plus className="w-4 h-4 mr-2" /> {LITERALS.DASHBOARD.CLASSES.SCHEDULE_BUTTON}
                   </Button>
                 </div>
               </div>

@@ -52,9 +52,7 @@ export function useAdminActions({
       const newList = studentsList.map(s => s.$id === studentId ? { ...s, is_paid: newStatus, payment_method: newStatus ? paymentMethod : null } : s);
       setStudentsList(newList);
       
-      // aggregators (revenue, unpaidCount) will be updated by AdminContext's real-time subscription
-      // to avoid double-counting if we also update them here.
-
+      // aggregators (revenue, unpaidCount) will be updated by AdminContext's REALTIME subscription
       return true;
     } catch (error) {
       console.error(error);
@@ -106,18 +104,13 @@ export function useAdminActions({
       const newProfile = result.profile;
 
       if (result.reactivated) {
-        // If it was a reactivation, we might already have it in the list (hidden by filter)
-        // or it might be a fresh load. Since the main list now ONLY has is_active: true,
-        // we just add it to the list.
-        setStudentsList([newProfile, ...studentsList]);
         showAlert("Reactivación Exitosa", `Se ha reactivado la cuenta de ${newProfile.name} ${newProfile.last_name || ""}.`, "success");
       } else {
-        setStudentsList([newProfile, ...studentsList]);
         showAlert("Éxito", "Alumno registrado correctamente. Se le ha enviado el acceso.", "success");
       }
 
-      // setTotalStudents and setUnpaidCount are HANDLED by AdminContext real-time subscription
-      // after the profile is created. We only update the list here for immediate row feedback.
+      // 🛡️ ZERO-MANUAL-UPDATE: AdminContext's REALTIME listener handles adding the row 
+      // and incrementing counters automatically. This prevents double-counting (0 -> 2).
       return result;
     } catch (err) {
       console.error(err);
@@ -163,7 +156,6 @@ export function useAdminActions({
             if (result.count === 0) {
               showAlert("Info", "No se han generado clases nuevas porque ya existían todas.", "info");
             } else {
-              // Ensure we filter out duplicates before adding
               setClassesList((prev: any[]) => {
                   const existingIds = new Set(prev.map(c => c.$id));
                   const newClasses = (result.classes || []).filter((c: any) => !existingIds.has(c.$id));
@@ -224,7 +216,7 @@ export function useAdminActions({
     );
   };
 
-  const handlePermanentDeleteStudent = async (profileId: string, userId: string, studentName: string) => {
+  const handlePermanentDeleteStudent = (profileId: string, userId: string, studentName: string, onSuccess?: () => void) => {
     showConfirm(
       "ELIMINACIÓN PERMANENTE",
       `¿Estás absolutamente seguro de borrar a ${studentName}? Esta acción eliminará su cuenta de acceso, su ficha y todas sus reservas de forma IRREVERSIBLE.`,
@@ -237,13 +229,15 @@ export function useAdminActions({
 
           if (result.success) {
             setStudentsList(studentsList.filter(s => s.$id !== profileId));
-            showAlert("Alumno Eliminado", `Se ha borrado el rastro de ${studentName} de la plataforma.`, "success");
+            // NO MANUAL COUNTER UPDATE: AdminContext handles it via Realtime (.delete) once added
+            showAlert("Éxito", "Alumno eliminado permanentemente de la base de datos.", "success");
+            if (onSuccess) onSuccess();
           } else {
-            showAlert("Error", result.error || "No se pudo eliminar permanentemente al alumno.", "danger");
+            showAlert("Error", result.error || "No se pudo realizar el borrado físico.", "danger");
           }
         } catch (err) {
           console.error(err);
-          showAlert("Error", "Error de red al eliminar al alumno.", "danger");
+          showAlert("Error", "Error de red al intentar el borrado físico.", "danger");
         } finally {
           setIsUpdating(false);
         }

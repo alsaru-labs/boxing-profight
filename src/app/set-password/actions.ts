@@ -22,14 +22,14 @@ export async function setPasswordWithToken(token: string, password: string) {
     const { databases, users } = await createAdminClient();
 
     // 1. Buscar el token en la base de datos
-    const tokenResult = await databases.listDocuments({
-      databaseId: DATABASE_ID,
-      collectionId: COLLECTION_INVITATION_TOKENS,
-      queries: [
+    const tokenResult = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTION_INVITATION_TOKENS,
+      [
         sdk.Query.equal("token", token),
         sdk.Query.limit(1)
       ]
-    });
+    );
 
     if (tokenResult.total === 0) {
       return { success: false, error: "Este enlace de invitación ya no es válido o ya ha sido usado." };
@@ -76,8 +76,22 @@ export async function setPasswordWithToken(token: string, password: string) {
         console.warn("[setPassword] Warning: Could not set email verification status:", ve);
     }
 
-    // 5. Delete Token (Prevent Replay Attacks)
-    await databases.deleteDocument(DATABASE_ID, COLLECTION_INVITATION_TOKENS, tokenDoc.$id);
+    // 5. Delete ALL Tokens for this user (Prevent Replay and clean orphaned records)
+    try {
+        console.log(`[setPassword] Purging all tokens for user: ${tokenDoc.user_id}`);
+        const allUserTokens = await databases.listDocuments(DATABASE_ID, COLLECTION_INVITATION_TOKENS, [
+            sdk.Query.equal("user_id", tokenDoc.user_id),
+            sdk.Query.limit(10)
+        ]);
+        
+        for (const doc of allUserTokens.documents) {
+            console.log(`[setPassword] Deleting token record: ${doc.$id}`);
+            await databases.deleteDocument(DATABASE_ID, COLLECTION_INVITATION_TOKENS, doc.$id);
+        }
+        console.log(`[setPassword] Token purge completed.`);
+    } catch (dbErr) {
+        console.error("[setPassword] Warning: Failed to purge some tokens:", dbErr);
+    }
 
     return { success: true };
 

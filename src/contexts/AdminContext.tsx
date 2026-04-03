@@ -61,6 +61,21 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const isFetchingRevenueRef = useRef(false);
   const lastFetchTimeRef = useRef(0);
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const selectedMonthRef = useRef(selectedMonth);
+  const subscriptionRef = useRef<any>(null);
+  const processedProfilesRef = useRef<Set<string>>(new Set()); // 🛡️ ESCUDO DE DUPLICADOS
+
+  // Reset del escudo al cargar datos iniciales para sincronizar con la realidad
+  useEffect(() => {
+    if (studentsList.length > 0) {
+        processedProfilesRef.current = new Set(studentsList.map(s => s.$id));
+    }
+  }, [studentsList]);
+
+  // Mantener la referencia del mes siempre actualizada para el listener de Realtime
+  useEffect(() => {
+    selectedMonthRef.current = selectedMonth;
+  }, [selectedMonth]);
 
   const loadDashboardData = React.useCallback(async (silent = false, monthOverride?: string) => {
     if (!isAdmin || isFetchingRef.current) return;
@@ -148,10 +163,18 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     }
   }, [authLoading, isAdmin, loadDashboardData, loadStudentsList]);
 
-  // Suscripción Realtime Unificada para el Administrador
+  // Suscripción Realtime Singleton para el Administrador
   useEffect(() => {
     if (!isAdmin || !user?.$id) return;
+    
+    // 🛡️ SINGLETON PATTERN: Evitar suscripciones dobles
+    if (subscriptionRef.current) {
+        console.log("[AdminContext] Realtime already active, skipping duplicate subscription.");
+        return;
+    }
 
+    console.log("[AdminContext] Initializing SINGLETON Realtime Subscription...");
+    
     const unsubscribe = client.subscribe([
       `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents`,
       `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
@@ -163,15 +186,15 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       const event = response.events[0];
       const payload = response.payload as any;
       const collectionId = payload.$collectionId;
+      const currentMonth = selectedMonthRef.current; // Usar REF para evitar stale closure
 
       // ⚡️ ACTUALIZACIÓN INCREMENTAL: Pagos (Registro/Anulación)
       if (collectionId === COLLECTION_PAYMENTS) {
-        if (payload.month === selectedMonth) {
+        if (payload.month === currentMonth) {
           if (event.includes(".create")) {
             setStudentsList(prev => prev.map(s => 
               s.$id === payload.student_id ? { ...s, is_paid: true, payment_method: payload.method } : s
             ));
-            // 💡 REVENUE handled by the COLLECTION_REVENUE listener below
             setUnpaidCount(prev => Math.max(0, prev - 1));
             return;
           }
@@ -179,7 +202,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             setStudentsList(prev => prev.map(s => 
               s.$id === payload.student_id ? { ...s, is_paid: false, payment_method: null } : s
             ));
-            // 💡 REVENUE handled by the COLLECTION_REVENUE listener below
             setUnpaidCount(prev => prev + 1);
             return;
           }
@@ -189,11 +211,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       // ⚡️ ACTUALIZACIÓN INCREMENTAL: Ingresos Totales (Contabilidad)
       if (collectionId === COLLECTION_REVENUE) {
         if (event.includes(".update") || event.includes(".create")) {
-          // Actualización del número principal si es el mes actual
-          if (payload.month === selectedMonth) {
+          if (payload.month === currentMonth) {
             setMonthlyRevenue(payload.amount || 0);
           }
-          // Actualización de la lista de historial
           setRevenueRecords(prev => {
             const exists = prev.some(r => r.month === payload.month);
             if (exists) {
@@ -224,9 +244,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // ⚡️ ACTUALIZACIÓN INCREMENTAL: Reservas (Asistentes en tiempo real)
-      // Se maneja via actualización de clase (registeredCount) o bajo demanda en el modal.
-
       // ⚡️ ACTUALIZACIÓN INCREMENTAL: Anuncios (Tablón)
       if (collectionId === COLLECTION_NOTIFICATIONS) {
         if (event.includes(".create")) {
@@ -247,40 +264,74 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
          if (event.includes(".create")) {
             setStudentsList(prev => {
               if (prev.some(s => s.$id === payload.$id)) return prev;
+              
+              // 🛡️ ESCUDO: Solo sumamos si NO está en el Set de procesados
+              if (!processedProfilesRef.current.has(payload.$id)) {
+                  console.log(`[Realtime] 🛡️ Adding student to stats (NEW): ${payload.name}`);
+                  processedProfilesRef.current.add(payload.$id);
+                  setTotalStudents(t => t + 1);
+                  setUnpaidCount(u => u + 1);
+              }
+              
               return [payload, ...prev];
             });
-            setTotalStudents(prev => prev + 1);
-            setUnpaidCount(prev => prev + 1);
             return;
          }
          if (event.includes(".update")) {
-            setStudentsList(prev => prev.map(s => s.$id === payload.$id ? { ...s, ...payload } : s));
-            
-            // Si el estado de pago o actividad cambiara, los contadores se ajustan por el Realtime de PAGOS
-            // pero si es una reactivación o baja completa (is_active), ajustamos de total
-            if (payload.is_active === true) {
-              setTotalStudents(prev => prev + 1);
-              setUnpaidCount(prev => prev + 1); // Asumimos que vuelve con pago pendiente
-            } else if (payload.is_active === false) {
-              setTotalStudents(prev => Math.max(0, prev - 1));
-              // Si el alumno estaba pendiente de pago al dar de baja, restamos de unpaidCount (es aproximado)
-              // Pero en el dashboard esto se refresca al cambiar de mes o manual si hubiera inconsistencia.
-            }
+            setStudentsList(prev => {
+              const exists = prev.find(s => s.$id === payload.$id);
+              
+              // Si pasa de inactivo a activo, sumamos SOLO si no lo habíamos contado ya
+              if (payload.is_active === true && (!exists || exists.is_active === false)) {
+                if (!processedProfilesRef.current.has(payload.$id)) {
+                    console.log(`[Realtime] 🛡️ Reactivating Student (ADD): ${payload.name}`);
+                    processedProfilesRef.current.add(payload.$id);
+                    setTotalStudents(t => t + 1);
+                    setUnpaidCount(u => u + 1);
+                }
+              } 
+              // Si pasa de activo a inactivo, restamos
+              else if (payload.is_active === false && exists && exists.is_active !== false) {
+                if (processedProfilesRef.current.has(payload.$id)) {
+                    console.log(`[Realtime] 🛡️ Deactivating Student (SUB): ${payload.name}`);
+                    processedProfilesRef.current.delete(payload.$id);
+                    setTotalStudents(t => Math.max(0, t - 1));
+                    if (!exists.is_paid) setUnpaidCount(u => Math.max(0, u - 1));
+                }
+              }
+              
+              return prev.map(s => s.$id === payload.$id ? { ...s, ...payload } : s);
+            });
+            return;
+         }
+         if (event.includes(".delete")) {
+            setStudentsList(prev => {
+              const exists = prev.find(s => s.$id === payload.$id);
+              if (exists || processedProfilesRef.current.has(payload.$id)) {
+                console.log(`[Realtime] 🛡️ PERMANENT Delete (SUB): ${payload.$id}`);
+                processedProfilesRef.current.delete(payload.$id);
+                setTotalStudents(t => Math.max(0, t - 1));
+                if (exists && !exists.is_paid) setUnpaidCount(u => Math.max(0, u - 1));
+                return prev.filter(s => s.$id !== payload.$id);
+              }
+              return prev;
+            });
             return;
          }
       }
-
-      // 💡 OPTIMIZACIÓN ZERO-FETCH:
-      // Hemos eliminado el fallback de re-fetch (setTimeout) porque todas las 
-      // colecciones críticas (Pagos, Clases, Perfiles, Anuncios) ya tienen lógica
-      // de actualización incremental manual arriba. Esto ahorra cientos de lecturas.
     });
 
+    subscriptionRef.current = unsubscribe;
+
     return () => {
-      unsubscribe();
+      console.log("[AdminContext] Unsubscribing from Realtime Singleton...");
+      if (subscriptionRef.current) {
+          subscriptionRef.current();
+          subscriptionRef.current = null;
+      }
       if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
     };
-  }, [isAdmin, user?.$id, loadDashboardData, loadRevenueHistory, selectedMonth]);
+  }, [isAdmin, user?.$id]);
 
   const value = React.useMemo(() => ({
     studentsList,

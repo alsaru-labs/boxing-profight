@@ -30,7 +30,7 @@ interface StudentDirectoryProps {
   handleActionClick: (student: any) => void;
   handleOpenEditModal: (student: any) => void;
   deleteStudentAccount: (id: string, userId: string) => Promise<{ success: boolean; error?: string }>;
-  handlePermanentDeleteStudent: (profileId: string, userId: string, studentName: string) => Promise<void>;
+  handlePermanentDeleteStudent: (profileId: string, userId: string, studentName: string) => void;
   setStudentsList: React.Dispatch<React.SetStateAction<any[]>>;
   showAlert: (title: string, message: string, variant: "success" | "danger" | "warning") => void;
   showConfirm: (title: string, message: string, onConfirm: () => void, variant?: "danger" | "warning") => void;

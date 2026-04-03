@@ -53,7 +53,7 @@ function SetPasswordForm() {
         setIsLoading(true);
 
         try {
-            const result = await setPasswordWithToken(token, password, confirm);
+            const result = await setPasswordWithToken(token, password);
             if (result.success) {
                 setSuccess(true);
                 setTimeout(() => {

@@ -38,36 +38,36 @@ export async function bootstrapAdminAction(data: { name: string, lastName: strin
             await users.updatePassword(authUser.$id, pass);
 
             try {
-                const profileRes = await databases.listDocuments({ 
-                    databaseId: DATABASE_ID, 
-                    collectionId: COLLECTION_PROFILES, 
-                    queries: [
+                const profileRes = await databases.listDocuments(
+                    DATABASE_ID, 
+                    COLLECTION_PROFILES, 
+                    [
                         sdk.Query.equal("email", email.toLowerCase()),
                         sdk.Query.limit(1),
                         sdk.Query.select(["$id"])
                     ] 
-                });
+                );
 
                 if (profileRes.total > 0) {
-                    await databases.updateDocument({ 
-                        databaseId: DATABASE_ID, 
-                        collectionId: COLLECTION_PROFILES, 
-                        documentId: profileRes.documents[0].$id, 
-                        data: {
+                    await databases.updateDocument(
+                        DATABASE_ID, 
+                        COLLECTION_PROFILES, 
+                        profileRes.documents[0].$id, 
+                        {
                             name: name,
                             last_name: lastName,
                             role: "admin",
                             is_active: true,
                             status: "Activa"
                         } 
-                    });
+                    );
                     return { success: true, message: "Usuario existente promovido a Administrador." };
                 } else {
-                    await databases.createDocument({ 
-                        databaseId: DATABASE_ID, 
-                        collectionId: COLLECTION_PROFILES, 
-                        documentId: authUser.$id, 
-                        data: {
+                    await databases.createDocument(
+                        DATABASE_ID, 
+                        COLLECTION_PROFILES, 
+                        authUser.$id, 
+                        {
                             user_id: authUser.$id,
                             name: name,
                             last_name: lastName,
@@ -76,7 +76,7 @@ export async function bootstrapAdminAction(data: { name: string, lastName: strin
                             is_active: true,
                             status: "Activa"
                         } 
-                    });
+                    );
                     return { success: true, message: "Perfil administrativo creado." };
                 }
             } catch (e: any) {
@@ -87,11 +87,11 @@ export async function bootstrapAdminAction(data: { name: string, lastName: strin
         const userId = sdk.ID.unique();
         await users.create(userId, email, undefined, pass, name);
 
-        await databases.createDocument({ 
-            databaseId: DATABASE_ID, 
-            collectionId: COLLECTION_PROFILES, 
-            documentId: userId, 
-            data: {
+        await databases.createDocument(
+            DATABASE_ID, 
+            COLLECTION_PROFILES, 
+            userId, 
+            {
                 user_id: userId,
                 name: name,
                 last_name: lastName,
@@ -100,7 +100,7 @@ export async function bootstrapAdminAction(data: { name: string, lastName: strin
                 is_active: true,
                 status: "Activa"
             } 
-        });
+        );
 
         return { success: true };
     } catch (error: any) {
@@ -195,17 +195,17 @@ export async function getCompleteUserData(userId: string) {
         const results = await Promise.allSettled([
             databases.getDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_PROFILES, documentId: userId }),
             getAvailableClassesCached(),
-            databases.listDocuments({ databaseId: DATABASE_ID, collectionId: COLLECTION_BOOKINGS, queries: [
+            databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
                                 sdk.Query.equal("student_id", userId),
                                 sdk.Query.limit(200),
                                 sdk.Query.select(["$id", "class_id"])
-                            ] }),
-            databases.listDocuments({ databaseId: DATABASE_ID, collectionId: COLLECTION_PAYMENTS, queries: [
+                            ]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
                                 sdk.Query.equal("student_id", userId),
                                 sdk.Query.equal("month", currentMonthStr),
                                 sdk.Query.limit(1),
-                                sdk.Query.select(["$id", "amount"])
-                            ] }),
+                                sdk.Query.select(["$id", "amount", "method", "month"])
+                            ]),
             getAnnouncementsCached()
         ]);
 
@@ -252,11 +252,11 @@ export async function getClassAttendees(classId: string) {
     if (!classId) return { success: false, error: "ID de clase requerido." };
     const { databases } = await createAdminClient();
     try {
-        const bookings = await databases.listDocuments({ databaseId: DATABASE_ID, collectionId: COLLECTION_BOOKINGS, queries: [
+        const bookings = await databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
                     sdk.Query.equal("class_id", classId),
                     sdk.Query.limit(100),
                     sdk.Query.select(["$id", "student_id"])
-                ] });
+                ]);
         return { success: true, documents: JSON.parse(JSON.stringify(bookings.documents)) };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -273,24 +273,29 @@ export async function handleCreateOrReactivateStudent(form: any) {
 
     try {
         const emailLower = form.email.toLowerCase();
-        const existing = await databases.listDocuments({ databaseId: DATABASE_ID, collectionId: COLLECTION_PROFILES, queries: [
+        const existing = await databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [
                     sdk.Query.equal("email", emailLower), 
                     sdk.Query.limit(1)
-                ] });
+                ]);
 
         if (existing.total > 0) {
             const profile = existing.documents[0];
             if (profile.is_active !== false && profile.status !== "Baja") {
                 return { success: false, error: "Ya existe un alumno activo." };
             }
-            const updated = await databases.updateDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_PROFILES, documentId: profile.$id, data: {
-                            is_active: true,
-                            status: "Activa",
-                            name: form.name,
-                            last_name: form.lastName,
-                            phone: form.phone || profile.phone,
-                            level: form.level || profile.level
-                        } });
+            const updated = await databases.updateDocument(
+                DATABASE_ID, 
+                COLLECTION_PROFILES, 
+                profile.$id, 
+                {
+                    is_active: true,
+                    status: "Activa",
+                    name: form.name,
+                    last_name: form.lastName,
+                    phone: form.phone || profile.phone,
+                    level: form.level || profile.level
+                } 
+            );
             try { await users.updateStatus(profile.user_id, true); } catch (e) { }
             revalidatePath("/sys-director");
             revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
@@ -298,30 +303,50 @@ export async function handleCreateOrReactivateStudent(form: any) {
         }
 
         const uniqueRef = sdk.ID.unique();
-        const newProfile = await databases.createDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_PROFILES, documentId: uniqueRef, data: {
-                    user_id: uniqueRef,
-                    name: form.name,
-                    last_name: form.lastName,
-                    email: emailLower,
-                    phone: form.phone || null,
-                    role: "alumno",
-                    is_active: true,
-                    level: form.level,
-                    status: "Activa"
-                } });
+        const newProfile = await databases.createDocument(
+            DATABASE_ID, 
+            COLLECTION_PROFILES, 
+            uniqueRef, 
+            {
+                user_id: uniqueRef,
+                name: form.name,
+                last_name: form.lastName,
+                email: emailLower,
+                phone: form.phone || null,
+                role: "alumno",
+                is_active: true,
+                level: form.level,
+                status: "Activa"
+            } 
+        );
+
+        // 🛡️ LIMPIEZA PREVENTIVA: Borrar cualquier token anterior para este user_id
+        try {
+            const oldTokens = await databases.listDocuments(DATABASE_ID, COLLECTION_INVITATION_TOKENS, [
+                sdk.Query.equal("user_id", uniqueRef),
+                sdk.Query.limit(10)
+            ]);
+            for (const oldDoc of oldTokens.documents) {
+                await databases.deleteDocument(DATABASE_ID, COLLECTION_INVITATION_TOKENS, oldDoc.$id);
+            }
+        } catch (e) { /* silent */ }
 
         // 🛡️ Generar Token de Invitación (Validez 48h)
         const inviteToken = sdk.ID.unique();
-        await databases.createDocument({ 
-            databaseId: DATABASE_ID, 
-            collectionId: COLLECTION_INVITATION_TOKENS, 
-            documentId: sdk.ID.unique(), 
-            data: {
+        const tokenId = sdk.ID.unique();
+        
+        console.log(`[handleCreate] Creating invitation token: ${inviteToken} for user: ${uniqueRef}`);
+        
+        await databases.createDocument(
+            DATABASE_ID, 
+            COLLECTION_INVITATION_TOKENS, 
+            tokenId, 
+            {
                 user_id: uniqueRef,
                 token: inviteToken,
                 expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
             } 
-        });
+        );
 
         revalidatePath("/sys-director");
         revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
@@ -335,12 +360,17 @@ export async function updateStudentProfileAction(profileId: string, data: any) {
     if (!profileId) return { success: false, error: "ID de perfil requerido." };
     const { databases } = await createAdminClient();
     try {
-        const updated = await databases.updateDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_PROFILES, documentId: profileId, data: {
-                    last_name: data.last_name,
-                    email: data.email?.toLowerCase(),
-                    phone: data.phone,
-                    level: data.level
-                } });
+        const updated = await databases.updateDocument(
+            DATABASE_ID, 
+            COLLECTION_PROFILES, 
+            profileId, 
+            {
+                last_name: data.last_name,
+                email: data.email?.toLowerCase(),
+                phone: data.phone,
+                level: data.level
+            } 
+        );
         revalidatePath("/sys-director");
         revalidatePath("/perfil");
         revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
@@ -357,9 +387,9 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
     try {
         try { await users.updateStatus(userId, false); } catch (e) { }
 
-        const bookingsList = await databases.listDocuments({ databaseId: DATABASE_ID, collectionId: COLLECTION_BOOKINGS, queries: [
+        const bookingsList = await databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
                     sdk.Query.equal("student_id", userId), sdk.Query.limit(500)
-                ] });
+                ]);
 
         if (bookingsList.total > 0) {
             const now = new Date();
@@ -376,9 +406,9 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
                     const classDateTime = new Date(year, month - 1, day, hours, minutes);
 
                     if (classDateTime > now) {
-                        await databases.updateDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_CLASSES, documentId: booking.class_id, data: {
+                        await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, booking.class_id, {
                                                     registeredCount: Math.max(0, (classDoc.registeredCount || 1) - 1)
-                                                } });
+                                                });
                         await databases.deleteDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_BOOKINGS, documentId: booking.$id });
                     }
                 } catch (e) { }
@@ -409,17 +439,23 @@ export async function permanentDeleteStudentAction(profileId: string, userId: st
 
     try {
         // 1. Fetch all dependencies in parallel for analysis
-        const [bookingsRes, paymentsRes, readNotifsRes] = await Promise.all([
-            databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [sdk.Query.equal("student_id", profileId), sdk.Query.limit(500)]),
-            databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [sdk.Query.equal("student_id", profileId), sdk.Query.limit(500)]),
-            databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, [sdk.Query.equal("user_id", userId), sdk.Query.limit(500)]),
+        const [bookingsRes, paymentsRes, readNotifsRes, tokensRes] = await Promise.all([
+            databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [sdk.Query.equal("student_id", profileId), sdk.Query.limit(100)]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [sdk.Query.equal("student_id", profileId), sdk.Query.limit(100)]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, [sdk.Query.equal("user_id", userId), sdk.Query.limit(100)]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_INVITATION_TOKENS, [sdk.Query.equal("user_id", profileId), sdk.Query.limit(10)])
         ]);
 
-        console.log(`[DELETION DIAGNOSTIC] Found for Profile ${profileId}: ${bookingsRes.total} bookings, ${paymentsRes.total} payments, ${readNotifsRes.total} read-notifications.`);
+        console.log(`[DELETION DIAGNOSTIC] Found for Profile ${profileId}: ${bookingsRes.total} bookings, ${paymentsRes.total} payments, ${readNotifsRes.total} read-notifs, ${tokensRes.total} tokens.`);
 
         const cleanUpPromises: Promise<any>[] = [];
 
-        // 2. Cleanup Class Capacities for Bookings
+        // Cleanup Tokens
+        for (const tokenDoc of tokensRes.documents) {
+            cleanUpPromises.push(databases.deleteDocument(DATABASE_ID, COLLECTION_INVITATION_TOKENS, tokenDoc.$id));
+        }
+
+        // Cleanup Bookings and Classes
         if (bookingsRes.total > 0) {
             const now = new Date();
             const currentClasses = await getAvailableClassesCached();
@@ -433,15 +469,18 @@ export async function permanentDeleteStudentAction(profileId: string, userId: st
 
                     if (classDateTime > now) {
                         // Restore space if the class is in the future
-                        cleanUpPromises.push(databases.updateDocument(
-                            DATABASE_ID, 
-                            COLLECTION_CLASSES, 
-                            classDoc.$id, 
-                            { registeredCount: Math.max(0, (classDoc.registeredCount || 1) - 1) } 
-                        ));
+                        cleanUpPromises.push(databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, booking.class_id, {
+                            registeredCount: Math.max(0, (classDoc.registeredCount || 1) - 1)
+                        }));
+                        cleanUpPromises.push(databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id));
+                    } else {
+                        // Just delete the booking history, don't change count
+                        cleanUpPromises.push(databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id));
                     }
+                } else {
+                    // Class not found, just delete booking
+                    cleanUpPromises.push(databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id));
                 }
-                cleanUpPromises.push(databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id));
             }
         }
 
@@ -493,9 +532,9 @@ export async function recordPaymentAction(studentId: string, amount: number, met
         const d = new Date();
         const currentMonthStr = month || `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
-        await databases.createDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_PAYMENTS, documentId: sdk.ID.unique(), data: {
+        await databases.createDocument(DATABASE_ID, COLLECTION_PAYMENTS, sdk.ID.unique(), {
                     student_id: studentId, amount, method, month: currentMonthStr
-                } });
+                });
 
         try {
             const revDoc = await databases.getDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_REVENUE, documentId: currentMonthStr });
@@ -525,16 +564,16 @@ export async function deletePaymentAction(studentId: string, month?: string) {
         const d = new Date();
         const currentMonthStr = month || `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
-        const payments = await databases.listDocuments({ databaseId: DATABASE_ID, collectionId: COLLECTION_PAYMENTS, queries: [
+        const payments = await databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
                     sdk.Query.equal("student_id", studentId),
                     sdk.Query.equal("month", currentMonthStr),
                     sdk.Query.limit(1)
-                ] });
+                ]);
 
         if (payments.total === 0) return { success: false, error: "Pago no encontrado." };
         const paymentDoc = payments.documents[0];
 
-        await databases.deleteDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_PAYMENTS, documentId: paymentDoc.$id });
+        await databases.deleteDocument(DATABASE_ID, COLLECTION_PAYMENTS, paymentDoc.$id);
 
         try {
             const revDoc = await databases.getDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_REVENUE, documentId: currentMonthStr });
@@ -558,12 +597,12 @@ export async function ensureMonthlyRevenueRecord() {
         const { databases } = await createAdminClient();
         const monthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
 
-        const existing = await databases.listDocuments({ databaseId: DATABASE_ID, collectionId: COLLECTION_REVENUE, queries: [
+        const existing = await databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [
                     sdk.Query.equal("month", monthKey), sdk.Query.limit(1)
-                ] });
+                ]);
 
         if (existing.total === 0) {
-            await databases.createDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_REVENUE, documentId: monthKey, data: { month: monthKey, amount: 0 } });
+            await databases.createDocument(DATABASE_ID, COLLECTION_REVENUE, monthKey, { month: monthKey, amount: 0 });
         }
         return { success: true };
     } catch (error: any) {
@@ -574,9 +613,9 @@ export async function ensureMonthlyRevenueRecord() {
 export async function getAllRevenueRecords() {
     const { databases } = await createAdminClient();
     try {
-        const res = await databases.listDocuments({ databaseId: DATABASE_ID, collectionId: COLLECTION_REVENUE, queries: [
+        const res = await databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [
                     sdk.Query.limit(100), sdk.Query.orderDesc("month")
-                ] });
+                ]);
         return { success: true, documents: JSON.parse(JSON.stringify(res.documents)) };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -591,9 +630,9 @@ export async function publishAnnouncementAction(data: { title: string, content: 
     if (!data.title || !data.content) return { success: false, error: "Título y contenido requeridos." };
     const { databases } = await createAdminClient();
     try {
-        const res = await databases.createDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_NOTIFICATIONS, documentId: sdk.ID.unique(), data: {
+        const res = await databases.createDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, sdk.ID.unique(), {
                     title: data.title, content: data.content, type: data.type, createdAt: new Date().toISOString()
-                } });
+                });
         revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max" as any);
         return { success: true, data: JSON.parse(JSON.stringify(res)) };
     } catch (error: any) {
@@ -604,7 +643,7 @@ export async function publishAnnouncementAction(data: { title: string, content: 
 export async function deleteAnnouncement(id: string) {
     const { databases } = await createAdminClient();
     try {
-        await databases.deleteDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_NOTIFICATIONS, documentId: id });
+        await databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, id);
         revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max" as any);
         return { success: true };
     } catch (error: any) {
@@ -615,9 +654,9 @@ export async function deleteAnnouncement(id: string) {
 export async function markNotificationAsReadAction(userId: string, notificationId: string) {
     const { databases } = await createAdminClient();
     try {
-        await databases.createDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_NOTIFICATIONS_READ, documentId: sdk.ID.unique(), data: {
+        await databases.createDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, sdk.ID.unique(), {
                     user_id: userId, notification_id: notificationId, read_at: new Date().toISOString()
-                } });
+                });
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -842,15 +881,15 @@ export const getActiveProfilesCached = unstable_cache(
 export const getMonthlyPaymentsCached = async (monthStr: string) => unstable_cache(
     async () => {
         const { databases } = await createAdminClient();
-        const res = await databases.listDocuments({ 
-            databaseId: DATABASE_ID, 
-            collectionId: COLLECTION_PAYMENTS, 
-            queries: [
+        const res = await databases.listDocuments(
+            DATABASE_ID, 
+            COLLECTION_PAYMENTS, 
+            [
                 sdk.Query.equal("month", monthStr), 
                 sdk.Query.limit(500),
                 sdk.Query.select(["$id", "student_id", "amount", "method"])
             ] 
-        });
+        );
         return res.documents;
     },
     ["monthly-payments-v5", monthStr, PROJECT_ID],

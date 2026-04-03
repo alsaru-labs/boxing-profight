@@ -24,9 +24,6 @@ export function useAdminData() {
     setAnnouncements
   } = useAdmin();
 
-  // El hook ahora es un simple puente al Contexto Global de Administración.
-  // Esto mantiene el estado compartido entre todas las pestañas del panel.
-
   return {
     loading,
     studentsLoading,
