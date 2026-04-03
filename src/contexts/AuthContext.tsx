@@ -3,17 +3,17 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import { 
   account, 
-  databases, 
-  DATABASE_ID, 
-  COLLECTION_PROFILES, 
+  databases,
+  DATABASE_ID,
+  COLLECTION_PROFILES,
   COLLECTION_PAYMENTS, 
   COLLECTION_BOOKINGS,
   COLLECTION_CLASSES,
   COLLECTION_NOTIFICATIONS,
   COLLECTION_NOTIFICATIONS_READ,
-  client 
+  client
 } from "@/lib/appwrite";
-import { getCompleteUserData } from "@/app/sys-director/actions";
+import { getPlatformOmniData } from "@/app/sys-director/actions";
 import { Models, Query } from "appwrite";
 
 import { Loader2 } from "lucide-react";
@@ -29,6 +29,7 @@ interface AuthContextType {
   announcements: any[];
   readNotifications: string[];
   unreadNotificationsCount: number;
+  adminOmniData: any | null;
   refreshProfile: () => Promise<void>;
   refreshGlobalData: () => Promise<void>;
   logout: () => Promise<void>;
@@ -36,18 +37,23 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// 🛡️ BLOQUEADORES GLOBALES (PROMESAS): Dedup absoluto en vuelo
+let globalAuthPromise: Promise<any> | null = null;
+let globalAuthFetchTime = 0;
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+
   const [user, setUser] = useState<Models.User<Models.Preferences> | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
   const [userBookings, setUserBookings] = useState<any[]>([]);
   const [availableClasses, setAvailableClasses] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [readNotifications, setReadNotifications] = useState<string[]>([]);
+  const [adminOmniData, setAdminOmniData] = useState<any | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const isFetchingRef = useRef(false);
-  const lastFetchTimeRef = useRef(0);
+
 
   const logout = React.useCallback(async () => {
     try {
@@ -58,6 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setProfile(null);
       setIsAdmin(false);
+      setAdminOmniData(null);
       setUserBookings([]);
       setAvailableClasses([]);
       setAnnouncements([]);
@@ -87,65 +94,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const fetchUserAndProfile = React.useCallback(async (silent = false, force = false) => {
-    if (isFetchingRef.current && !force) return;
     const now = Date.now();
     
-    // 🛡️ COOLDOWN ABSOLUTO: Bloquear si hubo una petición exitosa hace menos de 5s (Aumentado de 2s)
-    if (!force && (now - lastFetchTimeRef.current < 5000)) return;
-    
-    // 🛡️ COOLDOWN SILENCIOSO (Foco/Visibilidad): 300 segundos
-    if (silent && !force && (now - lastFetchTimeRef.current < 300000)) return;
-    
-    isFetchingRef.current = true;
-    
-    // Si es forzado, reseteamos el tiempo para permitir la llamada inmediata
-    if (force) lastFetchTimeRef.current = 0; 
-    else lastFetchTimeRef.current = now;
-    
-    try {
-      const currentUser = await account.get();
-      setUser(currentUser);
-
-      // 1. O(1) LOAD: Obtener TODO el contexto en una sola llamada de servidor
-      const result = await getCompleteUserData(currentUser.$id);
-      
-      if (result.success && result.data) {
-        const { 
-          profile: fullProfile, 
-          isAdmin: userIsAdmin,
-          classes, 
-          userBookings: bookings, 
-          announcements: notifs, 
-          readNotifications: readIds 
-        } = result.data;
-        
-        setProfile(fullProfile);
-        setIsAdmin(userIsAdmin);
-        setUserBookings(bookings);
-        setAvailableClasses(classes);
-        setAnnouncements(notifs);
-        setReadNotifications(readIds);
-      } else {
-        throw new Error(result.error || "Error al cargar datos de usuario.");
-      }
-    } catch (error: any) {
-      // 🛡️ SILENCIAR ERROR DE INVITADO: Si no hay sesión, es un estado válido (GUEST), no un error crítico.
-      if (error?.code !== 401) {
-        console.error("[AuthContext] Auth error:", error);
-      }
-      
-      setUser(null);
-      setProfile(null);
-      setIsAdmin(false);
-      setUserBookings([]);
-      setAvailableClasses([]);
-      setAnnouncements([]);
-      setReadNotifications([]);
-    } finally {
-      if (!silent) setLoading(false);
-      isFetchingRef.current = false;
+    // Si hay una promesa en vuelo y no forzamos, nos colgamos de ella
+    if (globalAuthPromise && !force) {
+        try { await globalAuthPromise; } catch { }
+        return;
     }
+    
+    // Cooldown absoluto (5 segundos)
+    if (!force && (now - globalAuthFetchTime < 5000)) return;
+    if (silent && !force && (now - globalAuthFetchTime < 300000)) return;
+
+    globalAuthFetchTime = now;
+    
+    // Creamos la promesa principal que todos compartirán
+    const fetchCore = async () => {
+      try {
+        const currentUser = await account.get();
+        setUser(currentUser);
+        // O(1) LOAD: Obtener TODO el contexto en una sola llamada de servidor
+        const result = await getPlatformOmniData(currentUser.$id);
+        if (result.success && result.data) {
+          setProfile(result.data.profile);
+          setIsAdmin(result.data.isAdmin);
+          setUserBookings(result.data.userBookings);
+          setAvailableClasses(result.data.classes);
+          setAnnouncements(result.data.announcements);
+          setReadNotifications(result.data.readNotifications);
+          
+          if (result.data.isAdmin && result.data.adminData) {
+            // Guardamos la tajada "Omni" de admin en memoria para que AdminContext beba de aquí sin refetchear
+            setAdminOmniData(result.data.adminData);
+          }
+        } else {
+          throw new Error(result.error || "Error al cargar datos.");
+
+        }
+      } catch (error: any) {
+        if (error?.code !== 401) console.error("[AuthContext] Auth error:", error);
+        setUser(null);
+        setProfile(null);
+        setIsAdmin(false);
+        setAdminOmniData(null);
+      } finally {
+        if (!silent) setLoading(false);
+        globalAuthPromise = null; // Limpiar promesa al terminar
+      }
+    };
+
+    if (!silent) setLoading(true);
+    globalAuthPromise = fetchCore();
+    await globalAuthPromise;
   }, []);
+
 
   useEffect(() => {
     fetchUserAndProfile();
@@ -162,7 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
       `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`,
       `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS_READ}.documents`
-    ], (response) => {
+    ], (response: any) => {
       const event = response.events[0];
       const payload = response.payload as any;
       const collectionId = payload.$collectionId;
@@ -255,19 +257,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const unreadNotificationsCount = announcements.filter(n => !readNotifications.includes(n.$id)).length;
 
   const value = React.useMemo(() => ({
-    user, 
-    profile, 
-    loading, 
-    isAdmin, 
-    userBookings,
-    availableClasses,
-    announcements,
-    readNotifications,
-    unreadNotificationsCount,
-    refreshProfile: () => fetchUserAndProfile(false, true),
-    refreshGlobalData: () => fetchUserAndProfile(false, true),
+    user, profile, loading, isAdmin,
+    userBookings, availableClasses, announcements, readNotifications,
+    unreadNotificationsCount: unreadNotificationsCount,
+    adminOmniData,
+    refreshProfile: fetchUserAndProfile,
+    refreshGlobalData: fetchUserAndProfile,
     logout
-  }), [user, profile, loading, isAdmin, userBookings, availableClasses, announcements, readNotifications, unreadNotificationsCount, fetchUserAndProfile, logout]);
+  }), [user, profile, loading, isAdmin, userBookings, availableClasses, announcements, readNotifications, unreadNotificationsCount, adminOmniData, logout, fetchUserAndProfile]);
 
   if (loading) {
     return <AuthTransition message="Verificando sesión segura..." subMessage="Sincronizando seguridad" />;

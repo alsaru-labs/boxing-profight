@@ -120,14 +120,15 @@ export async function getAdminDashboardData(month?: string) {
         const thirtyDaysAhead = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
         const currentMonthStr = month || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-        const [allProfiles, availableClasses, announcementsData, currentMonthPayments] = await Promise.all([
+        const [allProfiles, availableClasses, announcementsData, currentMonthPayments, monthlyRevenueDoc] = await Promise.all([
             getActiveProfilesCached(),
             getAvailableClassesCached(),
             getAnnouncementsCached(),
-            getMonthlyPaymentsCached(currentMonthStr)
+            getMonthlyPaymentsCached(currentMonthStr),
+            getMonthlyRevenueCached(currentMonthStr)
         ]);
 
-        const totalRevenue = currentMonthPayments.reduce((acc: any, p: any) => acc + (p.amount || 0), 0);
+        const totalRevenue = monthlyRevenueDoc ? (monthlyRevenueDoc.amount || 0) : 0;
         const totalStudents = allProfiles.length;
         const paidStudentIds = Array.from(new Set(currentMonthPayments.map((p: any) => p.student_id)));
         const unpaidCount = Math.max(0, totalStudents - paidStudentIds.length);
@@ -178,69 +179,95 @@ export async function getAdminStudentsList(month?: string) {
     }
 }
 
-export async function getCompleteUserData(userId: string) {
+export async function getPlatformOmniData(userId: string, monthOverride?: string) {
     if (!userId) return { success: false, error: "ID de usuario requerido." };
 
     try {
         const { databases } = await createAdminClient();
         const now = new Date();
-        const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const currentMonthStr = monthOverride || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-        let profile: any = null;
-        let classes: any[] = [];
-        let bookings: any = { documents: [] };
-        let payments: any = { total: 0 };
-        let announcements: any[] = [];
-
-        const results = await Promise.allSettled([
-            databases.getDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_PROFILES, documentId: userId }),
-            getAvailableClassesCached(),
-            databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
-                                sdk.Query.equal("student_id", userId),
-                                sdk.Query.limit(200),
-                                sdk.Query.select(["$id", "class_id"])
-                            ]),
-            databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
-                                sdk.Query.equal("student_id", userId),
-                                sdk.Query.equal("month", currentMonthStr),
-                                sdk.Query.limit(1),
-                                sdk.Query.select(["$id", "amount", "method", "month"])
-                            ]),
-            getAnnouncementsCached()
-        ]);
-
-        if (results[0].status === "fulfilled") {
-            profile = results[0].value;
-        } else {
-            return { success: false, error: "No se ha podido sincronizar tu perfil. Inténtalo de nuevo más tarde." };
-        }
-        
-        if (results[1].status === "fulfilled") classes = results[1].value;
-        if (results[2].status === "fulfilled") bookings = results[2].value;
-        if (results[3].status === "fulfilled") payments = results[3].value;
-        if (results[4].status === "fulfilled") announcements = results[4].value;
+        // First, get the profile to know if it's admin
+        const profile = await databases.getDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_PROFILES, documentId: userId }).catch(() => null);
 
         if (!profile) return { success: false, error: "Perfil no encontrado (Inconsistencia de datos)." };
+        const isAdmin = profile.role === "admin";
 
-        let readNotificationsIds: string[] = [];
-        try {
-            const readData = await databases.listDocuments({ databaseId: DATABASE_ID, collectionId: COLLECTION_NOTIFICATIONS_READ, queries: [
-                            sdk.Query.equal("user_id", userId),
-                            sdk.Query.limit(200),
-                            sdk.Query.select(["notification_id"])
-                        ] });
-            readNotificationsIds = readData.documents.map((r: any) => r.notification_id);
-        } catch (e) { }
+        // Build the parallel omni-fetch array
+        const promises: Promise<any>[] = [
+            getAvailableClassesCached(),
+            databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
+                sdk.Query.equal("student_id", userId),
+                sdk.Query.limit(200),
+                sdk.Query.select(["$id", "class_id"])
+            ]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
+                sdk.Query.equal("student_id", userId),
+                sdk.Query.equal("month", currentMonthStr),
+                sdk.Query.limit(1),
+                sdk.Query.select(["$id", "amount", "method", "month"])
+            ]),
+            getAnnouncementsCached(),
+            databases.listDocuments({ databaseId: DATABASE_ID, collectionId: COLLECTION_NOTIFICATIONS_READ, queries: [
+                sdk.Query.equal("user_id", userId),
+                sdk.Query.limit(200),
+                sdk.Query.select(["notification_id"])
+            ]}).catch(() => ({ documents: [] }))
+        ];
+
+        // If admin, attach the heavy analytics and history to the promise array
+        if (isAdmin) {
+            promises.push(getActiveProfilesCached());
+            promises.push(getMonthlyPaymentsCached(currentMonthStr));
+            promises.push(getMonthlyRevenueCached(currentMonthStr));
+            promises.push(databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [
+                sdk.Query.limit(100), sdk.Query.orderDesc("month")
+            ]).catch(() => ({ documents: [] })));
+        }
+
+        const results = await Promise.allSettled(promises);
+
+        const classes = results[0].status === "fulfilled" ? results[0].value : [];
+        const bookings = results[1].status === "fulfilled" ? (results[1].value as any).documents : [];
+        const selfPayments = results[2].status === "fulfilled" ? results[2].value : { total: 0 };
+        const announcements = results[3].status === "fulfilled" ? results[3].value : [];
+        const readNotifications = results[4].status === "fulfilled" ? (results[4].value as any).documents.map((r: any) => r.notification_id) : [];
+
+        let adminData = null;
+
+        if (isAdmin) {
+            const allProfiles = results[5].status === "fulfilled" ? results[5].value : [];
+            const currentMonthPayments = results[6].status === "fulfilled" ? results[6].value : [];
+            const monthlyRevenueDoc = results[7].status === "fulfilled" ? results[7].value : null;
+            const fullRevenueHistory = results[8].status === "fulfilled" ? (results[8].value as any).documents : [];
+
+            const totalRevenue = monthlyRevenueDoc ? (monthlyRevenueDoc.amount || 0) : 0;
+            const totalStudents = allProfiles.length;
+            const paidStudentIds = Array.from(new Set(currentMonthPayments.map((p: any) => p.student_id)));
+            const unpaidCount = Math.max(0, totalStudents - paidStudentIds.length);
+
+            adminData = {
+                studentsList: allProfiles,
+                dashboard: {
+                    totalStudents,
+                    unpaidCount,
+                    totalRevenue,
+                    paidStudentIds
+                },
+                revenueHistory: fullRevenueHistory
+            };
+        }
 
         return {
             success: true,
             data: JSON.parse(JSON.stringify({
-                profile: { ...profile, is_paid: payments.total > 0 },
-                isAdmin: profile.role === "admin",
-                classes: classes,
-                userBookings: bookings.documents,
-                announcements: announcements,
-                readNotifications: readNotificationsIds
+                profile: { ...profile, is_paid: selfPayments.total > 0 },
+                isAdmin,
+                classes,
+                userBookings: bookings,
+                announcements,
+                readNotifications,
+                adminData
             }))
         };
     } catch (error: any) {
@@ -297,8 +324,6 @@ export async function handleCreateOrReactivateStudent(form: any) {
                 } 
             );
             try { await users.updateStatus(profile.user_id, true); } catch (e) { }
-            revalidatePath("/sys-director");
-            revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
             return { success: true, profile: JSON.parse(JSON.stringify(updated)), reactivated: true };
         }
 
@@ -420,8 +445,8 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
                     status: "Baja"
                 } });
 
-        revalidatePath("/sys-director");
         revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
+
 
         return { success: true };
     } catch (error: any) {
@@ -508,9 +533,8 @@ export async function permanentDeleteStudentAction(profileId: string, userId: st
 
         // 5. Global Invalidation
         console.log("[DELETION DIAGNOSTIC] Deletion completed successfully. Invalidating caches...");
-        revalidatePath("/sys-director");
-        revalidatePath("/sys-director/onboarding");
         revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
+
         revalidateTag(CACHE_TAGS.PAYMENTS, "max" as any);
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
 
@@ -548,7 +572,6 @@ export async function recordPaymentAction(studentId: string, amount: number, met
                                 } });
             }
         }
-        revalidatePath("/sys-director");
         revalidateTag(CACHE_TAGS.PAYMENTS, "max" as any);
         revalidateTag(CACHE_TAGS.REVENUE, "max" as any);
         revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
@@ -582,7 +605,6 @@ export async function deletePaymentAction(studentId: string, month?: string) {
                         } });
         } catch (e) { }
 
-        revalidatePath("/sys-director");
         revalidateTag(CACHE_TAGS.PAYMENTS, "max" as any);
         revalidateTag(CACHE_TAGS.REVENUE, "max" as any);
         revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
@@ -812,41 +834,35 @@ export async function autoGenerateNextWeekClasses() {
 // 🧠 SECCIÓN 7: UTILIDADES Y CACHÉ
 // ==========================================
 
-export const getAvailableClassesCached = unstable_cache(
-    async () => {
-        const { databases } = await createAdminClient();
-        const thirtyDaysAgo = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString();
-        const res = await databases.listDocuments({ 
-            databaseId: DATABASE_ID, 
-            collectionId: COLLECTION_CLASSES, 
-            queries: [
-                sdk.Query.greaterThanEqual("date", thirtyDaysAgo),
-                sdk.Query.limit(500), 
-                sdk.Query.orderAsc("date")
-            ] 
-        });
-        return res.documents;
-    },
-    ["clases-disponibles", PROJECT_ID],
-    { revalidate: 600, tags: [CACHE_TAGS.CLASSES] }
-);
+export const getAvailableClassesCached = async () => {
+    const { databases } = await createAdminClient();
+    const thirtyDaysAgo = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString();
+    const res = await databases.listDocuments(
+        DATABASE_ID, 
+        COLLECTION_CLASSES, 
+        [
+            sdk.Query.greaterThanEqual("date", thirtyDaysAgo),
+            sdk.Query.limit(500), 
+            sdk.Query.orderAsc("date")
+        ] 
+    );
+    return res.documents;
+};
 
-export const getAnnouncementsCached = unstable_cache(
-    async () => {
-        const { databases } = await createAdminClient();
-        const res = await databases.listDocuments({ 
-            databaseId: DATABASE_ID, 
-            collectionId: COLLECTION_NOTIFICATIONS, 
-            queries: [
-                sdk.Query.orderDesc("$createdAt"), 
-                sdk.Query.limit(20)
-            ] 
-        });
-        return res.documents;
-    },
-    ["anuncios-globales-v2", PROJECT_ID],
-    { revalidate: 3600, tags: [CACHE_TAGS.ANNOUNCEMENTS] }
-);
+
+export const getAnnouncementsCached = async () => {
+    const { databases } = await createAdminClient();
+    const res = await databases.listDocuments(
+        DATABASE_ID, 
+        COLLECTION_NOTIFICATIONS, 
+        [
+            sdk.Query.orderDesc("$createdAt"), 
+            sdk.Query.limit(20)
+        ] 
+    );
+    return res.documents;
+};
+
 
 export async function getUserProfile(userId: string) {
     if (!userId) return { success: false, error: "ID de usuario requerido." };
@@ -859,39 +875,48 @@ export async function getUserProfile(userId: string) {
     }
 }
 
-export const getActiveProfilesCached = unstable_cache(
-    async () => {
-        const { databases } = await createAdminClient();
-        const res = await databases.listDocuments({ 
-            databaseId: DATABASE_ID, 
-            collectionId: COLLECTION_PROFILES, 
-            queries: [
-                sdk.Query.limit(500), 
-                sdk.Query.equal("is_active", true), 
-                sdk.Query.equal("role", "alumno"),
-                sdk.Query.select(["$id", "user_id", "name", "last_name", "email", "phone", "status", "role", "level"])
-            ] 
-        });
-        return res.documents;
-    },
-    ["active-profiles-v5", PROJECT_ID],
-    { revalidate: 3600, tags: [CACHE_TAGS.PROFILE] }
-);
+export const getActiveProfilesCached = async () => {
+    const { databases } = await createAdminClient();
+    const res = await databases.listDocuments(
+        DATABASE_ID, 
+        COLLECTION_PROFILES, 
+        [
+            sdk.Query.limit(500), 
+            sdk.Query.equal("is_active", true), 
+            sdk.Query.equal("role", "alumno"),
+            sdk.Query.select(["$id", "user_id", "name", "last_name", "email", "phone", "status", "role", "level"])
+        ] 
+    );
+    return res.documents;
+};
 
-export const getMonthlyPaymentsCached = async (monthStr: string) => unstable_cache(
-    async () => {
-        const { databases } = await createAdminClient();
+
+export const getMonthlyRevenueCached = async (monthStr: string) => {
+    const { databases } = await createAdminClient();
+    try {
         const res = await databases.listDocuments(
             DATABASE_ID, 
-            COLLECTION_PAYMENTS, 
-            [
-                sdk.Query.equal("month", monthStr), 
-                sdk.Query.limit(500),
-                sdk.Query.select(["$id", "student_id", "amount", "method"])
-            ] 
+            COLLECTION_REVENUE, 
+            [sdk.Query.equal("month", monthStr), sdk.Query.limit(1)]
         );
-        return res.documents;
-    },
-    ["monthly-payments-v5", monthStr, PROJECT_ID],
-    { revalidate: 3600, tags: [CACHE_TAGS.PAYMENTS] }
-)();
+        return res.total > 0 ? res.documents[0] : null;
+    } catch (e: any) {
+        return null;
+    }
+};
+
+
+export const getMonthlyPaymentsCached = async (monthStr: string) => {
+    const { databases } = await createAdminClient();
+    const res = await databases.listDocuments(
+        DATABASE_ID, 
+        COLLECTION_PAYMENTS, 
+        [
+            sdk.Query.equal("month", monthStr), 
+            sdk.Query.limit(500),
+            sdk.Query.select(["$id", "student_id", "amount", "method"])
+        ] 
+    );
+    return res.documents;
+};
+

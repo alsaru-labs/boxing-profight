@@ -46,17 +46,11 @@ export function StudentDirectory({
   showAlert,
   showConfirm
 }: Omit<StudentDirectoryProps, 'studentsList'>) {
-  const { studentsList, refreshStudentsList, studentsLoading } = useAdmin();
+  const { studentsList, studentsLoading } = useAdmin();
   
-  // ⚡️ CARGA BAJO DEMANDA: Solo cargar si la lista está vacía
-  React.useEffect(() => {
-    if (studentsList.length === 0 && !studentsLoading) {
-      refreshStudentsList(true); // Carga silenciosa
-    }
-  }, [studentsList.length, studentsLoading, refreshStudentsList]);
-
   // Local State for Search/Filter/Sort
   const [searchTerm, setSearchTerm] = useState("");
+
   const [filterPayment, setFilterPayment] = useState("Todos");
   const [filterLevel, setFilterLevel] = useState("Todos");
   const [filterMethod, setFilterMethod] = useState("Todos");

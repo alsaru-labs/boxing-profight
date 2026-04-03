@@ -40,30 +40,56 @@ interface AdminContextType {
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
+// 🛡️ BLOQUEADORES GLOBALES (PROMESAS): Dedup absoluto en vuelo
+let globalDashboardPromise: Promise<any> | null = null;
+let globalStudentsPromise: Promise<any> | null = null;
+let globalRevenuePromise: Promise<any> | null = null;
+
+let globalDashboardFetchTime = 0;
+let globalStudentsFetchTime = 0;
+let globalRevenueFetchTime = 0;
+
 export function AdminProvider({ children }: { children: React.ReactNode }) {
-  const { user, profile, isAdmin, loading: authLoading } = useAuth();
+
+
+  const { user, profile, isAdmin, loading: authLoading, adminOmniData } = useAuth() as any;
   const [loading, setLoading] = useState(true);
   const [studentsLoading, setStudentsLoading] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
+
   const [studentsList, setStudentsList] = useState<any[]>([]);
+  const [revenueRecords, setRevenueRecords] = useState<any[]>([]);
   const [classesList, setClassesList] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
-  const [revenueRecords, setRevenueRecords] = useState<any[]>([]);
-  const [totalStudents, setTotalStudents] = useState(0);
-  const [monthlyRevenue, setMonthlyRevenue] = useState(0);
-  const [unpaidCount, setUnpaidCount] = useState(0);
-  const [selectedMonth, setSelectedMonth] = useState(() => {
+  const [totalStudents, setTotalStudents] = useState<number>(0);
+  const [monthlyRevenue, setMonthlyRevenue] = useState<number>(0);
+  const [unpaidCount, setUnpaidCount] = useState<number>(0);
+
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
 
-  const isFetchingRef = useRef(false);
-  const isFetchingStudentsRef = useRef(false);
-  const isFetchingRevenueRef = useRef(false);
-  const lastFetchTimeRef = useRef(0);
-  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const selectedMonthRef = useRef(selectedMonth);
   const subscriptionRef = useRef<any>(null);
   const processedProfilesRef = useRef<Set<string>>(new Set()); // 🛡️ ESCUDO DE DUPLICADOS
+
+  // 1️⃣ MEGA-HIDRATACIÓN "OMNI" DESDE AUTH (Zero-Waste Inicial)
+  useEffect(() => {
+    if (isAdmin && adminOmniData && !isHydrated) {
+      setStudentsList(adminOmniData.studentsList || []);
+      setClassesList(adminOmniData.classes || []); // AuthContext already has classes but whatever
+      setTotalStudents(adminOmniData.dashboard?.totalStudents || 0);
+      setMonthlyRevenue(adminOmniData.dashboard?.totalRevenue || 0);
+      setUnpaidCount(adminOmniData.dashboard?.unpaidCount || 0);
+      setRevenueRecords(adminOmniData.revenueHistory || []);
+      
+      setIsHydrated(true);
+      setLoading(false);
+      setStudentsLoading(false);
+    }
+  }, [isAdmin, adminOmniData, isHydrated]);
+
 
   // Reset del escudo al cargar datos iniciales para sincronizar con la realidad
   useEffect(() => {
@@ -78,90 +104,143 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, [selectedMonth]);
 
   const loadDashboardData = React.useCallback(async (silent = false, monthOverride?: string) => {
-    if (!isAdmin || isFetchingRef.current) return;
-    
+    if (!isAdmin) return;
     const now = Date.now();
-    // 🛡️ COOLDOWN ABSOLUTO: 2 segundos
-    if (now - lastFetchTimeRef.current < 2000) return;
-    // 🛡️ COOLDOWN SILENCIOSO (Foco/Visibilidad): 300 segundos (5 MINUTOS)
-    if (silent && (now - lastFetchTimeRef.current < 300000)) return;
 
-    try {
-      isFetchingRef.current = true;
-      lastFetchTimeRef.current = now;
-      if (!silent) setLoading(true);
-
-      const targetMonth = monthOverride || selectedMonth;
-      const { getAdminDashboardData } = await import("@/app/sys-director/actions");
-      const result = await getAdminDashboardData(targetMonth);
-      
-      if (result.success) {
-        // Stats Ligeras (Sin lista de alumnos completa)
-        setClassesList(result.classes);
-        setAnnouncements(result.announcements);
-        setTotalStudents(result.totalStudents || 0);
-        setMonthlyRevenue(result.totalRevenue || 0); 
-        setUnpaidCount(result.unpaidCount || 0);
-
-        // ⚡️ OPTIMIZACIÓN ZERO-WASTE: Actualizar estados de pago localmente
-        if (result.paidStudentIds && studentsList.length > 0) {
-          const paidSet = new Set(result.paidStudentIds);
-          setStudentsList(prev => prev.map(s => ({
-            ...s,
-            is_paid: paidSet.has(s.$id)
-          })));
-        }
-      }
-    } catch (error) {
-      console.error("Admin data load error:", error);
-    } finally {
-      setLoading(false);
-      isFetchingRef.current = false;
+    // Si hay una promesa en vuelo, nos colgamos de ella
+    if (globalDashboardPromise) {
+        try { await globalDashboardPromise; } catch { }
+        return;
     }
+
+    if (now - globalDashboardFetchTime < 2000) return;
+    if (silent && (now - globalDashboardFetchTime < 300000)) return;
+
+    globalDashboardFetchTime = now;
+
+    const fetchCore = async () => {
+      try {
+        const targetMonth = monthOverride || selectedMonthRef.current || selectedMonth;
+        const { getAdminDashboardData } = await import("@/app/sys-director/actions");
+        const result = await getAdminDashboardData(targetMonth);
+        
+        if (result.success) {
+          setClassesList(result.classes);
+          setAnnouncements(result.announcements);
+          setTotalStudents(result.totalStudents || 0);
+          setMonthlyRevenue(result.totalRevenue || 0); 
+          setUnpaidCount(result.unpaidCount || 0);
+
+          if (result.paidStudentIds) {
+            setStudentsList(prev => {
+              if(prev.length === 0) return prev;
+              const paidSet = new Set(result.paidStudentIds);
+              return prev.map(s => ({ ...s, is_paid: paidSet.has(s.$id) }));
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Admin data load error:", error);
+      } finally {
+        if (!silent) setLoading(false);
+        globalDashboardPromise = null;
+      }
+    };
+
+    if (!silent) setLoading(true);
+    globalDashboardPromise = fetchCore();
+    await globalDashboardPromise;
   }, [isAdmin, selectedMonth]);
+
   
   const loadStudentsList = React.useCallback(async (silent = false) => {
-    if (!isAdmin || isFetchingStudentsRef.current) return;
-    try {
-      if (!silent) setStudentsLoading(true);
-      isFetchingStudentsRef.current = true;
-      const { getAdminStudentsList } = await import("@/app/sys-director/actions");
-      const result = await getAdminStudentsList(selectedMonth);
-      if (result.success) {
-        setStudentsList(result.students);
-      }
-    } catch (error) {
-      console.error("[AdminContext] Error loading students:", error);
-    } finally {
-      if (!silent) setStudentsLoading(false);
-      isFetchingStudentsRef.current = false;
+    if (!isAdmin) return;
+    const now = Date.now();
+
+    if (globalStudentsPromise) {
+        try { await globalStudentsPromise; } catch { }
+        return;
     }
+
+    if (now - globalStudentsFetchTime < 2000) return;
+
+    globalStudentsFetchTime = now;
+
+    const fetchCore = async () => {
+      try {
+        const { getAdminStudentsList } = await import("@/app/sys-director/actions");
+        const result = await getAdminStudentsList(selectedMonthRef.current || selectedMonth);
+        if (result.success) {
+          setStudentsList(result.students);
+        }
+      } catch (error) {
+        console.error("[AdminContext] Error loading students:", error);
+      } finally {
+        if (!silent) setStudentsLoading(false);
+        globalStudentsPromise = null;
+      }
+    };
+
+    if (!silent) setStudentsLoading(true);
+    globalStudentsPromise = fetchCore();
+    await globalStudentsPromise;
   }, [isAdmin, selectedMonth]);
 
+
   const loadRevenueHistory = React.useCallback(async (force = false) => {
-    if (!isAdmin || (isFetchingRevenueRef.current)) return;
+    if (!isAdmin) return;
     if (!force && revenueRecords.length > 0) return;
 
-    try {
-      isFetchingRevenueRef.current = true;
-      const { getAllRevenueRecords } = await import("@/app/sys-director/actions");
-      const res = await getAllRevenueRecords();
-      if (res.success && res.documents) {
-        setRevenueRecords(res.documents);
-      }
-    } catch (e) {
-      console.error("Error loading revenue history in context:", e);
-    } finally {
-      isFetchingRevenueRef.current = false;
+    const now = Date.now();
+    
+    if (globalRevenuePromise && !force) {
+        try { await globalRevenuePromise; } catch { }
+        return;
     }
+
+    if (!force && (now - globalRevenueFetchTime < 5000)) return;
+
+    globalRevenueFetchTime = now;
+
+    const fetchCore = async () => {
+      try {
+        const { getAllRevenueRecords } = await import("@/app/sys-director/actions");
+        const res = await getAllRevenueRecords();
+        if (res.success && res.documents) {
+          setRevenueRecords(res.documents);
+        }
+      } catch (e) {
+        console.error("Error loading revenue history in context:", e);
+      } finally {
+        globalRevenuePromise = null;
+      }
+    };
+
+    globalRevenuePromise = fetchCore();
+    await globalRevenuePromise;
   }, [isAdmin, revenueRecords.length]);
 
+
+  // Solo llamamos a los loaders si el mes cambia EXPLÍCITAMENTE (diferente al mes actual)
   useEffect(() => {
-    if (!authLoading && isAdmin) {
-      loadDashboardData();
-      loadStudentsList(true); // Sincronizar lista de alumnos al cambiar mes
+    if (!authLoading && isAdmin && isHydrated) {
+      const d = new Date();
+      const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      
+      // Si el month cambia (el usuario lo seleccionó), hacemos fetch parcial de ese mes
+      if (selectedMonth !== currentMonthStr) {
+        loadDashboardData(true);
+        loadStudentsList(true);
+      } else if (adminOmniData) {
+        // Volvemos a restaurar la chicha "omni" si vuelve al mes actual
+        setStudentsList(adminOmniData.studentsList || []);
+        setTotalStudents(adminOmniData.dashboard?.totalStudents || 0);
+        setMonthlyRevenue(adminOmniData.dashboard?.totalRevenue || 0);
+        setUnpaidCount(adminOmniData.dashboard?.unpaidCount || 0);
+        setLoading(false);
+      }
     }
-  }, [authLoading, isAdmin, loadDashboardData, loadStudentsList]);
+  }, [selectedMonth, isHydrated, isAdmin, authLoading]);
 
   // Suscripción Realtime Singleton para el Administrador
   useEffect(() => {
@@ -329,8 +408,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
           subscriptionRef.current();
           subscriptionRef.current = null;
       }
-      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
     };
+
   }, [isAdmin, user?.$id]);
 
   const value = React.useMemo(() => ({

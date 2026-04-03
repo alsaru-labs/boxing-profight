@@ -43,12 +43,11 @@ export default function AccountingPage() {
             return;
         }
 
-        const init = async () => {
-            await loadRevenueHistory();
-            setLoading(false);
-        };
-        init();
-    }, [authLoading, user, profile, router, loadRevenueHistory]);
+        // Ya no necesitamos pedir loadRevenueHistory aquí, porque el OmniData ya lo trajo en la recarga inicial!
+        setLoading(false);
+
+    }, [authLoading, user, profile, router]);
+
 
     useEffect(() => {
         if (revenueRecords.length > 0) {
