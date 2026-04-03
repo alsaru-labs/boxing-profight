@@ -17,6 +17,7 @@ import { getCompleteUserData } from "@/app/sys-director/actions";
 import { Models, Query } from "appwrite";
 
 import { Loader2 } from "lucide-react";
+import AuthTransition from "@/components/AuthTransition";
 
 interface AuthContextType {
   user: Models.User<Models.Preferences> | null;
@@ -141,7 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAnnouncements([]);
       setReadNotifications([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
       isFetchingRef.current = false;
     }
   }, []);
@@ -268,21 +269,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout
   }), [user, profile, loading, isAdmin, userBookings, availableClasses, announcements, readNotifications, unreadNotificationsCount, fetchUserAndProfile, logout]);
 
+  if (loading) {
+    return <AuthTransition message="Verificando sesión segura..." subMessage="Sincronizando seguridad" />;
+  }
+
   if (isLoggingOut) {
-    return (
-      <div className="relative min-h-screen bg-black overflow-hidden font-sans text-white flex items-center justify-center p-6">
-        {/* Background Gradient effects */}
-        <div className="absolute inset-0 z-0 opacity-80 mix-blend-screen pointer-events-none">
-          <div className="absolute top-[-10%] right-[-10%] w-[80%] h-[80%] animate-pulse bg-gradient-to-bl from-zinc-800 via-stone-900 to-black rounded-full blur-[100px]" />
-          <div className="absolute bottom-[20%] left-[-20%] w-[60%] h-[60%] bg-gradient-to-tr from-red-950/20 via-neutral-900/20 to-transparent rounded-full blur-[120px]" />
-        </div>
-        <div className="relative z-10 flex flex-col items-center">
-            <Loader2 className="w-12 h-12 text-white animate-spin mb-6" />
-            <p className="text-white font-black uppercase tracking-widest text-sm animate-pulse italic">Cerrando sesión...</p>
-            <p className="text-white/20 text-[10px] uppercase font-bold tracking-[0.4em] mt-4">Sincronizando seguridad</p>
-        </div>
-      </div>
-    );
+    return <AuthTransition message="Cerrando sesión..." subMessage="Sincronizando seguridad" />;
   }
 
   return (

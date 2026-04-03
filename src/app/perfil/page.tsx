@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Calendar, ArrowRight, Clock, CheckCircle2, History as HistoryIcon, Loader2 } from "lucide-react";
+import AuthTransition from "@/components/AuthTransition";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { account } from "@/lib/appwrite";
@@ -219,12 +220,8 @@ export default function StudentProfile() {
     }
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <Loader2 className="w-10 h-10 text-white animate-spin" />
-      </div>
-    );
+  if (authLoading || (!user && !authLoading)) {
+    return <AuthTransition message="Cargando tu perfil..." subMessage="Sincronizando seguridad" />;
   }
 
   const initials = profileInfo?.name 

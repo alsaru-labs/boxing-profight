@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Loader2 } from "lucide-react";
+import AuthTransition from "@/components/AuthTransition";
 import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -128,12 +129,11 @@ export default function LoginPage() {
   };
 
   if (checkingAuth) {
-    return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
-        <Loader2 className="w-10 h-10 text-white animate-spin mb-4" />
-        <p className="text-white/50 animate-pulse text-sm">Comprobando sesión segura...</p>
-      </div>
-    );
+    return <AuthTransition message="Comprobando sesión segura..." subMessage="Sincronizando seguridad" />;
+  }
+
+  if (loading) {
+    return <AuthTransition message="Iniciando sesión segura..." subMessage="Sincronizando seguridad" />;
   }
 
   return (
