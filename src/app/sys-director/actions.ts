@@ -673,7 +673,6 @@ export async function publishAnnouncementAction(data: { title: string, content: 
         const res = await databases.createDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, sdk.ID.unique(), {
                     title: data.title, content: data.content, type: data.type, createdAt: new Date().toISOString()
                 });
-        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max" as any);
         return { success: true, data: JSON.parse(JSON.stringify(res)) };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -702,7 +701,6 @@ export async function deleteAnnouncement(id: string) {
         // 2. 💣 Borrado Principal
         await databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, id);
         
-        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max" as any);
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message };
