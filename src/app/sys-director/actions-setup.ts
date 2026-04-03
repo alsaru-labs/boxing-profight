@@ -32,6 +32,7 @@ export async function bootstrapAdminAction(data: { name: string, lastName: strin
         if (existing.total > 0) {
             const authUser = existing.users[0];
             await users.updatePassword(authUser.$id, pass);
+            await users.updateEmailVerification(authUser.$id, true);
 
             const profileRes = await databases.listDocuments(
                 DATABASE_ID, 
@@ -78,6 +79,7 @@ export async function bootstrapAdminAction(data: { name: string, lastName: strin
         // 2. Crear nueva cuenta completa (Auth + Profil)
         const userId = ID.unique();
         await users.create(userId, email, undefined, pass, name);
+        await users.updateEmailVerification(userId, true);
 
         await databases.createDocument(
             DATABASE_ID, 

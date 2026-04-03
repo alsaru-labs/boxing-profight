@@ -399,6 +399,90 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
     }
 }
 
+/**
+ * 💣 PERMANENT DELETE: Total destruction of student trace (Auth + DB + Bookings)
+ * Optimized to minimize database roundtrips.
+ */
+export async function permanentDeleteStudentAction(profileId: string, userId: string) {
+    if (!profileId || !userId) return { success: false, error: "Faltan IDs críticos para el borrado." };
+    const { databases, users } = await createAdminClient();
+
+    try {
+        // 1. Fetch all dependencies in parallel for analysis
+        const [bookingsRes, paymentsRes, readNotifsRes] = await Promise.all([
+            databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [sdk.Query.equal("student_id", profileId), sdk.Query.limit(500)]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [sdk.Query.equal("student_id", profileId), sdk.Query.limit(500)]),
+            databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, [sdk.Query.equal("user_id", userId), sdk.Query.limit(500)]),
+        ]);
+
+        console.log(`[DELETION DIAGNOSTIC] Found for Profile ${profileId}: ${bookingsRes.total} bookings, ${paymentsRes.total} payments, ${readNotifsRes.total} read-notifications.`);
+
+        const cleanUpPromises: Promise<any>[] = [];
+
+        // 2. Cleanup Class Capacities for Bookings
+        if (bookingsRes.total > 0) {
+            const now = new Date();
+            const currentClasses = await getAvailableClassesCached();
+            
+            for (const booking of bookingsRes.documents) {
+                const classDoc = currentClasses.find((c: any) => c.$id === booking.class_id);
+                if (classDoc) {
+                    const [year, month, day] = classDoc.date.split("-").map(Number);
+                    const [hours, minutes] = classDoc.time.split('-')[0].split(":").map(Number);
+                    const classDateTime = new Date(year, month - 1, day, hours, minutes);
+
+                    if (classDateTime > now) {
+                        // Restore space if the class is in the future
+                        cleanUpPromises.push(databases.updateDocument(
+                            DATABASE_ID, 
+                            COLLECTION_CLASSES, 
+                            classDoc.$id, 
+                            { registeredCount: Math.max(0, (classDoc.registeredCount || 1) - 1) } 
+                        ));
+                    }
+                }
+                cleanUpPromises.push(databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id));
+            }
+        }
+
+        // 3. Deletion of Payments and Notifications
+        paymentsRes.documents.forEach(p => cleanUpPromises.push(databases.deleteDocument(DATABASE_ID, COLLECTION_PAYMENTS, p.$id)));
+        readNotifsRes.documents.forEach(n => cleanUpPromises.push(databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, n.$id)));
+
+        // ⚡️ Execute "Traces" cleanup
+        console.log(`[DELETION DIAGNOSTIC] Launching ${cleanUpPromises.length} secondary cleanup promises.`);
+        await Promise.allSettled(cleanUpPromises);
+
+        // 4. Primary Targets (Auth + Profile) - MUST SUCCEED
+        console.log(`[DELETION DIAGNOSTIC] Deleting Profile document: ${profileId} and Auth User: ${userId}`);
+        
+        try {
+          await users.delete(userId);
+        } catch (e: any) {
+          if (e.code !== 404) {
+            console.error("[DELETION DIAGNOSTIC] Error deleting Auth user:", e.message);
+            throw e;
+          }
+        }
+        
+        await databases.deleteDocument(DATABASE_ID, COLLECTION_PROFILES, profileId);
+
+        // 5. Global Invalidation
+        console.log("[DELETION DIAGNOSTIC] Deletion completed successfully. Invalidating caches...");
+        revalidatePath("/sys-director");
+        revalidatePath("/sys-director/onboarding");
+        revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
+        revalidateTag(CACHE_TAGS.PAYMENTS, "max" as any);
+        revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("[DELETION ERROR CRITICAL]", error);
+        return { success: false, error: `Error durante el borrado físico: ${error.message || "Fallo técnico en Appwrite"}` };
+    }
+}
+
+
 // ==========================================
 // 💰 SECCIÓN 4: FINANZAS Y PAGOS
 // ==========================================
@@ -746,7 +830,7 @@ export const getActiveProfilesCached = unstable_cache(
                 sdk.Query.limit(500), 
                 sdk.Query.equal("is_active", true), 
                 sdk.Query.equal("role", "alumno"),
-                sdk.Query.select(["$id", "name", "last_name", "email", "phone", "status", "role", "level"])
+                sdk.Query.select(["$id", "user_id", "name", "last_name", "email", "phone", "status", "role", "level"])
             ] 
         });
         return res.documents;

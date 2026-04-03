@@ -31,6 +31,7 @@ interface StudentDesktopRowProps {
   handleActionClick: (student: any) => void;
   handleOpenEditModal: (student: any) => void;
   deleteStudentAccount: (id: string, userId: string) => Promise<{ success: boolean; error?: string }>;
+  handlePermanentDeleteStudent: (profileId: string, userId: string, studentName: string) => Promise<void>;
   setStudentsList: React.Dispatch<React.SetStateAction<any[]>>;
   showAlert: (title: string, message: string, variant: "success" | "danger" | "warning") => void;
   showConfirm: (title: string, message: string, onConfirm: () => void, variant?: "danger" | "warning") => void;
@@ -42,6 +43,7 @@ export function StudentDesktopRow({
   handleActionClick,
   handleOpenEditModal,
   deleteStudentAccount,
+  handlePermanentDeleteStudent,
   setStudentsList,
   showAlert,
   showConfirm
@@ -154,7 +156,7 @@ export function StudentDesktopRow({
                 onClick={() => {
                   showConfirm(
                     "Dar de baja",
-                    `¿Seguro que quieres eliminar a ${student.name}? Esta acción es irreversible.`,
+                    `¿Seguro que quieres dar de baja a ${student.name}? El alumno dejará de tener acceso y se cancelarán sus reservas futuras, pero su ficha se mantendrá en el historial.`,
                     async () => {
                       try {
                         const result = await deleteStudentAccount(student.$id, student.user_id);
@@ -173,8 +175,17 @@ export function StudentDesktopRow({
                 }}
                 disabled={isUpdating}
               >
+                <Signal className="w-4 h-4 opacity-50" />
+                <span>Dar de Baja (Soft)</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-red-600 focus:bg-red-600/20 focus:text-red-600 cursor-pointer transition-colors"
+                onClick={() => handlePermanentDeleteStudent(student.$id, student.user_id, student.name)}
+                disabled={isUpdating}
+              >
                 <Trash2 className="w-4 h-4" />
-                <span>Dar de Baja</span>
+                <span>Eliminar Permanente</span>
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>

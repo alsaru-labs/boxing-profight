@@ -224,6 +224,34 @@ export function useAdminActions({
     );
   };
 
+  const handlePermanentDeleteStudent = async (profileId: string, userId: string, studentName: string) => {
+    showConfirm(
+      "ELIMINACIÓN PERMANENTE",
+      `¿Estás absolutamente seguro de borrar a ${studentName}? Esta acción eliminará su cuenta de acceso, su ficha y todas sus reservas de forma IRREVERSIBLE.`,
+      async () => {
+        try {
+          console.log(`🚀 [CLIENT] Iniciando borrado permanente para: ${studentName} (Profile: ${profileId}, User: ${userId})`);
+          setIsUpdating(true);
+          const { permanentDeleteStudentAction } = await import("../actions");
+          const result = await permanentDeleteStudentAction(profileId, userId);
+
+          if (result.success) {
+            setStudentsList(studentsList.filter(s => s.$id !== profileId));
+            showAlert("Alumno Eliminado", `Se ha borrado el rastro de ${studentName} de la plataforma.`, "success");
+          } else {
+            showAlert("Error", result.error || "No se pudo eliminar permanentemente al alumno.", "danger");
+          }
+        } catch (err) {
+          console.error(err);
+          showAlert("Error", "Error de red al eliminar al alumno.", "danger");
+        } finally {
+          setIsUpdating(false);
+        }
+      },
+      "danger"
+    );
+  };
+
   return {
     isUpdating,
     setIsUpdating,
@@ -232,6 +260,7 @@ export function useAdminActions({
     handleCreateStudent,
     handleCreateClass,
     handleAutoGenerateWeekClasses,
-    handleDeleteClass
+    handleDeleteClass,
+    handlePermanentDeleteStudent
   };
 }

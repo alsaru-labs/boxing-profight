@@ -25,6 +25,7 @@ interface StudentMobileCardProps {
   handleActionClick: (student: any) => void;
   handleOpenEditModal: (student: any) => void;
   deleteStudentAccount: (id: string, userId: string) => Promise<{ success: boolean; error?: string }>;
+  handlePermanentDeleteStudent: (profileId: string, userId: string, studentName: string) => Promise<void>;
   setStudentsList: React.Dispatch<React.SetStateAction<any[]>>;
   showAlert: (title: string, message: string, variant: "success" | "danger" | "warning") => void;
   showConfirm: (title: string, message: string, onConfirm: () => void, variant?: "danger" | "warning") => void;
@@ -36,6 +37,7 @@ export function StudentMobileCard({
   handleActionClick,
   handleOpenEditModal,
   deleteStudentAccount,
+  handlePermanentDeleteStudent,
   setStudentsList,
   showAlert,
   showConfirm
@@ -134,8 +136,8 @@ export function StudentMobileCard({
                   className="flex items-center gap-2 px-3 py-3 rounded-xl text-sm font-bold text-red-400 focus:bg-red-500/20 focus:text-red-400 cursor-pointer transition-colors"
                   onClick={() => {
                     showConfirm(
-                      "Dar de baja",
-                      `¿Seguro borrar a ${student.name}?`,
+                      "Dar de baja (Soft)",
+                      `¿Seguro borrar a ${student.name}? El alumno dejará de tener acceso, pero se mantendrá su historial.`,
                       async () => {
                         const res = await deleteStudentAccount(student.$id, student.user_id);
                         if (res.success) {
@@ -150,8 +152,17 @@ export function StudentMobileCard({
                   }}
                   disabled={isUpdating}
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Signal className="w-4 h-4 opacity-50" />
                   <span>Dar de Baja</span>
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  className="flex items-center gap-2 px-3 py-3 rounded-xl text-sm font-bold text-red-600 focus:bg-red-600/20 focus:text-red-600 cursor-pointer transition-colors"
+                  onClick={() => handlePermanentDeleteStudent(student.$id, student.user_id, student.name)}
+                  disabled={isUpdating}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Eliminar Permanente</span>
                 </DropdownMenuItem>
               </DropdownMenuGroup>
             </DropdownMenuContent>

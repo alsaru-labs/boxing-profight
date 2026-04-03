@@ -60,7 +60,7 @@ export async function createAdminClient() {
   }
 
   const apiKeyNameUsed = !!process.env.NEXT_BOXING_AWR_KEY ? "NEXT_BOXING_AWR_KEY" : "APPWRITE_API_KEY";
-  console.log(`[Appwrite Admin] Configuring Client: Project = ${PUBLIC_PROJECT_ID}, KeySource = ${apiKeyNameUsed}`);
+  // console.log(`[Appwrite Admin] Configuring Client: Project = ${PUBLIC_PROJECT_ID}, KeySource = ${apiKeyNameUsed}`);
 
   const client = new Client()
     .setEndpoint(PUBLIC_ENDPOINT)

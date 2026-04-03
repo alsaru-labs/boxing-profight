@@ -99,7 +99,8 @@ export default function AdminDashboard() {
     handleCreateStudent,
     handleCreateClass,
     handleAutoGenerateWeekClasses,
-    handleDeleteClass
+    handleDeleteClass,
+    handlePermanentDeleteStudent
   } = useAdminActions({
     studentsList, setStudentsList, classesList, setClassesList,
     setMonthlyRevenue, setUnpaidCount, setTotalStudents,
@@ -229,6 +230,7 @@ export default function AdminDashboard() {
               handleActionClick={handleActionClick}
               handleOpenEditModal={handleOpenEditModal}
               deleteStudentAccount={deleteStudentAccount}
+              handlePermanentDeleteStudent={handlePermanentDeleteStudent}
               setStudentsList={setStudentsList}
               showAlert={showAlert as any}
               showConfirm={showConfirm as any}
