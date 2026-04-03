@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useOptimistic, startTransition } from "react";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { bookClassAction, cancelBookingAction } from "@/app/sys-director/actions";
@@ -26,10 +26,30 @@ export default function BookingsPage() {
     const [isProcessingBooking, setIsProcessingBooking] = useState<string | null>(null);
     const [currentTime, setCurrentTime] = useState(new Date());
 
+    const [optimisticBookings, setOptimisticBookings] = useOptimistic(
+        userBookings,
+        (state: any[], payload: { action: "add" | "remove", booking: any }) => {
+            if (payload.action === "add") return [...state, payload.booking];
+            return state.filter((b: any) => b.class_id !== payload.booking.class_id);
+        }
+    );
+
+    const [optimisticClasses, setOptimisticClasses] = useOptimistic(
+        allPossibleClasses,
+        (state: any[], payload: { class_id: string, action: "increment" | "decrement" }) => {
+            return state.map((c: any) => {
+                if (c.$id === payload.class_id) {
+                    return { ...c, registeredCount: Math.max(0, (c.registeredCount || 0) + (payload.action === "increment" ? 1 : -1)) };
+                }
+                return c;
+            });
+        }
+    );
+
     // 🌪️ PROCESAMIENTO DE DATOS GLOBAL (Sin peticiones extra)
     const availableClasses = useMemo(() => {
         const now = new Date();
-        return allPossibleClasses.filter((cls: any) => {
+        return optimisticClasses.filter((cls: any) => {
             try {
                 const startTime = cls.time.split('-')[0].trim();
                 const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
@@ -38,12 +58,12 @@ export default function BookingsPage() {
                 const msIn7Days = 7 * 24 * 60 * 60 * 1000;
                 return classDateTime >= now && classDateTime.getTime() <= now.getTime() + msIn7Days;
             } catch { return false; }
-        }).sort((a, b) => {
+        }).sort((a: any, b: any) => {
             const dateComp = new Date(a.date).getTime() - new Date(b.date).getTime();
             if (dateComp !== 0) return dateComp;
             return a.time.localeCompare(b.time);
         });
-    }, [allPossibleClasses]);
+    }, [optimisticClasses]);
 
     // Custom Modal State
     const [modalConfig, setModalConfig] = useState<{
@@ -110,27 +130,30 @@ export default function BookingsPage() {
         showConfirm(
             LITERALS.BOOKINGS.CONFIRM_RESERVATION_TITLE, 
             LITERALS.BOOKINGS.CONFIRM_RESERVATION_DESC(classObj.name, classObj.coach),
-            async () => {
-                try {
+            () => {
+                startTransition(async () => {
+                    setOptimisticBookings({ action: "add", booking: { $id: `opt-${Date.now()}`, class_id: classObj.$id, student_id: user.$id } });
+                    setOptimisticClasses({ class_id: classObj.$id, action: "increment" });
                     setIsProcessingBooking(classObj.$id);
 
-                    const result: any = await bookClassAction(classObj.$id, user.$id);
-                    
-                    if (result.success) {
-                        showAlert("¡Reserva Éxitosa!", "Tu plaza ha quedado confirmada. ¡Nos vemos en el tatami!", "success");
-                    } else {
-                        if (result.code === "FULL") {
-                            showAlert("Clase Llena", "¡Lo sentimos! Las plazas para esta clase se acaban de llenar.", "warning");
+                    try {
+                        const result: any = await bookClassAction(classObj.$id, user.$id);
+                        if (result.success) {
+                            showAlert("¡Reserva Éxitosa!", "Tu plaza ha quedado confirmada. ¡Nos vemos en el tatami!", "success");
                         } else {
-                            showAlert("Error", result.error || "No se ha podido realizar la reserva. Inténtalo de nuevo.", "danger");
+                            if (result.code === "FULL") {
+                                showAlert("Clase Llena", "¡Lo sentimos! Las plazas para esta clase se acaban de llenar.", "warning");
+                            } else {
+                                showAlert("Error", result.error || "No se ha podido realizar la reserva. Inténtalo de nuevo.", "danger");
+                            }
                         }
+                    } catch (err: any) {
+                        showAlert("Error", "No se ha podido realizar la reserva. Inténtalo de nuevo.", "danger");
+                        console.error(err);
+                    } finally {
+                        setIsProcessingBooking(null);
                     }
-                } catch (err: any) {
-                    showAlert("Error", "No se ha podido realizar la reserva. Inténtalo de nuevo.", "danger");
-                    console.error(err);
-                } finally {
-                    setIsProcessingBooking(null);
-                }
+                });
             },
             "info"
         );
@@ -145,25 +168,29 @@ export default function BookingsPage() {
         showConfirm(
             LITERALS.BOOKINGS.CANCEL_RESERVATION_TITLE, 
             LITERALS.BOOKINGS.CANCEL_RESERVATION_DESC,
-            async () => {
-                try {
-                    setIsProcessingBooking(classObj.$id);
+            () => {
+                startTransition(async () => {
                     const bookingToCancel = userBookings.find((b: any) => b.class_id === classObj.$id);
                     if (!bookingToCancel) return;
 
-                    const result = await cancelBookingAction(classObj.$id, bookingToCancel.$id);
-                    
-                    if (result.success) {
-                        showAlert("Éxito", "Reserva cancelada correctamente.", "success");
-                    } else {
-                        showAlert("Error", result.error || "No se ha podido cancelar la reserva.", "danger");
+                    setOptimisticBookings({ action: "remove", booking: bookingToCancel });
+                    setOptimisticClasses({ class_id: classObj.$id, action: "decrement" });
+                    setIsProcessingBooking(classObj.$id);
+
+                    try {
+                        const result = await cancelBookingAction(classObj.$id, bookingToCancel.$id);
+                        if (result.success) {
+                            showAlert("Éxito", "Reserva cancelada correctamente.", "success");
+                        } else {
+                            showAlert("Error", result.error || "No se ha podido cancelar la reserva.", "danger");
+                        }
+                    } catch (err: any) {
+                        showAlert("Error", "No se ha podido cancelar la reserva.", "danger");
+                        console.error(err);
+                    } finally {
+                        setIsProcessingBooking(null);
                     }
-                } catch (err: any) {
-                    showAlert("Error", "No se ha podido cancelar la reserva.", "danger");
-                    console.error(err);
-                } finally {
-                    setIsProcessingBooking(null);
-                }
+                });
             },
             "danger"
         );
@@ -195,7 +222,7 @@ export default function BookingsPage() {
                 <div className="space-y-12">
                     <ConfirmedClasses
                         availableClasses={availableClasses}
-                        userBookings={userBookings}
+                        userBookings={optimisticBookings}
                         isProcessingBooking={isProcessingBooking}
                         handleCancelBooking={handleCancelBooking}
                         currentTime={currentTime}

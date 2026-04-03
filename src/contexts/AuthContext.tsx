@@ -222,14 +222,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // ⚡️ Anuncios y Notificaciones
-      if (collectionId === COLLECTION_NOTIFICATIONS && event.includes(".create")) {
-        setAnnouncements(prev => [payload, ...prev].slice(0, 50));
-        return;
+      // ⚡️ Anuncios y Notificaciones (Campana)
+      if (collectionId === COLLECTION_NOTIFICATIONS) {
+        if (event.includes(".create")) {
+          setAnnouncements(prev => {
+            if (prev.some(a => a.$id === payload.$id)) return prev;
+            return [payload, ...prev].slice(0, 50);
+          });
+          return;
+        }
+        if (event.includes(".delete")) {
+          setAnnouncements(prev => prev.filter(a => a.$id !== payload.$id));
+          return;
+        }
       }
 
       if (collectionId === COLLECTION_NOTIFICATIONS_READ && event.includes(".create") && payload.user_id === user.$id) {
-        setReadNotifications(prev => [...prev, payload.notification_id]);
+        setReadNotifications(prev => {
+           if (prev.includes(payload.notification_id)) return prev;
+           return [...prev, payload.notification_id];
+        });
         return;
       }
     });

@@ -2,7 +2,7 @@
 
 import * as sdk from "node-appwrite";
 import crypto from "crypto";
-import { DATABASE_ID, COLLECTION_INVITATION_TOKENS } from "@/lib/appwrite";
+import { DATABASE_ID, COLLECTION_INVITATION_TOKENS, COLLECTION_PROFILES } from "@/lib/appwrite";
 import { createAdminClient } from "@/lib/server/appwrite";
 import { cookies } from "next/headers";
 
@@ -61,8 +61,19 @@ export async function setPasswordWithToken(token: string, password: string, conf
       return { success: false, error: "Este enlace de invitación ha caducado (48h)." };
     }
 
-    // 5. Update Auth User Password
-    await users.updatePassword(tokenDoc.user_id, password);
+    // 5. Update Auth User Password (or CREATE if it's the first time)
+    try {
+        // Try to update existing user
+        await users.updatePassword(tokenDoc.user_id, password);
+    } catch (e: any) {
+        // If user doesn't exist (404), we create it now
+        if (e.code === 404) {
+            const profile = await databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, tokenDoc.user_id);
+            await users.create(tokenDoc.user_id, profile.email, undefined, password, profile.name);
+        } else {
+            throw e;
+        }
+    }
 
     // 6. Delete Token (Prevent Replay Attacks)
     await databases.deleteDocument(DATABASE_ID, COLLECTION_INVITATION_TOKENS, tokenDoc.$id);

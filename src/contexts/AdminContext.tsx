@@ -171,7 +171,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             setStudentsList(prev => prev.map(s => 
               s.$id === payload.student_id ? { ...s, is_paid: true, payment_method: payload.method } : s
             ));
-            setMonthlyRevenue(prev => prev + (payload.amount || 0));
+            // 💡 REVENUE handled by the COLLECTION_REVENUE listener below
             setUnpaidCount(prev => Math.max(0, prev - 1));
             return;
           }
@@ -179,10 +179,29 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
             setStudentsList(prev => prev.map(s => 
               s.$id === payload.student_id ? { ...s, is_paid: false, payment_method: null } : s
             ));
-            setMonthlyRevenue(prev => Math.max(0, prev - (payload.amount || 0)));
+            // 💡 REVENUE handled by the COLLECTION_REVENUE listener below
             setUnpaidCount(prev => prev + 1);
             return;
           }
+        }
+      }
+
+      // ⚡️ ACTUALIZACIÓN INCREMENTAL: Ingresos Totales (Contabilidad)
+      if (collectionId === COLLECTION_REVENUE) {
+        if (event.includes(".update") || event.includes(".create")) {
+          // Actualización del número principal si es el mes actual
+          if (payload.month === selectedMonth) {
+            setMonthlyRevenue(payload.amount || 0);
+          }
+          // Actualización de la lista de historial
+          setRevenueRecords(prev => {
+            const exists = prev.some(r => r.month === payload.month);
+            if (exists) {
+              return prev.map(r => r.month === payload.month ? payload : r);
+            }
+            return [payload, ...prev].sort((a,b) => b.month.localeCompare(a.month));
+          });
+          return;
         }
       }
 
@@ -223,10 +242,30 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // ⚡️ ACTUALIZACIÓN INCREMENTAL: Perfiles (Cambios de estado/baja)
+      // ⚡️ ACTUALIZACIÓN INCREMENTAL: Perfiles (Registro/Baja)
       if (collectionId === COLLECTION_PROFILES) {
+         if (event.includes(".create")) {
+            setStudentsList(prev => {
+              if (prev.some(s => s.$id === payload.$id)) return prev;
+              return [payload, ...prev];
+            });
+            setTotalStudents(prev => prev + 1);
+            setUnpaidCount(prev => prev + 1);
+            return;
+         }
          if (event.includes(".update")) {
             setStudentsList(prev => prev.map(s => s.$id === payload.$id ? { ...s, ...payload } : s));
+            
+            // Si el estado de pago o actividad cambiara, los contadores se ajustan por el Realtime de PAGOS
+            // pero si es una reactivación o baja completa (is_active), ajustamos de total
+            if (payload.is_active === true) {
+              setTotalStudents(prev => prev + 1);
+              setUnpaidCount(prev => prev + 1); // Asumimos que vuelve con pago pendiente
+            } else if (payload.is_active === false) {
+              setTotalStudents(prev => Math.max(0, prev - 1));
+              // Si el alumno estaba pendiente de pago al dar de baja, restamos de unpaidCount (es aproximado)
+              // Pero en el dashboard esto se refresca al cambiar de mes o manual si hubiera inconsistencia.
+            }
             return;
          }
       }

@@ -46,10 +46,17 @@ export async function createSessionClient() {
 
 export async function createAdminClient() {
   // 🥊 Buscamos primero la clave que Netlify prefiere, luego la estándar
-  const apiKey = process.env.NEXT_BOXING_AWR_KEY || process.env.APPWRITE_API_KEY;
+  const rawKey = process.env.NEXT_BOXING_AWR_KEY || process.env.APPWRITE_API_KEY;
 
-  if (!apiKey) {
+  if (!rawKey) {
     throw new Error("CRÍTICO: No se han encontrado claves SECRETAS en el servidor (Falta NEXT_BOXING_AWR_KEY o APPWRITE_API_KEY). Revisa la configuración en Netlify.");
+  }
+
+  // 🛡️ LIMPIEZA DE CLAVE: Eliminar comillas accidentales, espacios alrededor y saltos de línea
+  const apiKey = rawKey.trim().replace(/['"\s]/g, "");
+
+  if (apiKey.length < 10) {
+    console.warn("[Appwrite Admin] Advertencia: La llave de API es sospechosamente corta.");
   }
 
   const client = new Client()

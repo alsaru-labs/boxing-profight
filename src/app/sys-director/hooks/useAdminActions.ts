@@ -48,10 +48,12 @@ export function useAdminActions({
         return false;
       }
 
-      // Update local state for immediate feedback
+      // Update local state for immediate feedback (Individual student row)
       const newList = studentsList.map(s => s.$id === studentId ? { ...s, is_paid: newStatus, payment_method: newStatus ? paymentMethod : null } : s);
       setStudentsList(newList);
-      setUnpaidCount(newList.filter(s => !s.is_paid).length);
+      
+      // aggregators (revenue, unpaidCount) will be updated by AdminContext's real-time subscription
+      // to avoid double-counting if we also update them here.
 
       return true;
     } catch (error) {
@@ -114,13 +116,13 @@ export function useAdminActions({
         showAlert("Éxito", "Alumno registrado correctamente. Se le ha enviado el acceso.", "success");
       }
 
-      setTotalStudents((prev: number) => prev + 1);
-      setUnpaidCount((prev: number) => prev + 1);
-      return true;
+      // setTotalStudents and setUnpaidCount are HANDLED by AdminContext real-time subscription
+      // after the profile is created. We only update the list here for immediate row feedback.
+      return result;
     } catch (err) {
       console.error(err);
       showAlert("Error", "Error de red al registrar al alumno.", "danger");
-      return false;
+      return { success: false, error: "Error de red." };
     } finally {
       setIsUpdating(false);
     }
@@ -161,7 +163,12 @@ export function useAdminActions({
             if (result.count === 0) {
               showAlert("Info", "No se han generado clases nuevas porque ya existían todas.", "info");
             } else {
-              setClassesList([...classesList, ...(result.classes || [])].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+              // Ensure we filter out duplicates before adding
+              setClassesList((prev: any[]) => {
+                  const existingIds = new Set(prev.map(c => c.$id));
+                  const newClasses = (result.classes || []).filter((c: any) => !existingIds.has(c.$id));
+                  return [...prev, ...newClasses].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+              });
               showAlert("Éxito", `Se han generado ${result.count} clases nuevas.`, "success");
             }
           } else {

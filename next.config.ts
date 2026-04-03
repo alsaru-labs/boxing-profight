@@ -5,6 +5,11 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_BOXING_AWR_KEY: process.env.NEXT_BOXING_AWR_KEY || "",
   },
+  logging: {
+    fetches: {
+      fullUrl: true,
+    },
+  },
 };
 
 export default nextConfig;

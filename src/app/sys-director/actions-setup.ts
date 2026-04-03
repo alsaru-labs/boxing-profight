@@ -1,11 +1,11 @@
 "use server";
 
-import { Client, Databases, Users, Query, ID } from "node-appwrite";
-import { PROJECT_ID, ENDPOINT, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
+import { Query, ID } from "node-appwrite";
+import { PROJECT_ID, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
+import { createAdminClient } from "@/lib/server/appwrite";
 
 /**
  * Administrative: Bootstrap Initial Admin (Security Utility)
- * Separado a acciones de configuración para evitar problemas de ID en Netlify/Next.js
  */
 export async function bootstrapAdminAction(data: { name: string, lastName: string, email: string, pass: string, secret: string }) {
     const { name, lastName, email, pass, secret } = data;
@@ -16,28 +16,16 @@ export async function bootstrapAdminAction(data: { name: string, lastName: strin
 
     if (!envSecret) {
         console.error("[Bootstrap] ERROR: ADMIN_BOOTSTRAP_SECRET no definida en el entorno del servidor.");
-        return { success: false, error: "Error de Servidor: La variable ADMIN_BOOTSTRAP_SECRET no está configurada en esta plataforma (Netlify/Local)." };
+        return { success: false, error: "Error de Servidor: La variable ADMIN_BOOTSTRAP_SECRET no está configurada." };
     }
 
     if (!cleanSecret || cleanSecret !== systemSecret) {
         return { success: false, error: "Autorización fallida: El secreto universal proporcionado es incorrecto." };
     }
 
-    // Configuración directa de cliente administrativo para el bootstrap
-    const apiKey = process.env.NEXT_BOXING_AWR_KEY || process.env.APPWRITE_API_KEY;
-    if (!apiKey) {
-        return { success: false, error: "Error de Servidor: No hay API Key de Appwrite configurada." };
-    }
-
-    const client = new Client()
-        .setEndpoint(ENDPOINT)
-        .setProject(PROJECT_ID)
-        .setKey(apiKey);
-
-    const databases = new Databases(client);
-    const users = new Users(client);
-
     try {
+        const { databases, users } = await createAdminClient();
+
         // 1. Verificar si el email ya existe en Auth
         const existing = await users.list([Query.equal("email", [email])]);
         
@@ -45,30 +33,44 @@ export async function bootstrapAdminAction(data: { name: string, lastName: strin
             const authUser = existing.users[0];
             await users.updatePassword(authUser.$id, pass);
 
-            const profileRes = await databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [
-                Query.equal("email", [email.toLowerCase()]),
-                Query.limit(1)
-            ]);
+            const profileRes = await databases.listDocuments(
+                DATABASE_ID, 
+                COLLECTION_PROFILES, 
+                [
+                    Query.equal("email", [email.toLowerCase()]),
+                    Query.limit(1)
+                ]
+            );
 
             if (profileRes.total > 0) {
-                await databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, profileRes.documents[0].$id, {
-                    name: name,
-                    last_name: lastName,
-                    role: "admin",
-                    is_active: true,
-                    status: "Activa"
-                });
+                await databases.updateDocument(
+                    DATABASE_ID, 
+                    COLLECTION_PROFILES, 
+                    profileRes.documents[0].$id, 
+                    {
+                        name: name,
+                        last_name: lastName,
+                        role: "admin",
+                        is_active: true,
+                        status: "Activa"
+                    }
+                );
                 return { success: true, message: "Usuario existente promovido a Administrador y contraseña restablecida." };
             } else {
-                await databases.createDocument(DATABASE_ID, COLLECTION_PROFILES, authUser.$id, {
-                    user_id: authUser.$id,
-                    name: name,
-                    last_name: lastName,
-                    email: email.toLowerCase(),
-                    role: "admin",
-                    is_active: true,
-                    status: "Activa"
-                });
+                await databases.createDocument(
+                    DATABASE_ID, 
+                    COLLECTION_PROFILES, 
+                    authUser.$id, 
+                    {
+                        user_id: authUser.$id,
+                        name: name,
+                        last_name: lastName,
+                        email: email.toLowerCase(),
+                        role: "admin",
+                        is_active: true,
+                        status: "Activa"
+                    }
+                );
                 return { success: true, message: "Perfil administrativo creado para usuario Auth (Contraseña actualizada)." };
             }
         }
@@ -77,19 +79,31 @@ export async function bootstrapAdminAction(data: { name: string, lastName: strin
         const userId = ID.unique();
         await users.create(userId, email, undefined, pass, name);
 
-        await databases.createDocument(DATABASE_ID, COLLECTION_PROFILES, userId, {
-            user_id: userId,
-            name: name,
-            last_name: lastName,
-            email: email.toLowerCase(),
-            role: "admin",
-            is_active: true,
-            status: "Activa"
-        });
+        await databases.createDocument(
+            DATABASE_ID, 
+            COLLECTION_PROFILES, 
+            userId, 
+            {
+                user_id: userId,
+                name: name,
+                last_name: lastName,
+                email: email.toLowerCase(),
+                role: "admin",
+                is_active: true,
+                status: "Activa"
+            }
+        );
 
         return { success: true };
     } catch (error: any) {
         console.error("[Bootstrap] Error crítico:", error.message);
+        // Si el error dice "not authorized", damos una pista clara al usuario
+        if (error.message.includes("not authorized") || error.code === 401) {
+            return { 
+                success: false, 
+                error: `Appwrite rechazó la llave de API para el proyecto ID: '${PROJECT_ID}'. Asegúrate de que tu clave pertenece a este proyecto específico y tiene todos los SCOPES (permisos) de 'users' y 'databases' activados.` 
+            };
+        }
         return { success: false, error: error.message };
     }
 }

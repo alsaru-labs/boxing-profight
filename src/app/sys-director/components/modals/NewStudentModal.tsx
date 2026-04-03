@@ -11,7 +11,7 @@ interface NewStudentModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   isUpdating: boolean;
-  onSave: (form: any) => Promise<boolean>;
+  onSave: (form: any) => Promise<any>;
 }
 
 export function NewStudentModal({ isOpen, onOpenChange, isUpdating, onSave }: NewStudentModalProps) {
@@ -31,8 +31,10 @@ export function NewStudentModal({ isOpen, onOpenChange, isUpdating, onSave }: Ne
       setEmailError("Formato de correo no válido.");
       return;
     }
-    const success = await onSave(form);
-    if (success) onOpenChange(false);
+    const result = await onSave(form);
+    if (result && result.success) {
+      onOpenChange(false);
+    }
   };
 
   return (
@@ -144,7 +146,7 @@ export function NewStudentModal({ isOpen, onOpenChange, isUpdating, onSave }: Ne
               disabled={isUpdating}
               className="w-full bg-white text-black hover:bg-emerald-500 hover:text-white font-black tracking-widest uppercase rounded-xl shadow-xl transition-all disabled:opacity-20"
             >
-              {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "REGISTRAR Y ENVIAR ACCESO"}
+              {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "REGISTRAR ALUMNO"}
             </Button>
           </DialogHeader>
         </form>

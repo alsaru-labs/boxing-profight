@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { AdminProvider } from "@/contexts/AdminContext";
 import { Loader2, ShieldCheck } from "lucide-react";
@@ -9,12 +9,20 @@ import { Loader2, ShieldCheck } from "lucide-react";
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, profile, isAdmin, loading: authLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+
+  const isSetupPath = pathname === "/sys-director/setup";
 
   useEffect(() => {
-    if (!authLoading && (!user || profile?.role !== "admin")) {
+    if (!isSetupPath && !authLoading && (!user || profile?.role !== "admin")) {
       router.push("/perfil");
     }
-  }, [user, profile, isAdmin, authLoading, router]);
+  }, [user, profile, isAdmin, authLoading, router, isSetupPath]);
+
+  // Si estamos en la ruta de inicialización, omitimos el AdminProvider y cualquier bloqueo
+  if (isSetupPath) {
+    return <>{children}</>;
+  }
 
   if (authLoading) {
     return (

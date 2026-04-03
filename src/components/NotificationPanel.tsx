@@ -19,6 +19,7 @@ interface Notification {
 export default function NotificationPanel() {
     const { 
         user, 
+        profile,
         loading: authLoading, 
         announcements, 
         readNotifications,
@@ -31,6 +32,15 @@ export default function NotificationPanel() {
     const [isOpen, setIsOpen] = useState(false);
     const [isMarking, setIsMarking] = useState<string | null>(null);
     const [isSubscribed, setIsSubscribed] = useState(false);
+
+    // Detect if already subscribed on mount or profile change
+    useEffect(() => {
+        if (profile?.push_subscription) {
+            setIsSubscribed(true);
+        } else if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            setIsSubscribed(true);
+        }
+    }, [profile]);
 
     // Filter notifications from last 48 hours for the panel display
     const visibleNotifications = announcements.filter(n => {
