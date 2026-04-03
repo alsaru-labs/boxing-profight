@@ -251,15 +251,26 @@ export async function getPlatformOmniData(userId: string, monthOverride?: string
             const fullRevenueHistory = results[8].status === "fulfilled" ? (results[8].value as any).documents : [];
 
             const totalRevenue = monthlyRevenueDoc ? (monthlyRevenueDoc.amount || 0) : 0;
-            const paidStudentIds = new Set(currentMonthPayments.map((p: any) => p.student_id));
-            const hydratedProfiles = allProfiles.map((p: any) => ({
-                ...p,
-                is_paid: paidStudentIds.has(p.$id)
-            }));
+            
+            // 🗺️ Diccionario de pagos del mes para hidratación O(1)
+            const paymentsMap = new Map();
+            currentMonthPayments.forEach((p: any) => paymentsMap.set(p.student_id, p));
+
+            const hydratedProfiles = allProfiles.map((p: any) => {
+                const payment = paymentsMap.get(p.$id);
+                return {
+                    ...p,
+                    is_paid: !!payment,
+                    payment_method: payment ? payment.method : null,
+                    payment_amount: payment ? payment.amount : null,
+                    payment_id: payment ? payment.$id : null
+                };
+            });
+
             const totalStudents = allProfiles.length;
             const activePaidCount = hydratedProfiles.filter((p: any) => p.is_paid).length;
             const unpaidCount = Math.max(0, totalStudents - activePaidCount);
-            const paidStudentIdsArray = Array.from(paidStudentIds);
+            const paidStudentIdsArray = Array.from(paymentsMap.keys());
 
             adminData = {
                 studentsList: hydratedProfiles,
@@ -341,7 +352,23 @@ export async function handleCreateOrReactivateStudent(form: any) {
                 } 
             );
             try { await users.updateStatus(profile.user_id, true); } catch (e) { }
-            return { success: true, profile: JSON.parse(JSON.stringify(updated)), reactivated: true };
+            // 🚨 ENRICH: Antes de devolver, comprobamos si tiene pago este mes
+            const now = new Date();
+            const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            const payment = await databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
+                sdk.Query.equal("student_id", updated.$id),
+                sdk.Query.equal("month", currentMonthStr),
+                sdk.Query.limit(1)
+            ]).catch(() => ({ total: 0, documents: [] }));
+
+            const enriched = {
+                ...updated,
+                is_paid: payment.total > 0,
+                payment_method: payment.total > 0 ? (payment.documents[0] as any).method : null,
+                payment_amount: payment.total > 0 ? (payment.documents[0] as any).amount : null
+            };
+
+            return { success: true, profile: JSON.parse(JSON.stringify(enriched)), reactivated: true };
         }
 
         const uniqueRef = sdk.ID.unique();

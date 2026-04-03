@@ -104,13 +104,14 @@ export function useAdminActions({
       const newProfile = result.profile;
 
       if (result.reactivated) {
+        setStudentsList((prev: any[]) => prev.map(s => s.$id === newProfile.$id ? { ...s, ...newProfile } : s));
         showAlert("Reactivación Exitosa", `Se ha reactivado la cuenta de ${newProfile.name} ${newProfile.last_name || ""}.`, "success");
       } else {
+        // Por ser creación nueva, el Realtime listener lo añadirá solo, 
+        // pero podemos añadirlo aquí también para mayor velocidad si preferimos.
         showAlert("Éxito", "Alumno registrado correctamente. Se le ha enviado el acceso.", "success");
       }
 
-      // 🛡️ ZERO-MANUAL-UPDATE: AdminContext's REALTIME listener handles adding the row 
-      // and incrementing counters automatically. This prevents double-counting (0 -> 2).
       return result;
     } catch (err) {
       console.error(err);
