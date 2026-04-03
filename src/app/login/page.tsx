@@ -57,6 +57,9 @@ export default function LoginPage() {
     try {
       setLoading(true);
       setError("");
+      // @ts-ignore
+      const { PROJECT_ID } = await import("@/lib/appwrite");
+      console.log(`[LOGIN] Intento de sesión para Proyecto: ${PROJECT_ID}`);
 
       // Create session safely
       try {

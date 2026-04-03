@@ -59,6 +59,9 @@ export async function createAdminClient() {
     console.warn("[Appwrite Admin] Advertencia: La llave de API es sospechosamente corta.");
   }
 
+  const apiKeyNameUsed = !!process.env.NEXT_BOXING_AWR_KEY ? "NEXT_BOXING_AWR_KEY" : "APPWRITE_API_KEY";
+  console.log(`[Appwrite Admin] Configuring Client: Project = ${PUBLIC_PROJECT_ID}, KeySource = ${apiKeyNameUsed}`);
+
   const client = new Client()
     .setEndpoint(PUBLIC_ENDPOINT)
     .setProject(PUBLIC_PROJECT_ID)
