@@ -188,7 +188,7 @@ export async function getPlatformOmniData(userId: string, monthOverride?: string
         const currentMonthStr = monthOverride || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
         // First, get the profile to know if it's admin
-        const profile = await databases.getDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_PROFILES, documentId: userId }).catch(() => null);
+        const profile = await databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, userId).catch(() => null);
 
         if (!profile) return { success: false, error: "Perfil no encontrado (Inconsistencia de datos)." };
         const isAdmin = profile.role === "admin";
@@ -208,11 +208,11 @@ export async function getPlatformOmniData(userId: string, monthOverride?: string
                 sdk.Query.select(["$id", "amount", "method", "month"])
             ]),
             getAnnouncementsCached(),
-            databases.listDocuments({ databaseId: DATABASE_ID, collectionId: COLLECTION_NOTIFICATIONS_READ, queries: [
+            databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, [
                 sdk.Query.equal("user_id", userId),
                 sdk.Query.limit(200),
-                sdk.Query.select(["notification_id"])
-            ]}).catch(() => ({ documents: [] }))
+                sdk.Query.select(["notifications_id"])
+            ]).catch(() => ({ documents: [] }))
         ];
 
         // If admin, attach the heavy analytics and history to the promise array
@@ -231,7 +231,16 @@ export async function getPlatformOmniData(userId: string, monthOverride?: string
         const bookings = results[1].status === "fulfilled" ? (results[1].value as any).documents : [];
         const selfPayments = results[2].status === "fulfilled" ? results[2].value : { total: 0 };
         const announcements = results[3].status === "fulfilled" ? results[3].value : [];
-        const readNotifications = results[4].status === "fulfilled" ? (results[4].value as any).documents.map((r: any) => r.notification_id) : [];
+        
+        console.log(`[OMNI-FETCH] Results: Classes=${classes.length}, Bookings=${bookings.length}, Payments=${selfPayments.total}, Announcements=${announcements.length}`);
+
+        // 🚨 SYNC: Recuperar notificaciones leídas (Total Reset)
+        const notificationsRes = results[4].status === "fulfilled" ? (results[4].value as any) : { documents: [] };
+        const readNotifications = notificationsRes.documents.map((r: any) => r.notifications_id);
+        
+        if (readNotifications.length === 0 && (notificationsRes.total || 0) > 0) {
+            console.warn(`[getPlatformOmniData] Mismatch in notifications_id persistence logic.`);
+        }
 
         let adminData = null;
 
@@ -254,6 +263,8 @@ export async function getPlatformOmniData(userId: string, monthOverride?: string
 
             adminData = {
                 studentsList: hydratedProfiles,
+                classes,
+                announcements,
                 dashboard: {
                     totalStudents,
                     unpaidCount,
@@ -672,7 +683,25 @@ export async function publishAnnouncementAction(data: { title: string, content: 
 export async function deleteAnnouncement(id: string) {
     const { databases } = await createAdminClient();
     try {
+        // 1. 🧹 LIMPIEZA PROACTIVA: Buscar y borrar todos los registros de lectura asociados
+        // Optimizamos cargando solo IDs para la purga masiva.
+        const linkedReads = await databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, [
+            sdk.Query.equal("notifications_id", id),
+            sdk.Query.limit(500),
+            sdk.Query.select(["$id"])
+        ]);
+
+        if (linkedReads.total > 0) {
+            console.log(`[Announcements] Purging ${linkedReads.total} residual read records for notification: ${id}`);
+            const deletePromises = linkedReads.documents.map(doc => 
+                databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, doc.$id)
+            );
+            await Promise.all(deletePromises);
+        }
+
+        // 2. 💣 Borrado Principal
         await databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, id);
+        
         revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max" as any);
         return { success: true };
     } catch (error: any) {
@@ -683,9 +712,16 @@ export async function deleteAnnouncement(id: string) {
 export async function markNotificationAsReadAction(userId: string, notificationId: string) {
     const { databases } = await createAdminClient();
     try {
-        await databases.createDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, sdk.ID.unique(), {
-                    user_id: userId, notification_id: notificationId, read_at: new Date().toISOString()
-                });
+        await databases.createDocument(
+            DATABASE_ID, 
+            COLLECTION_NOTIFICATIONS_READ, 
+            sdk.ID.unique(), 
+            {
+                user_id: userId, 
+                notifications_id: notificationId, 
+                read_at: new Date().toISOString()
+            }
+        );
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -696,9 +732,16 @@ export async function markAllNotificationsAsReadAction(userId: string, notificat
     const { databases } = await createAdminClient();
     try {
         const promises = notificationIds.map(id => 
-            databases.createDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_NOTIFICATIONS_READ, documentId: sdk.ID.unique(), data: {
-                            user_id: userId, notification_id: id, read_at: new Date().toISOString()
-                        } })
+            databases.createDocument(
+                DATABASE_ID, 
+                COLLECTION_NOTIFICATIONS_READ, 
+                sdk.ID.unique(), 
+                {
+                    user_id: userId, 
+                    notifications_id: id, 
+                    read_at: new Date().toISOString()
+                }
+            )
         );
         await Promise.all(promises);
         return { success: true };
@@ -714,10 +757,20 @@ export async function markAllNotificationsAsReadAction(userId: string, notificat
 export async function createClassServer(newClass: any) {
     const { databases } = await createAdminClient();
     try {
-        const created = await databases.createDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_CLASSES, documentId: sdk.ID.unique(), data: {
-                    name: newClass.name, date: newClass.date, time: newClass.time, coach: newClass.coach,
-                    capacity: Number(newClass.capacity), registeredCount: 0, status: "Activa"
-                } });
+        const created = await databases.createDocument(
+            DATABASE_ID, 
+            COLLECTION_CLASSES, 
+            sdk.ID.unique(), 
+            {
+                name: newClass.name, 
+                date: newClass.date, 
+                time: newClass.time, 
+                coach: newClass.coach,
+                capacity: Number(newClass.capacity), 
+                registeredCount: 0, 
+                status: "Activa"
+            }
+        );
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
         return { success: true, class: JSON.parse(JSON.stringify(created)) };
     } catch (error: any) {
@@ -859,15 +912,20 @@ export const getAvailableClassesCached = async () => {
 
 export const getAnnouncementsCached = async () => {
     const { databases } = await createAdminClient();
-    const res = await databases.listDocuments(
-        DATABASE_ID, 
-        COLLECTION_NOTIFICATIONS, 
-        [
-            sdk.Query.orderDesc("$createdAt"), 
-            sdk.Query.limit(20)
-        ] 
-    );
-    return res.documents;
+    try {
+        const res = await databases.listDocuments(
+            DATABASE_ID, 
+            COLLECTION_NOTIFICATIONS, 
+            [
+                sdk.Query.orderDesc("$createdAt"), 
+                sdk.Query.limit(20)
+            ] 
+        );
+        return res.documents;
+    } catch (e: any) {
+        console.error("[getAnnouncementsCached] Error:", e.message);
+        return [];
+    }
 };
 
 

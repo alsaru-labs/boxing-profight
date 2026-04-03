@@ -1,12 +1,12 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useRef } from "react";
-import { 
-  account, 
+import {
+  account,
   databases,
   DATABASE_ID,
   COLLECTION_PROFILES,
-  COLLECTION_PAYMENTS, 
+  COLLECTION_PAYMENTS,
   COLLECTION_BOOKINGS,
   COLLECTION_CLASSES,
   COLLECTION_NOTIFICATIONS,
@@ -30,8 +30,8 @@ interface AuthContextType {
   readNotifications: string[];
   unreadNotificationsCount: number;
   adminOmniData: any | null;
-  refreshProfile: () => Promise<void>;
-  refreshGlobalData: () => Promise<void>;
+  refreshProfile: (silent?: boolean, force?: boolean) => Promise<void>;
+  refreshGlobalData: (silent?: boolean, force?: boolean) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -95,19 +95,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUserAndProfile = React.useCallback(async (silent = false, force = false) => {
     const now = Date.now();
-    
+
     // Si hay una promesa en vuelo y no forzamos, nos colgamos de ella
     if (globalAuthPromise && !force) {
-        try { await globalAuthPromise; } catch { }
-        return;
+      try { await globalAuthPromise; } catch { }
+      return;
     }
-    
+
     // Cooldown absoluto (5 segundos)
     if (!force && (now - globalAuthFetchTime < 5000)) return;
     if (silent && !force && (now - globalAuthFetchTime < 300000)) return;
 
     globalAuthFetchTime = now;
-    
+
     // Creamos la promesa principal que todos compartirán
     const fetchCore = async () => {
       try {
@@ -122,7 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setAvailableClasses(result.data.classes);
           setAnnouncements(result.data.announcements);
           setReadNotifications(result.data.readNotifications);
-          
+
           if (result.data.isAdmin && result.data.adminData) {
             // Guardamos la tajada "Omni" de admin en memoria para que AdminContext beba de aquí sin refetchear
             setAdminOmniData(result.data.adminData);
@@ -143,7 +143,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    if (!silent) setLoading(true);
+    // Si ya tenemos un perfil en memoria, las llamadas posteriores deben ser silentes por defecto
+    const isActuallySilent = silent || !!profile;
+
+    if (!isActuallySilent) setLoading(true);
+
     globalAuthPromise = fetchCore();
     await globalAuthPromise;
   }, []);
@@ -179,12 +183,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // ⚡️ Pagos (Detección de estado de pago en el perfil)
       if (collectionId === COLLECTION_PAYMENTS) {
         if (payload.student_id === user.$id) {
-           const d = new Date();
-           const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            if (payload.month === currentMonthStr) {
-              const hasPaid = !event.includes(".delete");
-              setProfile((prev: any) => prev ? { ...prev, is_paid: hasPaid } : null);
-            }
+          const d = new Date();
+          const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          if (payload.month === currentMonthStr) {
+            const hasPaid = !event.includes(".delete");
+            setProfile((prev: any) => prev ? { ...prev, is_paid: hasPaid } : null);
+          }
         }
         return;
       }
@@ -194,7 +198,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (event.includes(".create")) {
           setAvailableClasses(prev => {
             if (prev.some(c => c.$id === payload.$id)) return prev;
-            return [...prev, payload].sort((a,b) => a.date.localeCompare(b.date));
+            return [...prev, payload].sort((a, b) => a.date.localeCompare(b.date));
           });
           return;
         }
@@ -242,8 +246,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (collectionId === COLLECTION_NOTIFICATIONS_READ && event.includes(".create") && payload.user_id === user.$id) {
         setReadNotifications(prev => {
-           if (prev.includes(payload.notification_id)) return prev;
-           return [...prev, payload.notification_id];
+           if (prev.includes(payload.notifications_id)) return prev;
+           return [...prev, payload.notifications_id];
         });
         return;
       }

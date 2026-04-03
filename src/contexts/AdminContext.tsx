@@ -90,6 +90,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       // El servidor ya nos da hydratedProfiles con is_paid! Zero client computation.
       setStudentsList(adminOmniData.studentsList || []);
       setClassesList(adminOmniData.classes || []); 
+      setAnnouncements(adminOmniData.announcements || []); 
       setTotalStudents(adminOmniData.dashboard?.totalStudents || 0);
       setMonthlyRevenue(adminOmniData.dashboard?.totalRevenue || 0);
       setUnpaidCount(adminOmniData.dashboard?.unpaidCount || 0);

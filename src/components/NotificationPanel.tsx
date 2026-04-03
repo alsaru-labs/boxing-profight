@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Bell, X, Info, AlertTriangle, CheckCircle2, Loader2, Signal } from "lucide-react";
 import { markNotificationAsReadAction, markAllNotificationsAsReadAction } from "@/app/sys-director/actions";
 import { motion, AnimatePresence } from "framer-motion";
@@ -32,6 +32,7 @@ export default function NotificationPanel() {
     const [isOpen, setIsOpen] = useState(false);
     const [isMarking, setIsMarking] = useState<string | null>(null);
     const [isSubscribed, setIsSubscribed] = useState(false);
+    const [localReadIds, setLocalReadIds] = useState<string[]>([]); // Optimistic UI
 
     // Detect if already subscribed on mount or profile change
     useEffect(() => {
@@ -42,6 +43,16 @@ export default function NotificationPanel() {
         }
     }, [profile]);
 
+    // Combined read IDs for display (Global + Local Optimistic)
+    const allReadIds = useMemo(() => {
+        return Array.from(new Set([...readNotifications, ...localReadIds]));
+    }, [readNotifications, localReadIds]);
+
+    // Optimistic unread count
+    const optimisticUnreadCount = useMemo(() => {
+        return announcements.filter(n => !allReadIds.includes(n.$id)).length;
+    }, [announcements, allReadIds]);
+
     // Filter notifications from last 48 hours for the panel display
     const visibleNotifications = announcements.filter(n => {
         const createdDate = new Date(n.$createdAt);
@@ -51,9 +62,10 @@ export default function NotificationPanel() {
     });
 
     const handleMarkAsRead = async (notifId: string) => {
-        if (readNotifications.includes(notifId) || isMarking) return;
+        if (allReadIds.includes(notifId) || isMarking) return;
 
         setIsMarking(notifId);
+        setLocalReadIds(prev => [...prev, notifId]); // Optimistic update
         try {
             await markNotificationAsReadAction(userId, notifId);
             // The Realtime in AuthContext will detect the change and update readNotifications.
@@ -65,12 +77,13 @@ export default function NotificationPanel() {
     };
 
     const handleMarkAllAsRead = async () => {
-        const unreadNotifs = announcements.filter((n: any) => !readNotifications.includes(n.$id));
+        const unreadNotifs = announcements.filter((n: any) => !allReadIds.includes(n.$id));
         if (unreadNotifs.length === 0 || isMarking) return;
 
         setIsMarking("all");
+        const unreadIds = unreadNotifs.map((n: any) => n.$id);
+        setLocalReadIds(prev => [...prev, ...unreadIds]); // Optimistic update
         try {
-            const unreadIds = unreadNotifs.map((n: any) => n.$id);
             await markAllNotificationsAsReadAction(userId, unreadIds);
         } catch (e) {
             console.error("Error marking all as read:", e);
@@ -91,16 +104,17 @@ export default function NotificationPanel() {
                 onClick={() => {
                     const newOpen = !isOpen;
                     setIsOpen(newOpen);
-                    if (newOpen) refreshGlobalData(); // Silent refresh on open
+                    if (newOpen) refreshGlobalData(true); // Explicitly silent refresh on open
+
                 }}
                 className="relative p-2.5 rounded-full hover:bg-white/10 transition-colors flex items-center justify-center text-white/80 hover:text-white"
             >
                 <Bell className="w-6 h-6 md:w-5 md:h-5" />
-                {unreadCount > 0 && (
+                {optimisticUnreadCount > 0 && (
                     <span className="absolute top-1.5 right-2 flex h-5 w-5 pointer-events-none">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-5 w-5 bg-red-600 text-[10px] items-center justify-center font-bold text-white border-2 border-black/50">
-                            {unreadCount}
+                            {optimisticUnreadCount}
                         </span>
                     </span>
                 )}
@@ -126,7 +140,7 @@ export default function NotificationPanel() {
                                 <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
                                     <div className="flex flex-col">
                                         <h3 className="font-bold text-lg text-white">{LITERALS.DASHBOARD.ANNOUNCEMENTS.PANEL_TITLE}</h3>
-                                        {unreadCount > 0 && (
+                                        {optimisticUnreadCount > 0 && (
                                             <button 
                                                 onClick={(e) => {
                                                     e.stopPropagation();
@@ -184,7 +198,7 @@ export default function NotificationPanel() {
                                         </div>
                                     ) : (
                                         visibleNotifications.map((n: any) => {
-                                            const isRead = readNotifications.includes(n.$id);
+                                            const isRead = allReadIds.includes(n.$id);
                                             return (
                                                 <div
                                                     key={n.$id}
