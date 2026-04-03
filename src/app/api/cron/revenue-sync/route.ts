@@ -20,7 +20,7 @@ export async function GET(request: Request) {
         const result = await ensureMonthlyRevenueRecord();
 
         if (result.success) {
-            console.log(`[CRON] Success: ${result.message}`);
+            console.log(`[CRON] Success: Revenue month synced.`);
             return NextResponse.json(result);
         } else {
             console.error("[CRON] Sync failed:", result.error);

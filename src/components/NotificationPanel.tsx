@@ -21,8 +21,9 @@ export default function NotificationPanel() {
         user, 
         loading: authLoading, 
         announcements, 
-        readNotifications, // ⚡️ Usamos el estado global
+        readNotifications,
         unreadNotificationsCount: unreadCount,
+        refreshGlobalData
     } = useAuth();
     const userId = user?.$id || "";
     const isLoggedIn = !!user;
@@ -31,7 +32,7 @@ export default function NotificationPanel() {
     const [isMarking, setIsMarking] = useState<string | null>(null);
     const [isSubscribed, setIsSubscribed] = useState(false);
 
-    // ... (useEffect y visibleNotifications se mantienen parecidos)
+    // Filter notifications from last 48 hours for the panel display
     const visibleNotifications = announcements.filter(n => {
         const createdDate = new Date(n.$createdAt);
         const fortyEightHoursAgo = new Date();
@@ -45,8 +46,7 @@ export default function NotificationPanel() {
         setIsMarking(notifId);
         try {
             await markNotificationAsReadAction(userId, notifId);
-            // 💡 No actualizamos estado local. 
-            // El Realtime en AuthContext lo detectará y actualizará readNotifications.
+            // The Realtime in AuthContext will detect the change and update readNotifications.
         } catch (e) {
             console.error("Error marking as read:", e);
         } finally {
@@ -62,7 +62,6 @@ export default function NotificationPanel() {
         try {
             const unreadIds = unreadNotifs.map((n: any) => n.$id);
             await markAllNotificationsAsReadAction(userId, unreadIds);
-            // El Realtime hará el resto
         } catch (e) {
             console.error("Error marking all as read:", e);
         } finally {
@@ -79,7 +78,11 @@ export default function NotificationPanel() {
         >
             {/* Bell Icon */}
             <button
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={() => {
+                    const newOpen = !isOpen;
+                    setIsOpen(newOpen);
+                    if (newOpen) refreshGlobalData(); // Silent refresh on open
+                }}
                 className="relative p-2.5 rounded-full hover:bg-white/10 transition-colors flex items-center justify-center text-white/80 hover:text-white"
             >
                 <Bell className="w-6 h-6 md:w-5 md:h-5" />
@@ -136,7 +139,7 @@ export default function NotificationPanel() {
                                 </div>
 
                                 <div className="max-h-[70vh] overflow-y-auto p-2 space-y-2 custom-scrollbar">
-                                    {/* Push Permission Button - Solo se muestra si NO está suscrito */}
+                                    {/* Push Permission Button - Only shown if not subscribed */}
                                     {!isSubscribed && (
                                         <div className="mb-2 p-3 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between gap-3 group hover:bg-white/10 transition-colors">
                                             <div className="flex items-center gap-3">
