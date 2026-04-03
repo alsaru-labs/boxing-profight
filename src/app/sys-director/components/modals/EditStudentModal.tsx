@@ -14,10 +14,11 @@ interface EditStudentModalProps {
   onOpenChange: (open: boolean) => void;
   student: any;
   isUpdating: boolean;
-  onSave: (student: any, lastName: string, email: string, phone: string, level: string) => Promise<boolean>;
+  onSave: (student: any, name: string, lastName: string, email: string, phone: string, level: string) => Promise<boolean>;
 }
 
 export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, onSave }: EditStudentModalProps) {
+  const [name, setName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -27,6 +28,7 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
 
   useEffect(() => {
     if (student && isOpen) {
+      setName(student.name || "");
       setLastName(student.last_name || "");
       setEmail(student.email || "");
       setPhone(student.phone || "");
@@ -38,12 +40,13 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
 
   const handleApply = async () => {
     // Basic validations
+    if (!name.trim()) return;
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setEmailError("Formato de correo no válido.");
       return;
     }
 
-    const success = await onSave(student, lastName, email, phone, level);
+    const success = await onSave(student, name, lastName, email, phone, level);
     if (success) {
       onOpenChange(false);
     }
@@ -69,7 +72,7 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
             <UserCog className="w-6 h-6 text-blue-400" /> Editar Alumno
           </DialogTitle>
           <DialogDescription className="text-white/40 font-medium italic">
-            Actualiza los datos de <strong className="text-white">{student?.name} {student?.last_name || ""}</strong>.
+            Actualiza los datos de <strong className="text-white">{name} {lastName}</strong>.
           </DialogDescription>
         </DialogHeader>
 
@@ -77,11 +80,12 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nombre (Fijo)</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nombre</Label>
                 <Input
-                  value={student?.name || ""}
-                  disabled
-                  className="bg-white/[0.03] border-white/5 text-white/30 cursor-not-allowed h-12 font-bold opacity-60"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Nombre"
+                  className="bg-white/5 border-white/10 text-white focus:border-blue-500/50 transition-all font-bold h-12"
                 />
               </div>
               <div className="space-y-2">

@@ -63,10 +63,11 @@ export function useAdminActions({
     }
   };
 
-  const handleSaveProfile = async (selectedStudent: any, editLastName: string, editEmail: string, editPhone: string, editLevel: string) => {
+  const handleSaveProfile = async (selectedStudent: any, editName: string, editLastName: string, editEmail: string, editPhone: string, editLevel: string) => {
     try {
       setIsUpdating(true);
       const result = await updateStudentProfileAction(selectedStudent.$id, {
+        name: editName,
         last_name: editLastName,
         email: editEmail.toLowerCase(),
         phone: editPhone,
@@ -79,7 +80,7 @@ export function useAdminActions({
       }
 
       setStudentsList(studentsList.map(s =>
-        s.$id === selectedStudent.$id ? { ...s, last_name: editLastName, email: editEmail.toLowerCase(), phone: editPhone, level: editLevel } : s
+        s.$id === selectedStudent.$id ? { ...s, name: editName, last_name: editLastName, email: editEmail.toLowerCase(), phone: editPhone, level: editLevel } : s
       ));
       return true;
     } catch (error) {

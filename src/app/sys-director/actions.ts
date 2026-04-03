@@ -434,6 +434,7 @@ export async function updateStudentProfileAction(profileId: string, data: any) {
             COLLECTION_PROFILES, 
             profileId, 
             {
+                name: data.name,
                 last_name: data.last_name,
                 email: data.email?.toLowerCase(),
                 phone: data.phone,
