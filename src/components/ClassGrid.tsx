@@ -206,18 +206,22 @@ export function ClassGrid({
                                                             </div>
                                                         )}
 
-                                                        <div className="flex justify-between text-[9px] md:text-xs mb-0.5 md:mb-2 font-bold uppercase tracking-wider">
-                                                            <span className={isFull ? 'text-red-400' : 'text-emerald-400'}>
+                                                        <div className="flex justify-between text-[10px] md:text-sm mb-1.5 md:mb-3 font-black uppercase tracking-[0.15em]">
+                                                            <span className={isFull ? 'text-rose-500 animate-pulse' : 'text-emerald-400'}>
                                                                 {isFull ? LITERALS.CLASS_CARD.FULL : LITERALS.CLASS_CARD.FREE_SPACES(cls.capacity - cls.registeredCount)}
                                                             </span>
-                                                            <span className="text-white/20">{LITERALS.CLASS_CARD.TOTAL_CAPACITY(cls.capacity)}</span>
+                                                            <span className="text-white/10">{LITERALS.CLASS_CARD.TOTAL_CAPACITY(cls.capacity)}</span>
                                                         </div>
-                                                        <div className="h-1 w-full md:h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/5 mb-2 md:mb-6">
+                                                        <div className="h-1.5 w-full md:h-2 bg-zinc-950 rounded-full overflow-hidden border border-white/5 mb-3 md:mb-8 p-[1px]">
                                                             <motion.div
                                                                 initial={{ width: 0 }}
                                                                 animate={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }}
-                                                                transition={{ duration: 1, ease: "easeOut" }}
-                                                                className={`h-full ${isFull ? 'bg-red-500' : 'bg-gradient-to-r from-emerald-600 via-emerald-500 to-emerald-400'}`}
+                                                                transition={{ duration: 1.2, ease: [0.34, 1.56, 0.64, 1] }}
+                                                                className={`h-full rounded-full shadow-[0_0_15px_rgba(16,185,129,0.2)] ${isFull 
+                                                                    ? 'bg-gradient-to-r from-rose-600 to-rose-400 shadow-rose-500/20' 
+                                                                    : (cls.registeredCount / cls.capacity) > 0.8
+                                                                        ? 'bg-gradient-to-r from-amber-600 to-amber-400 shadow-amber-500/20'
+                                                                        : 'bg-gradient-to-r from-emerald-600 via-emerald-500 to-emerald-400 shadow-emerald-500/20'}`}
                                                             />
                                                         </div>
 
@@ -232,11 +236,11 @@ export function ClassGrid({
                                                                     <Button
                                                                         onClick={() => onBookClass?.(cls)}
                                                                         disabled={isFull || isProcessingBooking === cls.$id || !canBook}
-                                                                        className={`w-full font-black h-8 md:h-14 text-[9px] md:text-sm uppercase tracking-widest rounded-xl transition-all duration-300 ${isFull
-                                                                            ? 'bg-red-500/10 text-red-500/50 border border-red-500/20 cursor-not-allowed shadow-none'
+                                                                        className={`w-full font-black h-9 md:h-16 text-[10px] md:text-sm uppercase tracking-[0.2em] rounded-xl md:rounded-2xl transition-all duration-500 ${isFull
+                                                                            ? 'bg-zinc-900 text-zinc-600 border border-white/5 cursor-not-allowed shadow-none'
                                                                             : !canBook
-                                                                                ? 'bg-amber-500/10 text-amber-500/50 border border-amber-500/20 cursor-not-allowed shadow-none'
-                                                                                : 'bg-white text-black hover:bg-emerald-500 hover:text-white hover:scale-[1.02] shadow-[0_10px_20px_rgba(0,0,0,0.2)] hover:shadow-[0_15px_30px_rgba(16,185,129,0.3)] active:scale-95'
+                                                                                ? 'bg-amber-500/5 text-amber-500/40 border border-amber-500/10 cursor-not-allowed shadow-none'
+                                                                                : 'bg-white text-black hover:bg-emerald-500 hover:text-white hover:scale-[1.03] hover:shadow-[0_20px_40px_rgba(16,185,129,0.25)] active:scale-95 border-b-4 border-zinc-200 hover:border-emerald-700'
                                                                             }`}
                                                                     >
                                                                         {isProcessingBooking === cls.$id ? (
