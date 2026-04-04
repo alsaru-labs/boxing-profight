@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { 
-  updateStudentProfileAction, 
-  createClassServer, 
-  handleCreateOrReactivateStudent, 
-  recordPaymentAction, 
-  deletePaymentAction, 
+import {
+  updateStudentProfileAction,
+  createClassServer,
+  handleCreateOrReactivateStudent,
+  recordPaymentAction,
+  deletePaymentAction,
   deleteClassAction,
   autoGenerateNextWeekClasses
 } from "../actions";
@@ -61,7 +61,7 @@ export function useAdminActions({
       // Update local state for immediate feedback (Individual student row)
       const newList = studentsList.map(s => s.$id === studentId ? { ...s, is_paid: newStatus, payment_method: newStatus ? paymentMethod : null } : s);
       setStudentsList(newList);
-      
+
       // aggregators (revenue, unpaidCount) will be updated by AdminContext's REALTIME subscription
       return true;
     } catch (error) {
@@ -153,7 +153,7 @@ export function useAdminActions({
       setIsUpdating(false);
     }
   };
-
+  /** Se oculta esta funcion por ahora ya que tenemos el cronJob
   const handleAutoGenerateWeekClasses = async () => {
     showConfirm(
       "Generar Clases",
@@ -169,9 +169,9 @@ export function useAdminActions({
               showAlert("Info", "No se han generado clases nuevas porque ya existían todas.", "info");
             } else {
               setClassesList((prev: any[]) => {
-                  const existingIds = new Set(prev.map(c => c.$id));
-                  const newClasses = (result.classes || []).filter((c: any) => !existingIds.has(c.$id));
-                  return [...prev, ...newClasses].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                const existingIds = new Set(prev.map(c => c.$id));
+                const newClasses = (result.classes || []).filter((c: any) => !existingIds.has(c.$id));
+                return [...prev, ...newClasses].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
               });
               showAlert("Éxito", `Generadas ${result.count} clases para la semana del ${result.period || "seleccionada"}.`, "success");
             }
@@ -186,8 +186,7 @@ export function useAdminActions({
         }
       }
     );
-  };
-
+  };*/
   const handleDeleteClass = async (classObj: any) => {
     try {
       const startTime = classObj.time.split('-')[0].trim();
@@ -241,12 +240,12 @@ export function useAdminActions({
 
           if (result.success) {
             setStudentsList((prev: any[]) => prev.filter(s => s.$id !== profileId));
-            
+
             // 🛡️ ACTUALIZACIÓN MANUAL DE CONTADORES (Optimista)
             // Esto evita que el dashboard se quede "congelado" debido a la race condition con Realtime
             setTotalStudents((t: number) => Math.max(0, t - 1));
             if (!paidStudentIds.has(profileId)) {
-                setUnpaidCount((u: number) => Math.max(0, u - 1));
+              setUnpaidCount((u: number) => Math.max(0, u - 1));
             }
 
             showAlert("Éxito", "Alumno eliminado permanentemente de la base de datos.", "success");
@@ -272,7 +271,6 @@ export function useAdminActions({
     handleSaveProfile,
     handleCreateStudent,
     handleCreateClass,
-    handleAutoGenerateWeekClasses,
     handleDeleteClass,
     handlePermanentDeleteStudent
   };

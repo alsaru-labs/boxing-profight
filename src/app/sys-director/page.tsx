@@ -101,7 +101,6 @@ export default function AdminDashboard() {
     handleSaveProfile,
     handleCreateStudent,
     handleCreateClass,
-    handleAutoGenerateWeekClasses,
     handleDeleteClass,
     handlePermanentDeleteStudent
   } = useAdminActions({
@@ -248,9 +247,6 @@ export default function AdminDashboard() {
                   <p className="text-white/50 text-sm mt-1">{LITERALS.DASHBOARD.CLASSES.DESCRIPTION}</p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <Button variant="outline" className="bg-zinc-900 border-white/10 text-white" onClick={handleAutoGenerateWeekClasses} disabled={isUpdating}>
-                    <CalendarDays className="w-4 h-4 mr-2 text-blue-400" /> {LITERALS.DASHBOARD.CLASSES.AUTO_GENERATE}
-                  </Button>
                   <Button onClick={() => setIsClassModalOpen(true)} className="bg-emerald-500 hover:bg-emerald-600 text-white">
                     <Plus className="w-4 h-4 mr-2" /> {LITERALS.DASHBOARD.CLASSES.SCHEDULE_BUTTON}
                   </Button>
