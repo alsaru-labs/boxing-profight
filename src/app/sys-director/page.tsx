@@ -46,7 +46,8 @@ export default function AdminDashboard() {
     selectedMonth,
     setSelectedMonth,
     loadDashboardData,
-    refreshStudentsList
+    refreshStudentsList,
+    paidStudentIds
   } = useAdminData();
 
   // Modal States
@@ -106,7 +107,7 @@ export default function AdminDashboard() {
   } = useAdminActions({
     studentsList, setStudentsList, classesList, setClassesList,
     setMonthlyRevenue, setUnpaidCount, setTotalStudents,
-    showAlert, showConfirm, selectedMonth
+    showAlert, showConfirm, selectedMonth, paidStudentIds
   });
 
   const handleActionClick = (student: any) => {
@@ -232,9 +233,7 @@ export default function AdminDashboard() {
               handleActionClick={handleActionClick}
               handleOpenEditModal={handleOpenEditModal}
               deleteStudentAccount={deleteStudentAccount}
-              handlePermanentDeleteStudent={(pId, uId, name) => {
-                handlePermanentDeleteStudent(pId, uId, name);
-              }}
+              handlePermanentDeleteStudent={handlePermanentDeleteStudent}
               setStudentsList={setStudentsList}
               showAlert={showAlert as any}
               showConfirm={showConfirm as any}

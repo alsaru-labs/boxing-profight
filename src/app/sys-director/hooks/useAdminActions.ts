@@ -14,6 +14,7 @@ interface UseAdminActionsProps {
   showAlert: (title: string, description: string, variant?: any) => void;
   showConfirm: (title: string, description: string, onConfirm: () => void | Promise<void>, variant?: any) => void;
   selectedMonth: string;
+  paidStudentIds: Set<string>;
 }
 
 export function useAdminActions({
@@ -26,7 +27,8 @@ export function useAdminActions({
   setTotalStudents,
   showAlert,
   showConfirm,
-  selectedMonth
+  selectedMonth,
+  paidStudentIds
 }: UseAdminActionsProps) {
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -230,8 +232,15 @@ export function useAdminActions({
           const result = await permanentDeleteStudentAction(profileId, userId);
 
           if (result.success) {
-            setStudentsList(studentsList.filter(s => s.$id !== profileId));
-            // NO MANUAL COUNTER UPDATE: AdminContext handles it via Realtime (.delete) once added
+            setStudentsList((prev: any[]) => prev.filter(s => s.$id !== profileId));
+            
+            // 🛡️ ACTUALIZACIÓN MANUAL DE CONTADORES (Optimista)
+            // Esto evita que el dashboard se quede "congelado" debido a la race condition con Realtime
+            setTotalStudents((t: number) => Math.max(0, t - 1));
+            if (!paidStudentIds.has(profileId)) {
+                setUnpaidCount((u: number) => Math.max(0, u - 1));
+            }
+
             showAlert("Éxito", "Alumno eliminado permanentemente de la base de datos.", "success");
             if (onSuccess) onSuccess();
           } else {

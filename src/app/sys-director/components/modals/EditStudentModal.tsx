@@ -23,8 +23,7 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [level, setLevel] = useState("Iniciación");
-  const [emailError, setEmailError] = useState("");
-  const [phoneError, setPhoneError] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (student && isOpen) {
@@ -33,22 +32,30 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
       setEmail(student.email || "");
       setPhone(student.phone || "");
       setLevel(student.level || "Iniciación");
-      setEmailError("");
-      setPhoneError("");
+      setErrors({});
     }
   }, [student, isOpen]);
 
-  const handleApply = async () => {
-    // Basic validations
-    if (!name.trim()) return;
-    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setEmailError("Formato de correo no válido.");
-      return;
-    }
+  const isEmailValid = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
-    const success = await onSave(student, name, lastName, email, phone, level);
-    if (success) {
+  const isFormValid = 
+    name.trim().length > 0 && 
+    name.length <= 15 &&
+    !/[0-9]/.test(name) &&
+    lastName.trim().length > 0 && 
+    lastName.length <= 50 &&
+    !/[0-9]/.test(lastName) &&
+    isEmailValid(email) &&
+    (!phone || (phone.replace(/\s/g, "").length <= 12 && /^(\+?[0-9]{1,12})$/.test(phone.replace(/\s/g, ""))));
+
+  const handleApply = async () => {
+    if (!isFormValid) return;
+
+    const result = await onSave(student, name, lastName, email, phone, level);
+    if (result) {
       onOpenChange(false);
+    } else {
+        setErrors({ server: "Email ya en uso o error de servidor." });
     }
   };
 
@@ -80,55 +87,77 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nombre</Label>
+                <Label className={`text-[10px] font-black uppercase tracking-widest ${name.length > 15 || /[0-9]/.test(name) ? 'text-red-400' : 'text-white/40'}`}>Nombre</Label>
                 <Input
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => {
+                      const val = e.target.value.replace(/[0-9]/g, "");
+                      if (val.length <= 15) {
+                        setName(val);
+                        if (errors.server) setErrors({});
+                      }
+                  }}
                   placeholder="Nombre"
-                  className="bg-white/5 border-white/10 text-white focus:border-blue-500/50 transition-all font-bold h-12"
+                  className={`bg-white/5 border-white/10 text-white focus:border-blue-500/50 transition-all font-bold h-12 ${/[0-9]/.test(name) || name.length > 15 ? 'border-red-500/50 bg-red-500/5' : ''}`}
                 />
+                {name.length >= 15 && <p className="text-red-400 text-[8px] font-bold uppercase tracking-widest pl-1">Máx 15 caracteres</p>}
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Apellidos</Label>
+                <Label className={`text-[10px] font-black uppercase tracking-widest ${lastName.length > 50 || /[0-9]/.test(lastName) ? 'text-red-400' : 'text-white/40'}`}>Apellidos</Label>
                 <Input
                   value={lastName}
                   placeholder="Apellidos"
-                  onChange={(e) => setLastName(e.target.value)}
-                  className="bg-white/5 border-white/10 text-white focus:border-blue-500/50 transition-all font-bold h-12"
+                  onChange={(e) => {
+                      const val = e.target.value.replace(/[0-9]/g, "");
+                      if (val.length <= 50) {
+                        setLastName(val);
+                        if (errors.server) setErrors({});
+                      }
+                  }}
+                  className={`bg-white/5 border-white/10 text-white focus:border-blue-500/50 transition-all font-bold h-12 ${/[0-9]/.test(lastName) || lastName.length > 50 ? 'border-red-500/50 bg-red-500/5' : ''}`}
                 />
+                {lastName.length >= 50 && <p className="text-red-400 text-[8px] font-bold uppercase tracking-widest pl-1">Máx 50 caracteres</p>}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Correo Electrónico</Label>
+              <Label className={`text-[10px] font-black uppercase tracking-widest ${email && !isEmailValid(email) ? 'text-red-400' : 'text-white/40'}`}>Correo Electrónico</Label>
               <Input
                 type="email"
                 placeholder="email@ejemplo.com"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
-                  if (emailError) setEmailError("");
+                  if (errors.server) setErrors({});
                 }}
-                className={`bg-white/5 border-white/10 text-white focus:border-blue-500/50 transition-all font-bold h-12 ${emailError ? 'border-red-500/50 bg-red-500/5' : ''}`}
+                className={`bg-white/5 border-white/10 text-white focus:border-blue-500/50 transition-all font-bold h-12 ${email && !isEmailValid(email) ? 'border-red-500/50 bg-red-500/5' : ''}`}
               />
-              {emailError && (
-                <p className="text-red-400 text-[10px] font-bold italic tracking-wider pl-1">{emailError}</p>
-              )}
+              {email && !isEmailValid(email) && <p className="text-red-400 text-[8px] font-bold uppercase tracking-widest pl-1">Email no válido</p>}
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Teléfono (WhatsApp)</Label>
+              <Label className={`text-[10px] font-black uppercase tracking-widest ${phone && (phone.length > 12 || !/^(\+?[0-9]*)$/.test(phone)) ? 'text-red-400' : 'text-white/40'}`}>Teléfono (WhatsApp)</Label>
               <Input
                 type="tel"
                 placeholder="+34 600 000 000"
                 value={phone}
                 onChange={(e) => {
-                  setPhone(e.target.value);
-                  if (phoneError) setPhoneError(""); 
+                  const val = e.target.value.replace(/[^0-9+]/g, "");
+                  if (val.length <= 12) {
+                    setPhone(val);
+                    if (errors.server) setErrors({});
+                  }
                 }}
-                className={`bg-white/5 border-white/10 text-white focus:border-blue-500/50 transition-all font-bold h-12 ${phoneError ? 'border-red-500/50 bg-red-500/5' : ''}`}
+                className={`bg-white/5 border-white/10 text-white focus:border-blue-500/50 transition-all font-bold h-12 ${phone && (phone.length > 12 || !/^(\+?[0-9]*)$/.test(phone)) ? 'border-red-500/50 bg-red-500/5' : ''}`}
               />
+              {phone.length >= 12 && <p className="text-red-400 text-[8px] font-bold uppercase tracking-widest pl-1">Máx 12 dígitos</p>}
             </div>
+
+            {errors.server && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                    <p className="text-red-400 text-[9px] font-black text-center uppercase tracking-tighter">{errors.server}</p>
+                </div>
+            )}
 
             <div className="space-y-3">
               <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Nivel de Combate</Label>
@@ -157,8 +186,8 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
             <Button
               size="xl"
               onClick={handleApply}
-              disabled={isUpdating}
-              className="w-full bg-white text-black hover:bg-blue-500 hover:text-white font-black tracking-widest uppercase rounded-xl shadow-xl transition-all disabled:opacity-20"
+              disabled={isUpdating || !isFormValid}
+              className="w-full bg-white text-black hover:bg-blue-400 hover:text-white font-black tracking-widest uppercase rounded-xl shadow-xl transition-all disabled:opacity-20"
             >
               {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "GUARDAR CAMBIOS"}
             </Button>

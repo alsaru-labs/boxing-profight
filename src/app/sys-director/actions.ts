@@ -323,11 +323,25 @@ export async function getClassAttendees(classId: string) {
 // ==========================================
 
 export async function handleCreateOrReactivateStudent(form: any) {
-    if (!form.email) return { success: false, error: "Email requerido." };
+    if (!form.email || !form.name) return { success: false, error: "Nombre y Email son requeridos." };
     const { databases, users } = await createAdminClient();
 
     try {
-        const emailLower = form.email.toLowerCase();
+        const nameClean = form.name.trim();
+        const lastNameClean = (form.lastName || "").trim();
+        const phoneClean = (form.phone || "").trim().replace(/\s/g, "");
+        const emailLower = form.email.toLowerCase().trim();
+
+        // 🛡️ REGLAS DE NEGOCIO (SERVER-SIDE)
+        if (/[0-9]/.test(nameClean)) return { success: false, error: "El nombre no puede contener números." };
+        if (nameClean.length > 15) return { success: false, error: "El nombre es demasiado largo (máx 15)." };
+        if (/[0-9]/.test(lastNameClean)) return { success: false, error: "Los apellidos no pueden contener números." };
+        if (lastNameClean.length > 50) return { success: false, error: "Los apellidos son demasiado largos (máx 50)." };
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLower)) return { success: false, error: "Formato de email no válido." };
+        if (phoneClean && (phoneClean.length > 12 || !/^(\+?[0-9]{1,12})$/.test(phoneClean))) {
+            return { success: false, error: "Formato de teléfono no válido (máx 12 dígitos)." };
+        }
+
         const existing = await databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [
                     sdk.Query.equal("email", emailLower), 
                     sdk.Query.limit(1)
@@ -336,7 +350,7 @@ export async function handleCreateOrReactivateStudent(form: any) {
         if (existing.total > 0) {
             const profile = existing.documents[0];
             if (profile.is_active !== false && profile.status !== "Baja") {
-                return { success: false, error: "Ya existe un alumno activo." };
+                return { success: false, error: "Este email ya está en uso por otro alumno activo." };
             }
             const updated = await databases.updateDocument(
                 DATABASE_ID, 
@@ -429,15 +443,41 @@ export async function updateStudentProfileAction(profileId: string, data: any) {
     if (!profileId) return { success: false, error: "ID de perfil requerido." };
     const { databases } = await createAdminClient();
     try {
+        const nameClean = (data.name || "").trim();
+        const lastNameClean = (data.last_name || "").trim();
+        const emailLower = (data.email || "").toLowerCase().trim();
+        const phoneClean = (data.phone || "").trim().replace(/\s/g, "");
+
+        // 🛡️ REGLAS DE NEGOCIO (SERVER-SIDE)
+        if (/[0-9]/.test(nameClean)) return { success: false, error: "El nombre no puede contener números." };
+        if (nameClean.length > 15) return { success: false, error: "El nombre es demasiado largo (máx 15)." };
+        if (/[0-9]/.test(lastNameClean)) return { success: false, error: "Los apellidos no pueden contener números." };
+        if (lastNameClean.length > 50) return { success: false, error: "Los apellidos son demasiado largos (máx 50)." };
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLower)) return { success: false, error: "Formato de email no válido." };
+        if (phoneClean && (phoneClean.length > 12 || !/^(\+?[0-9]{1,12})$/.test(phoneClean))) {
+            return { success: false, error: "Formato de teléfono no válido (máx 12 dígitos)." };
+        }
+
+        // 🛡️ UNICIDAD: Comprobar si el email está siendo usado por OTRO alumno
+        const collisionCheck = await databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [
+            sdk.Query.equal("email", emailLower),
+            sdk.Query.notEqual("$id", profileId),
+            sdk.Query.limit(1)
+        ]);
+
+        if (collisionCheck.total > 0) {
+            return { success: false, error: "Este email ya pertenece a otro perfil (aunque esté de baja)." };
+        }
+
         const updated = await databases.updateDocument(
             DATABASE_ID, 
             COLLECTION_PROFILES, 
             profileId, 
             {
-                name: data.name,
-                last_name: data.last_name,
-                email: data.email?.toLowerCase(),
-                phone: data.phone,
+                name: nameClean,
+                last_name: lastNameClean,
+                email: emailLower,
+                phone: phoneClean,
                 level: data.level
             } 
         );

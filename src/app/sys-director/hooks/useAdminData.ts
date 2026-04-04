@@ -21,7 +21,8 @@ export function useAdminData() {
     refreshAdminData,
     refreshStudentsList,
     setClassesList,
-    setAnnouncements
+    setAnnouncements,
+    paidStudentIds
   } = useAdmin();
 
   return {
@@ -42,6 +43,7 @@ export function useAdminData() {
     selectedMonth,
     setSelectedMonth,
     loadDashboardData: refreshAdminData,
-    refreshStudentsList
+    refreshStudentsList,
+    paidStudentIds
   };
 }
