@@ -847,13 +847,13 @@ export async function createClassServer(newClass: any) {
 export async function deleteClassAction(classId: string) {
     const { databases } = await createAdminClient();
     try {
-        const bookingsList = await databases.listDocuments({ databaseId: DATABASE_ID, collectionId: COLLECTION_BOOKINGS, queries: [
+        const bookingsList = await databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
                     sdk.Query.equal("class_id", classId), sdk.Query.limit(500), sdk.Query.select(["$id"])
-                ] });
+                ]);
         if (bookingsList.total > 0) {
-            await Promise.all(bookingsList.documents.map(b => databases.deleteDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_BOOKINGS, documentId: b.$id })));
+            await Promise.all(bookingsList.documents.map(b => databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, b.$id)));
         }
-        await databases.deleteDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_CLASSES, documentId: classId });
+        await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
         revalidatePath("/sys-director");
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
         revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
@@ -866,16 +866,16 @@ export async function deleteClassAction(classId: string) {
 export async function bookClassAction(classId: string, userId: string) {
     const { databases } = await createAdminClient();
     try {
-        const freshClass = await databases.getDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_CLASSES, documentId: classId });
+        const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
         if (freshClass.registeredCount >= freshClass.capacity) return { success: false, error: "Clase Llena" };
 
-        await databases.updateDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_CLASSES, documentId: classId, data: {
+        await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classId, {
                     registeredCount: (freshClass.registeredCount || 0) + 1
-                } });
+                });
 
-        const booking = await databases.createDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_BOOKINGS, documentId: sdk.ID.unique(), data: {
+        const booking = await databases.createDocument(DATABASE_ID, COLLECTION_BOOKINGS, sdk.ID.unique(), {
                     student_id: userId, class_id: classId
-                } });
+                });
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
         return { success: true, booking: JSON.parse(JSON.stringify(booking)) };
     } catch (error: any) {
@@ -886,11 +886,11 @@ export async function bookClassAction(classId: string, userId: string) {
 export async function cancelBookingAction(classId: string, bookingId: string) {
     const { databases } = await createAdminClient();
     try {
-        const freshClass = await databases.getDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_CLASSES, documentId: classId });
-        await databases.updateDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_CLASSES, documentId: classId, data: {
+        const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
+        await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classId, {
                     registeredCount: Math.max(0, (freshClass.registeredCount || 1) - 1)
-                } });
-        await databases.deleteDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_BOOKINGS, documentId: bookingId });
+                });
+        await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, bookingId);
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
         return { success: true };
     } catch (error: any) {
@@ -904,38 +904,39 @@ export async function autoGenerateNextWeekClasses() {
         const today = new Date();
         const nextMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + ((1 + 7 - today.getDay()) % 7 || 7));
         const nextFriday = new Date(nextMonday);
-        nextFriday.setDate(nextFriday.getDate() + 5);
-        
-        const dStart = nextMonday.toISOString().split('T')[0];
-        const dEnd = nextFriday.toISOString().split('T')[0];
+        nextFriday.setDate(nextFriday.getDate() + 4); 
 
-        const existingClassesResponse = await databases.listDocuments({ 
-            databaseId: DATABASE_ID, 
-            collectionId: COLLECTION_CLASSES, 
-            queries: [
-                sdk.Query.greaterThanEqual("date", dStart),
-                sdk.Query.lessThanEqual("date", dEnd),
-                sdk.Query.limit(100)
-            ] 
-        });
+        const toYMD = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+        
+        const dStart = toYMD(nextMonday);
+        const dEnd = toYMD(nextFriday);
+
+        console.log(`[GENERATION DIAGNOSTIC] Running for period: ${dStart} to ${dEnd}`);
+
+        const existingClassesResponse = await databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [
+                    sdk.Query.greaterThanEqual("date", dStart),
+                    sdk.Query.lessThanEqual("date", dEnd),
+                    sdk.Query.limit(100)
+                ]);
+
+        console.log(`[GENERATION DIAGNOSTIC] Found ${existingClassesResponse.total} existing classes in this range.`);
 
         const generatedClasses = [];
         const slots = ["10:00 - 11:00", "18:00 - 19:00", "19:00 - 20:00", "20:00 - 21:00", "21:00 - 22:00"];
 
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 5; i++) { 
             const date = new Date(nextMonday);
             date.setDate(nextMonday.getDate() + i);
             const dStr = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().split('T')[0];
 
             for (const time of slots) {
-                const alreadyExists = existingClassesResponse.documents.some((c: any) => c.date === dStr && c.time === time);
+                // BUG FIX: Compare only the first 10 characters (YYYY-MM-DD) to match the database's ISO format
+                const alreadyExists = existingClassesResponse.documents.some((c: any) => 
+                    (c.date.substring(0, 10) === dStr) && (c.time === time)
+                );
                 
                 if (!alreadyExists) {
-                    const newClass = await databases.createDocument({ 
-                        databaseId: DATABASE_ID, 
-                        collectionId: COLLECTION_CLASSES, 
-                        documentId: sdk.ID.unique(), 
-                        data: {
+                    const newClass = await databases.createDocument(DATABASE_ID, COLLECTION_CLASSES, sdk.ID.unique(), {
                             name: date.getDay() === 3 ? "Sparring" : "Boxeo y K1",
                             date: dStr, 
                             time, 
@@ -943,15 +944,26 @@ export async function autoGenerateNextWeekClasses() {
                             capacity: 30, 
                             registeredCount: 0, 
                             status: "Activa"
-                        } 
-                    });
+                        });
                     generatedClasses.push(newClass);
+                    console.log(`[GENERATION DIAGNOSTIC] Created class for ${dStr} ${time}`);
+                } else {
+                    console.log(`[GENERATION DIAGNOSTIC] Skipping ${dStr} ${time} (Already exists)`);
                 }
             }
         }
+        
+        revalidatePath("/sys-director");
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
-        return { success: true, count: generatedClasses.length, classes: JSON.parse(JSON.stringify(generatedClasses)) };
+        
+        return { 
+            success: true, 
+            count: generatedClasses.length, 
+            period: `${dStart} al ${dEnd}`,
+            classes: JSON.parse(JSON.stringify(generatedClasses)) 
+        };
     } catch (error: any) {
+        console.error("[GENERATION ERROR]", error);
         return { success: false, error: error.message };
     }
 }
@@ -962,16 +974,21 @@ export async function autoGenerateNextWeekClasses() {
 
 export const getAvailableClassesCached = async () => {
     const { databases } = await createAdminClient();
-    const thirtyDaysAgo = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString();
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    
+    console.log(`[QUERY DIAGNOSTIC] Fetching classes >= ${thirtyDaysAgo.substring(0,10)}`);
+    
     const res = await databases.listDocuments(
         DATABASE_ID, 
         COLLECTION_CLASSES, 
         [
-            sdk.Query.greaterThanEqual("date", thirtyDaysAgo),
+            sdk.Query.greaterThanEqual("date", thirtyDaysAgo.substring(0,10)),
             sdk.Query.limit(500), 
             sdk.Query.orderAsc("date")
         ] 
     );
+    
+    console.log(`[QUERY DIAGNOSTIC] Result: ${res.total} documents found.`);
     return res.documents;
 };
 
@@ -999,7 +1016,7 @@ export async function getUserProfile(userId: string) {
     if (!userId) return { success: false, error: "ID de usuario requerido." };
     const { databases } = await createAdminClient();
     try {
-        const profile = await databases.getDocument({ databaseId: DATABASE_ID, collectionId: COLLECTION_PROFILES, documentId: userId });
+        const profile = await databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, userId);
         return { success: true, data: JSON.parse(JSON.stringify(profile)) };
     } catch (error: any) {
         return { success: false, error: error.message };

@@ -1,7 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { updateStudentProfileAction, createClassServer, handleCreateOrReactivateStudent, recordPaymentAction, deletePaymentAction, deleteClassAction } from "../actions";
+import { 
+  updateStudentProfileAction, 
+  createClassServer, 
+  handleCreateOrReactivateStudent, 
+  recordPaymentAction, 
+  deletePaymentAction, 
+  deleteClassAction,
+  autoGenerateNextWeekClasses
+} from "../actions";
 
 interface UseAdminActionsProps {
   studentsList: any[];
@@ -132,7 +140,7 @@ export function useAdminActions({
       const result = await createClassServer(newClass);
 
       if (result.success && result.class) {
-        setClassesList([...classesList, result.class].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+        setClassesList((prev: any[]) => [...prev, result.class].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
         return true;
       } else {
         showAlert("Error", result.error || "No se pudo programar la clase. Revisa los datos.", "danger");
@@ -153,8 +161,8 @@ export function useAdminActions({
       async () => {
         try {
           setIsUpdating(true);
-          const { autoGenerateNextWeekClasses } = await import("../actions");
           const result = await autoGenerateNextWeekClasses();
+          console.log("[useAdminActions] autoGenerateNextWeekClasses Result:", result);
 
           if (result.success) {
             if (result.count === 0) {
@@ -165,7 +173,7 @@ export function useAdminActions({
                   const newClasses = (result.classes || []).filter((c: any) => !existingIds.has(c.$id));
                   return [...prev, ...newClasses].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
               });
-              showAlert("Éxito", `Se han generado ${result.count} clases nuevas.`, "success");
+              showAlert("Éxito", `Generadas ${result.count} clases para la semana del ${result.period || "seleccionada"}.`, "success");
             }
           } else {
             showAlert("Error", result.error || "No se pudieron generar las clases.", "danger");

@@ -344,6 +344,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       // 3. ⚡️ ACTUALIZACIÓN INCREMENTAL: Clases (Crear/Editar/Borrar)
       if (collectionId === COLLECTION_CLASSES) {
         if (event.includes(".create")) {
+          console.log("[AdminContext] Realtime Event: CLASS CREATE", payload);
           setClassesList(prev => {
             if (prev.some(c => c.$id === payload.$id)) return prev;
             return [...prev, payload].sort((a,b) => a.date.localeCompare(b.date));
