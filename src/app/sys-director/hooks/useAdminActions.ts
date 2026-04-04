@@ -140,7 +140,6 @@ export function useAdminActions({
       const result = await createClassServer(newClass);
 
       if (result.success && result.class) {
-        setClassesList((prev: any[]) => [...prev, result.class].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
         return true;
       } else {
         showAlert("Error", result.error || "No se pudo programar la clase. Revisa los datos.", "danger");

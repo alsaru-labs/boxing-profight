@@ -5,10 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useState, useEffect } from "react";
-import { useAdmin } from "@/contexts/AdminContext";
 
 export function AttendeesModal({ isOpen, onOpenChange, selectedClass }: any) {
-  const { studentsList } = useAdmin();
   const [attendees, setAttendees] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -21,17 +19,7 @@ export function AttendeesModal({ isOpen, onOpenChange, selectedClass }: any) {
           const result = await getClassAttendees(selectedClass.$id);
           
           if (result.success && result.documents) {
-            const mapped = result.documents.map((booking: any) => {
-                const student = studentsList.find(s => s.$id === booking.student_id);
-                return student || { 
-                    $id: booking.student_id, 
-                    name: "Alumno (Inactivo)", 
-                    email: "N/A", 
-                    level: "N/A", 
-                    is_active: false 
-                };
-            });
-            setAttendees(mapped);
+            setAttendees(result.documents);
           }
         } catch (err) {
           console.error("Error loading attendees:", err);
@@ -43,7 +31,7 @@ export function AttendeesModal({ isOpen, onOpenChange, selectedClass }: any) {
     } else {
       setAttendees([]);
     }
-  }, [isOpen, selectedClass?.$id, studentsList]);
+  }, [isOpen, selectedClass?.$id]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
