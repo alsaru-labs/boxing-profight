@@ -141,6 +141,8 @@ export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, cla
             <FormField
               label="Cupo Máximo"
               type="number"
+              min="0"
+              max={40}
               value={newClass.capacity}
               onChange={(val) => setNewClass({ ...newClass, capacity: val })}
               icon={Users}
@@ -154,13 +156,31 @@ export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, cla
               show={!isDuplicate && isPastTime} 
               message="Error: No puedes programar clases en el pasado." 
             />
+            <StatusAlert 
+              show={newClass.capacity > 40} 
+              message={`Atención: El cupo máximo permitido es de 40 personas (has puesto ${newClass.capacity}).`} 
+              variant="warning"
+            />
+            <StatusAlert 
+              show={newClass.capacity < 0} 
+              message="Error: El cupo no puede ser un número negativo." 
+              variant="danger"
+            />
           </div>
 
           <div className="pt-2">
             <ModalSubmitButton
               label="PUBLICAR CLASE EN CALENDARIO"
               onClick={handleSubmit}
-              disabled={isDuplicate || isPastTime || !newClass.date || !newClass.time}
+              disabled={
+                isDuplicate || 
+                isPastTime || 
+                !newClass.date || 
+                !newClass.time || 
+                newClass.capacity > 40 || 
+                newClass.capacity < 0 ||
+                isNaN(newClass.capacity)
+              }
               isLoading={isUpdating}
             />
           </div>

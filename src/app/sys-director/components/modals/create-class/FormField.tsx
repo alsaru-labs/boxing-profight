@@ -12,6 +12,7 @@ interface FormFieldProps {
   placeholder?: string;
   icon?: LucideIcon;
   min?: string;
+  max?: string | number;
   className?: string;
 }
 
@@ -23,6 +24,7 @@ export function FormField({
   placeholder,
   icon: Icon,
   min,
+  max,
   className = ""
 }: FormFieldProps) {
   return (
@@ -34,6 +36,7 @@ export function FormField({
         <Input
           type={type}
           min={min}
+          max={max}
           value={value}
           onChange={(e) => onChange(type === "number" ? Number(e.target.value) : e.target.value)}
           placeholder={placeholder}
