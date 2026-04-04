@@ -534,7 +534,7 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
             
             for (const booking of bookingsList.documents) {
                 try {
-                    // Fetch FRESH class (No cache) to ensure correct registeredCount
+                    // Si la clase es FUTURA, liberamos la plaza y borramos reserva
                     const classDoc = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, booking.class_id);
                     if (!classDoc) continue;
 
@@ -542,14 +542,12 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
                     const [hours, minutes] = classDoc.time.split('-')[0].split(":").map(Number);
                     const classDateTime = new Date(year, month - 1, day, hours, minutes);
 
-                    // Si la clase es FUTURA, liberamos la plaza y borramos reserva
                     if (classDateTime > now) {
                         console.log(`[BAJA] Liberando plaza en clase futura: ${classDoc.date} ${classDoc.time}`);
-                        await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, booking.class_id, {
-                            registeredCount: Math.max(0, (classDoc.registeredCount || 1) - 1)
-                        });
-                        // Borrado físico del booking
+                        // 1. Borrado físico del booking
                         await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id);
+                        // 2. Sincronización robusta del contador
+                        await syncClassRegisteredCount(booking.class_id);
                     }
                     // Las pasadas se mantienen para auditoría en el listado de clase
                 } catch (e) { 
@@ -594,25 +592,12 @@ export async function permanentDeleteStudentAction(profileId: string, userId: st
 
         for (const booking of bookingsRes.documents) {
             try {
-                // Fetch FRESH class para liberar plaza
-                const classDoc = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, booking.class_id);
-                if (classDoc) {
-                    const [year, month, day] = classDoc.date.substring(0, 10).split("-").map(Number);
-                    const [hours, minutes] = classDoc.time.split('-')[0].split(":").map(Number);
-                    const classDateTime = new Date(year, month - 1, day, hours, minutes);
-
-                    if (classDateTime > now) {
-                        // Es futura: liberar asiento
-                        cleanUpPromises.push(databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, booking.class_id, {
-                            registeredCount: Math.max(0, (classDoc.registeredCount || 1) - 1)
-                        }));
-                    }
-                }
-                // Si la clase no existe o es pasada, igual borramos el booking para no dejar huella
-                cleanUpPromises.push(databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id));
+                // Borrar booking
+                await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id);
+                // Sincronizar contador de la clase (si sigue existiendo)
+                await syncClassRegisteredCount(booking.class_id).catch(() => null);
             } catch (e) { 
-                // Si falla obtener la clase, borramos el booking igualmente
-                cleanUpPromises.push(databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id));
+                console.error("[PERMANENT DELETE] Error cleaning booking:", e);
             }
         }
 
@@ -883,22 +868,67 @@ export async function deleteClassAction(classId: string) {
     }
 }
 
+/**
+ * 🔄 SYNC: Recalculate total registeredCount based on actual BOOKINGS.
+ * "Zero Waste" self-healing logic.
+ */
+export async function syncClassRegisteredCount(classId: string) {
+    const { databases } = await createAdminClient();
+    try {
+        const bookings = await databases.listDocuments(
+            DATABASE_ID, 
+            COLLECTION_BOOKINGS, 
+            [
+                sdk.Query.equal("class_id", classId),
+                sdk.Query.limit(1) // Solo para disparar el "total"
+            ]
+        );
+        
+        await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classId, {
+            registeredCount: bookings.total
+        });
+        
+        return { success: true, count: bookings.total };
+    } catch (e: any) {
+        console.error(`[SYNC ERROR] Class ${classId}:`, e.message);
+        return { success: false, error: e.message };
+    }
+}
+
 export async function bookClassAction(classId: string, userId: string) {
     const { databases } = await createAdminClient();
     try {
+        // 1. FRESH LOAD: Clase actual
         const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
-        if (freshClass.registeredCount >= freshClass.capacity) return { success: false, error: "Clase Llena" };
+        if (freshClass.registeredCount >= freshClass.capacity) return { success: false, error: "Clase Llena", code: "FULL" };
 
-        await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classId, {
-                    registeredCount: (freshClass.registeredCount || 0) + 1
-                });
+        // 🛡️ BLINDAJE DUPLICADOS: Comprobar si ya existe reserva
+        const existing = await databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
+            sdk.Query.equal("class_id", classId),
+            sdk.Query.equal("student_id", userId),
+            sdk.Query.limit(1)
+        ]);
 
+        if (existing.total > 0) {
+            console.warn(`[DOUBLE BOOKING PREVENTION] User ${userId} tried to double book class ${classId}`);
+            // Reparar contador de paso si hay discrepancia (Auto-healing)
+            if (freshClass.registeredCount < existing.total) { await syncClassRegisteredCount(classId); }
+            return { success: true, message: "Ya tenías una reserva confirmada." };
+        }
+
+        // 2. CREAR RESERVA
         const booking = await databases.createDocument(DATABASE_ID, COLLECTION_BOOKINGS, sdk.ID.unique(), {
-                    student_id: userId, class_id: classId
-                });
+            student_id: userId, 
+            class_id: classId
+        });
+
+        // 3. ACTUALIZAR CONTADOR (Recuento real)
+        await syncClassRegisteredCount(classId);
+
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
         return { success: true, booking: JSON.parse(JSON.stringify(booking)) };
     } catch (error: any) {
+        console.error("[bookClassAction ERROR]", error);
         return { success: false, error: error.message };
     }
 }
@@ -906,11 +936,12 @@ export async function bookClassAction(classId: string, userId: string) {
 export async function cancelBookingAction(classId: string, bookingId: string) {
     const { databases } = await createAdminClient();
     try {
-        const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
-        await databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, classId, {
-                    registeredCount: Math.max(0, (freshClass.registeredCount || 1) - 1)
-                });
+        // 1. BORRAR RESERVA
         await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, bookingId);
+
+        // 2. RECUENTO REAL PARA EVITAR "STALE DATA" (Zero Waste Consistency)
+        await syncClassRegisteredCount(classId);
+
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
         return { success: true };
     } catch (error: any) {
@@ -984,6 +1015,31 @@ export async function autoGenerateNextWeekClasses() {
         };
     } catch (error: any) {
         console.error("[GENERATION ERROR]", error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * 🧹 HEALING ACTION: Sync registeredCount for all active classes.
+ * Use this to fix inconsistencies after manual DB edits.
+ */
+export async function syncAllClassesAction() {
+    const { databases } = await createAdminClient();
+    try {
+        const classes = await databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [
+            sdk.Query.limit(100),
+            sdk.Query.orderDesc("date")
+        ]);
+
+        const results = [];
+        for (const cls of classes.documents) {
+            const sync = await syncClassRegisteredCount(cls.$id);
+            results.push({ id: cls.$id, ...sync });
+        }
+
+        revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
+        return { success: true, syncedCount: classes.total };
+    } catch (error: any) {
         return { success: false, error: error.message };
     }
 }
