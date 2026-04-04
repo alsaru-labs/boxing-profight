@@ -43,5 +43,5 @@ const triggerHandler: Handler = async (event, context) => {
     }
 };
 
-// Netlify Cron Schedule: Sat at 00:00
-export const handler = schedule("0 0 * * 6", triggerHandler);
+// Netlify Cron Schedule: Sat at 02:00 UTC
+export const handler = schedule("0 2 * * 6", triggerHandler);
