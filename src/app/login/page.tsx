@@ -79,7 +79,14 @@ export default function LoginPage() {
       const validation = await validateLoginStatusAction(currentUser.$id);
 
       if (validation.success) {
-        await refreshGlobalData();
+        // 🛡️ SICRONIZACIÓN ATÓMICA DE ESTADO (Para evitar redirecciones a ciegas)
+        // Forzamos refreshGlobalData con el flag 'force' (bypass de cooldown de 5s)
+        await refreshGlobalData(false, true);
+
+        // 🚀 NAVEGACIÓN ACTIVA: router.refresh() purga el Client Router Cache
+        // Esto obliga a Next.js a evaluar de nuevo si hay cookies de sesión
+        router.refresh();
+
         if (validation.role === "admin") {
           router.push("/sys-director");
         } else {

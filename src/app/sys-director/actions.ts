@@ -475,46 +475,90 @@ export async function handleCreateOrReactivateStudent(form: any) {
 
 export async function updateStudentProfileAction(profileId: string, data: any) {
     if (!profileId) return { success: false, error: "ID de perfil requerido." };
-    const { databases } = await createAdminClient();
+    const { databases, users } = await createAdminClient();
     try {
-        const nameClean = (data.name || "").trim();
-        const lastNameClean = (data.last_name || "").trim();
-        const emailLower = (data.email || "").toLowerCase().trim();
-        const phoneClean = (data.phone || "").trim().replace(/\s/g, "");
+        const payload: any = {};
+        
+        // 🔍 OBTENCIÓN DE DATOS ACTUALES (Para user_id y comparación)
+        const currentProfile = await databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, profileId);
+        if (!currentProfile) return { success: false, error: "Perfil no encontrado." };
 
-        // 🛡️ REGLAS DE NEGOCIO (SERVER-SIDE)
-        if (/[0-9]/.test(nameClean)) return { success: false, error: "El nombre no puede contener números." };
-        if (nameClean.length > 15) return { success: false, error: "El nombre es demasiado largo (máx 15)." };
-        if (/[0-9]/.test(lastNameClean)) return { success: false, error: "Los apellidos no pueden contener números." };
-        if (lastNameClean.length > 50) return { success: false, error: "Los apellidos son demasiado largos (máx 50)." };
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLower)) return { success: false, error: "Formato de email no válido." };
-        if (phoneClean && (phoneClean.length > 12 || !/^(\+?[0-9]{1,12})$/.test(phoneClean))) {
-            return { success: false, error: "Formato de teléfono no válido (máx 12 dígitos)." };
+        // 🛠️ SOPORTE PARA ACTUALIZACIONES PARCIALES (Post-Bug Fix)
+        // Solo procesamos y validamos los campos que el cliente ha enviado explícitamente
+
+        // 1. Nombre
+        if (data.name !== undefined) {
+          const nameClean = data.name.trim();
+          if (/[0-9]/.test(nameClean)) return { success: false, error: "El nombre no puede contener números." };
+          if (nameClean.length > 15) return { success: false, error: "El nombre es demasiado largo (máx 15)." };
+          payload.name = nameClean;
         }
 
-        // 🛡️ UNICIDAD: Comprobar si el email está siendo usado por OTRO alumno
-        const collisionCheck = await databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [
-            sdk.Query.equal("email", emailLower),
-            sdk.Query.notEqual("$id", profileId),
-            sdk.Query.limit(1)
-        ]);
-
-        if (collisionCheck.total > 0) {
-            return { success: false, error: "Este email ya pertenece a otro perfil (aunque esté de baja)." };
+        // 2. Apellidos
+        if (data.last_name !== undefined) {
+          const lastNameClean = data.last_name.trim();
+          if (/[0-9]/.test(lastNameClean)) return { success: false, error: "Los apellidos no puede contener números." };
+          if (lastNameClean.length > 50) return { success: false, error: "Los apellidos son demasiado largos (máx 50)." };
+          payload.last_name = lastNameClean;
         }
+
+        // 3. Email (Lógica Crítica de Sincronización Auth-Perfil)
+        if (data.email !== undefined) {
+          const emailLower = data.email.toLowerCase().trim();
+          
+          if (emailLower !== currentProfile.email) {
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLower)) return { success: false, error: "Formato de email no válido." };
+            
+            // 🛡️ UNICIDAD (DB): Comprobar si el email está siendo usado por OTRO alumno
+            const collisionCheck = await databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [
+                sdk.Query.equal("email", emailLower),
+                sdk.Query.notEqual("$id", profileId),
+                sdk.Query.limit(1)
+            ]);
+            if (collisionCheck.total > 0) {
+                return { success: false, error: "Este email ya pertenece a otro perfil (aunque esté de baja)." };
+            }
+
+            // 🔐 SINCRONIZACIÓN AUTH (Appwrite Users):
+            // Si el email es diferente, intentamos actualizar la cuenta de Auth primero
+            try {
+                await users.updateEmail(currentProfile.user_id || profileId, emailLower);
+            } catch (authError: any) {
+                console.error("[Auth Sync Error]", authError);
+                if (authError.code === 409) {
+                    return { success: false, error: "Este email ya está en uso en el sistema de autenticación." };
+                }
+                return { success: false, error: "No se ha podido sincronizar el email con tu cuenta de acceso." };
+            }
+
+            payload.email = emailLower;
+          }
+        }
+
+        // 4. Teléfono
+        if (data.phone !== undefined) {
+          const phoneClean = data.phone.trim().replace(/\s/g, "");
+          if (phoneClean && (phoneClean.length > 12 || !/^(\+?[0-9]{1,12})$/.test(phoneClean))) {
+              return { success: false, error: "Formato de teléfono no válido (máx 12 dígitos)." };
+          }
+          payload.phone = phoneClean;
+        }
+
+        // 5. Otros datos
+        if (data.level !== undefined) payload.level = data.level;
+        if (data.is_active !== undefined) payload.is_active = data.is_active;
+        if (data.status !== undefined) payload.status = data.status;
+
+        // Si no hay nada que actualizar, retornamos éxito silencioso
+        if (Object.keys(payload).length === 0) return { success: true };
 
         const updated = await databases.updateDocument(
             DATABASE_ID, 
             COLLECTION_PROFILES, 
             profileId, 
-            {
-                name: nameClean,
-                last_name: lastNameClean,
-                email: emailLower,
-                phone: phoneClean,
-                level: data.level
-            } 
+            payload
         );
+        
         revalidateAdminDashboard();
         revalidatePath("/perfil");
         return { success: true, data: JSON.parse(JSON.stringify(updated)) };
