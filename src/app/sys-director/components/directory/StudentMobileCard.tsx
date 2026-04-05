@@ -22,6 +22,7 @@ import {
 interface StudentMobileCardProps {
   student: any;
   isUpdating: boolean;
+  isProduction?: boolean;
   handleActionClick: (student: any) => void;
   handleOpenEditModal: (student: any) => void;
   deleteStudentAccount: (id: string, userId: string, name: string) => Promise<boolean>;
@@ -34,6 +35,7 @@ interface StudentMobileCardProps {
 export function StudentMobileCard({
   student,
   isUpdating,
+  isProduction,
   handleActionClick,
   handleOpenEditModal,
   deleteStudentAccount,
@@ -148,21 +150,23 @@ export function StudentMobileCard({
                   <span>Dar de Baja</span>
                 </DropdownMenuItem>
 
-                <DropdownMenuItem
-                  className="flex items-center gap-2 px-3 py-3 rounded-xl text-sm font-bold text-red-600 focus:bg-red-600/20 focus:text-red-600 cursor-pointer transition-colors"
-                  onClick={() => {
-                    showConfirm(
-                      "Eliminación Permanente",
-                      `¿BORRADO TOTAL de ${student.name}? Acción irreversible.`,
-                      () => handlePermanentDeleteStudent(student.$id, student.user_id, student.name),
-                      "danger"
-                    );
-                  }}
-                  disabled={isUpdating}
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>Eliminar Permanente</span>
-                </DropdownMenuItem>
+                {!isProduction && (
+                  <DropdownMenuItem
+                    className="flex items-center gap-2 px-3 py-3 rounded-xl text-sm font-bold text-red-600 focus:bg-red-600/20 focus:text-red-600 cursor-pointer transition-colors"
+                    onClick={() => {
+                      showConfirm(
+                        "Eliminación Permanente",
+                        `¿BORRADO TOTAL de ${student.name}? Acción irreversible.`,
+                        () => handlePermanentDeleteStudent(student.$id, student.user_id, student.name),
+                        "danger"
+                      );
+                    }}
+                    disabled={isUpdating}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Eliminar Permanente</span>
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>

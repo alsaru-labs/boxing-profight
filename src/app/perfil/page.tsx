@@ -38,6 +38,15 @@ export default function StudentProfile() {
   const [isPending, startTransition] = useTransition();
   const [isUpdating, setIsUpdating] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  
+  // 🛡️ DETECCIÓN DE ENTORNO (Prevención de Hydration Mismatch)
+  const [isProduction, setIsProduction] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const hostname = window.location.hostname;
+      setIsProduction(hostname === "boxingprofight.com" || hostname === "www.boxingprofight.com");
+    }
+  }, []);
 
   // Custom Modal State
   const [modalConfig, setModalConfig] = useState<{
@@ -334,32 +343,34 @@ export default function StudentProfile() {
               <TabsContent key="clases" value="clases" className="focus-visible:outline-none focus:outline-none">
                 <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-12">
                   <div className="space-y-6">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                      <h4 className="text-xl font-black uppercase tracking-widest text-white flex items-center gap-3">
-                        <span className="w-8 h-1 bg-emerald-500 rounded-full" /> Clases Disponibles
-                      </h4>
-                      
-                      {/* Modo de Prueba - Trasladado de Bookings */}
-                      <div className="flex items-center gap-4 bg-zinc-900/50 p-2 rounded-xl border border-white/10 w-full md:w-auto">
-                          <span className="text-[10px] font-black text-white/30 uppercase px-2 italic">Día {simulatedDay || new Date().getDate()}</span>
-                          <input 
-                              type="range" 
-                              min="1" 
-                              max="31" 
-                              value={simulatedDay || new Date().getDate()}
-                              onChange={(e) => setSimulatedDay(parseInt(e.target.value))}
-                              className="w-32 accent-emerald-500 cursor-pointer"
-                          />
-                          <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => setSimulatedDay(undefined)}
-                              className="text-[9px] font-black uppercase text-white/40 hover:text-white"
-                          >
-                              Reset
-                          </Button>
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <h4 className="text-xl font-black uppercase tracking-widest text-white flex items-center gap-3">
+                          <span className="w-8 h-1 bg-emerald-500 rounded-full" /> Clases Disponibles
+                        </h4>
+                        
+                        {/* Modo de Prueba (Oculto en Producción) */}
+                        {!isProduction && (
+                          <div className="flex items-center gap-4 bg-zinc-900/50 p-2 rounded-xl border border-white/10 w-full md:w-auto">
+                              <span className="text-[10px] font-black text-white/30 uppercase px-2 italic">Día {simulatedDay || new Date().getDate()}</span>
+                              <input 
+                                  type="range" 
+                                  min="1" 
+                                  max="31" 
+                                  value={simulatedDay || new Date().getDate()}
+                                  onChange={(e) => setSimulatedDay(parseInt(e.target.value))}
+                                  className="w-32 accent-emerald-500 cursor-pointer"
+                              />
+                              <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => setSimulatedDay(undefined)}
+                                  className="text-[9px] font-black uppercase text-white/40 hover:text-white"
+                              >
+                                  Reset
+                              </Button>
+                          </div>
+                        )}
                       </div>
-                    </div>
 
                     <div className="bg-black/20 p-2 md:p-6 rounded-3xl border border-white/5">
                       <ClassGrid

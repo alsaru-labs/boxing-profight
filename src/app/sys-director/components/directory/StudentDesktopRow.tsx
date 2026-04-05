@@ -28,6 +28,7 @@ import {
 interface StudentDesktopRowProps {
   student: any;
   isUpdating: boolean;
+  isProduction?: boolean;
   handleActionClick: (student: any) => void;
   handleOpenEditModal: (student: any) => void;
   deleteStudentAccount: (id: string, userId: string, name: string) => Promise<boolean>;
@@ -40,6 +41,7 @@ interface StudentDesktopRowProps {
 export function StudentDesktopRow({
   student,
   isUpdating,
+  isProduction,
   handleActionClick,
   handleOpenEditModal,
   deleteStudentAccount,
@@ -164,24 +166,26 @@ export function StudentDesktopRow({
                 disabled={isUpdating}
               >
                 <Signal className="w-4 h-4 opacity-50" />
-                <span>Dar de Baja (Soft)</span>
+                <span>Dar de Baja</span>
               </DropdownMenuItem>
 
-              <DropdownMenuItem
-                className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-red-600 focus:bg-red-600/20 focus:text-red-600 cursor-pointer transition-colors"
-                onClick={() => {
-                  showConfirm(
-                    "Eliminación Permanente",
-                    `¿Estás TOTALMENTE SEGURO de querer borrar a ${student.name}? Esta acción es irreversible y eliminará todo su historial.`,
-                    () => handlePermanentDeleteStudent(student.$id, student.user_id, student.name),
-                    "danger"
-                  );
-                }}
-                disabled={isUpdating}
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Eliminar Permanente</span>
-              </DropdownMenuItem>
+              {!isProduction && (
+                <DropdownMenuItem
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-red-600 focus:bg-red-600/20 focus:text-red-600 cursor-pointer transition-colors"
+                  onClick={() => {
+                    showConfirm(
+                      "Eliminación Permanente",
+                      `¿Estás TOTALMENTE SEGURO de querer borrar a ${student.name}? Esta acción es irreversible y eliminará todo su historial.`,
+                      () => handlePermanentDeleteStudent(student.$id, student.user_id, student.name),
+                      "danger"
+                    );
+                  }}
+                  disabled={isUpdating}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Eliminar Permanente</span>
+                </DropdownMenuItem>
+              )}
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>

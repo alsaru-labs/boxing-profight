@@ -27,6 +27,7 @@ import { StudentDesktopRow } from "./directory/StudentDesktopRow";
 interface StudentDirectoryProps {
   studentsList: any[];
   isUpdating: boolean;
+  isProduction?: boolean;
   handleActionClick: (student: any) => void;
   handleOpenEditModal: (student: any) => void;
   deleteStudentAccount: (id: string, userId: string, name: string) => Promise<boolean>;
@@ -38,6 +39,7 @@ interface StudentDirectoryProps {
 
 export function StudentDirectory({
   isUpdating,
+  isProduction,
   handleActionClick,
   handleOpenEditModal,
   deleteStudentAccount,
@@ -203,6 +205,7 @@ export function StudentDirectory({
                       key={student.$id}
                       student={student}
                       isUpdating={isUpdating}
+                      isProduction={isProduction}
                       handleActionClick={handleActionClick}
                       handleOpenEditModal={handleOpenEditModal}
                       deleteStudentAccount={deleteStudentAccount}
@@ -234,6 +237,7 @@ export function StudentDirectory({
                   key={student.$id}
                   student={student}
                   isUpdating={isUpdating}
+                  isProduction={isProduction}
                   handleActionClick={handleActionClick}
                   handleOpenEditModal={handleOpenEditModal}
                   deleteStudentAccount={deleteStudentAccount}
