@@ -27,7 +27,9 @@ export async function createSessionClient() {
     .setProject(PUBLIC_PROJECT_ID);
 
   const cookieStore = await cookies();
-  const session = cookieStore.get("session");
+  const sessionName = `a_session_${PROJECT_ID.toLowerCase()}`;
+  const session = cookieStore.get(sessionName);
+  
   if (!session || !session.value) {
     throw new Error("No hay sesión activa");
   }

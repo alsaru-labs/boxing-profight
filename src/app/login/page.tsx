@@ -59,42 +59,31 @@ export default function LoginPage() {
       setLoading(true);
       setError("");
 
-      // Create session safely
+      // 🔐 PASO 1: Login en el Cliente (Para que Appwrite Cloud reconozca la sesión)
       try {
         await account.createEmailPasswordSession(email, password);
-      } catch (sessionError: any) {
-        if (
-          sessionError?.message?.includes('session is active') ||
-          sessionError?.message?.includes('creation is prohibited') ||
-          sessionError?.message?.includes('missing scope')
-        ) {
-          // If a session already exists, delete it first and retry
-          try {
-            await account.deleteSession("current");
-          } catch (deleteErr) {
-            // If delete fails (e.g., user was deleted in console but cookie remains),
-            // forcefully clear local storage tokens Appwrite generates.
-            localStorage.clear();
-            sessionStorage.clear();
-            deleteAllCookies();
-          }
-          await account.createEmailPasswordSession(email, password);
+      } catch (authErr: any) {
+        console.warn("[Auth Attempt Failed]", authErr);
+        // 👮 SEGURIDAD: Mensaje genérico para cualquier fallo de Auth
+        if (authErr?.code === 429) {
+          setError("Demasiados intentos. Por favor, espera unos minutos.");
         } else {
-          throw sessionError; // Re-throw if it's a different error
+          setError("Credenciales incorrectas.");
         }
+        setLoading(false);
+        return;
       }
 
-      // ⚡️ FORZAR ACTUALIZACIÓN DEL CONTEXTO ANTES DE REDIRIGIR
-      await refreshGlobalData();
-
-      // Fetch user profile to determine correct redirection route via Server Action (API Key)
-      const { getUserProfile } = await import("@/app/sys-director/actions");
+      // 🔍 PASO 2: Validación de Estado en el Servidor (Two-Step Sync)
       const currentUser = await account.get();
-      const profileResult = await getUserProfile(currentUser.$id);
+      const { validateLoginStatusAction } = await import("./actions");
+      const validation = await validateLoginStatusAction(currentUser.$id);
 
-      if (profileResult.success && profileResult.data) {
-        const profile = profileResult.data;
-        if (profile.role === "admin") {
+      if (validation.success) {
+        // ✅ ÉXITO: Usuario activo. Sincronizar y Redirigir
+        await refreshGlobalData();
+
+        if (validation.role === "admin") {
           router.push("/sys-director");
         } else {
           const urlParams = new URLSearchParams(window.location.search);
@@ -106,23 +95,14 @@ export default function LoginPage() {
           }
         }
       } else {
-        setError("No se ha podido acceder a la cuenta. Por favor, inténtalo de nuevo.");
+        // 🚫 BLOQUEO: Usuario de baja o inconsistente
+        // Destruir sesión en el cliente inmediatamente
+        await account.deleteSession("current");
+        setError(validation.error || "Tu acceso ha sido denegado.");
       }
     } catch (err: any) {
       console.error("[LOGIN ERROR]", err);
-      
-      const type = err?.type || "";
-      const status = err?.code || 0;
-
-      if (type === "user_invalid_credentials" || status === 401) {
-        setError("Credenciales incorrectas.");
-      } else if (type === "user_blocked") {
-        setError("Usuario dado de baja.");
-      } else if (status === 429) {
-        setError("Demasiados intentos. Por favor, espera unos minutos.");
-      } else {
-        setError("Error al iniciar sesión. Por favor, inténtalo más tarde.");
-      }
+      setError("Error técnico al conectar con el servidor.");
     } finally {
       setLoading(false);
     }
