@@ -21,6 +21,7 @@ export const LITERALS = {
         MY_PROFILE: "Mi Perfil",
         BOOKINGS: "Reservas",
         CONTROL_PANEL: "Panel de Control",
+        ACCOUNTING: "Contabilidad",
         RESERVE_BUTTON: "Reservar",
         USER_DEFAULT: "Usuario",
     },
@@ -70,6 +71,18 @@ export const LITERALS = {
             SCHEDULE_BUTTON: "+ Programar Clase",
             HISTORY_TITLE: "Historial Reciente",
             HISTORY_DESCRIPTION: "Clases que han ocurrido en las últimas 48 horas.",
+        },
+        ACCOUNTING: {
+            TITLE: "Historial de Ingresos",
+            SUBTITLE: "Consulta lo ganado en meses anteriores.",
+            TABS: {
+                MONTHLY: "Registro Mensual",
+            },
+            SELECT_YEAR: "Año",
+            SELECT_MONTH: "Mes",
+            TOTAL_REVENUE: "Ingresos Totales",
+            NO_DATA: "No hay registros para la fecha seleccionada.",
+            GO_BACK: "Volver al Panel",
         }
     },
     BOOKINGS: {
@@ -95,8 +108,8 @@ export const LITERALS = {
         CANCEL_CLASS: "Cancelar Clase",
         DANGER_BADGE: "Peligro",
         PAST_CLASS_INFO: "No hay acciones disponibles para clases pasadas",
-        LOAD_MORE: (date: string) => `Ver clases del ${date}`,
-        LOAD_MORE_HISTORY: (date: string) => `Ver historial del ${date}`,
+        LOAD_MORE: (date: string) => `Ver ${date}`,
+        LOAD_MORE_HISTORY: (date: string) => `Ver ${date}`,
         HISTORY_EMPTY_STATE: "No hay historial reciente de clases registradas.",
         HISTORY_EMPTY_SUB: "Las clases aparecerán aquí una vez hayan finalizado.",
         EMPTY_SUB: "Vuelve a consultar más tarde para nuevas sesiones.",

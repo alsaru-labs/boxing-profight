@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
-import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
-import { User, ShieldCheck, CalendarDays, LogOut, Loader2 } from "lucide-react";
+import { User, ShieldCheck, CalendarDays, LogOut, Wallet } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { LITERALS } from "@/constants/literals";
 import {
@@ -15,16 +14,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import NotificationPanel from "./NotificationPanel";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Navbar({ isHome = false }: { isHome?: boolean }) {
   const router = useRouter();
-  const pathname = usePathname();
+  const { user, profile, isAdmin, loading: roleLoading, logout: authLogout } = useAuth();
   const [scrolled, setScrolled] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [userId, setUserId] = useState("");
-  const [profileName, setProfileName] = useState("Usuario");
-  const [roleLoading, setRoleLoading] = useState(true);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -35,36 +30,18 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
       window.addEventListener("scroll", handleScroll);
     }
 
-    const checkUserRole = async () => {
-      try {
-        const currentUser = await account.get();
-        setIsLoggedIn(true);
-        setUserId(currentUser.$id);
-        const profile = await databases.getDocument(
-          DATABASE_ID,
-          COLLECTION_PROFILES,
-          currentUser.$id
-        );
-        setIsAdmin(profile.role === "admin");
-        setProfileName(profile.name || "Usuario");
-      } catch (error) {
-        setIsLoggedIn(false);
-        setIsAdmin(false);
-      } finally {
-        setRoleLoading(false);
-      }
-    };
-
-    checkUserRole();
     return () => {
       if (isHome) window.removeEventListener("scroll", handleScroll);
     };
   }, [isHome]);
 
+  const isLoggedIn = !!user;
+  const profileName = profile?.name || "Usuario";
+  const userId = user?.$id || "";
+
   const handleLogout = async () => {
     try {
-      await account.deleteSession("current");
-      router.push("/login");
+      await authLogout();
     } catch (e) {
       console.error("Error logging out", e);
     }
@@ -113,22 +90,25 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
         {/* Right Side */}
         <div className="flex w-1/3 items-center justify-end gap-2 md:gap-4">
           {roleLoading ? (
-            <div className="w-10 h-10 rounded-full bg-white/10 animate-pulse"></div>
+            <div className="flex items-center gap-3 pr-2 animate-pulse">
+              <div className="h-4 w-20 bg-white/10 rounded hidden sm:block"></div>
+              <div className="h-10 w-10 bg-white/10 rounded-full"></div>
+            </div>
           ) : isLoggedIn ? (
             <div className="flex items-center gap-2 sm:gap-4">
               {/* Notificaciones Reales */}
               {!isAdmin && (
-                <NotificationPanel userId={userId} isLoggedIn={isLoggedIn} />
+                <NotificationPanel />
               )}
 
               <DropdownMenu>
                 <DropdownMenuTrigger className="outline-none focus:outline-none">
-                  <div className="flex items-center gap-2 md:gap-3 cursor-pointer hover:bg-white/5 pr-1 md:pr-4 pl-1 py-1 rounded-full transition-colors border border-transparent hover:border-white/10">
-                    <span className="font-semibold text-sm hidden sm:block truncate max-w-[120px] ml-2 text-white/90">{profileName.split(' ')[0]}</span>
-                    <Avatar className="h-10 w-10 border border-white/20 shadow-sm">
-                      <AvatarFallback className="bg-zinc-800 text-white text-xs font-bold">{getInitials(profileName)}</AvatarFallback>
-                    </Avatar>
-                  </div>
+                    <div className="flex items-center gap-2 md:gap-3 cursor-pointer hover:bg-white/10 pr-1 md:pr-1.5 pl-3 md:pl-4 py-1 rounded-full transition-all border border-white/5 hover:border-white/20 group">
+                      <span className="font-semibold text-sm hidden sm:block truncate max-w-[120px] text-white/90 group-hover:text-white transition-colors">{profileName.split(' ')[0]}</span>
+                      <Avatar className="h-9 w-9 md:h-10 md:w-10 border border-white/20 shadow-sm transition-transform group-hover:scale-105">
+                        <AvatarFallback className="bg-zinc-800 text-white text-[10px] md:text-xs font-bold">{getInitials(profileName)}</AvatarFallback>
+                      </Avatar>
+                    </div>
                 </DropdownMenuTrigger>
 
                 <DropdownMenuContent align="end" className="bg-zinc-950 border-white/10 text-white min-w-[200px] mt-2 rounded-xl p-2 shadow-[0_10px_40px_rgba(0,0,0,0.8)]">
@@ -137,12 +117,20 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
                   </div>
 
                   {isAdmin ? (
-                    <Link href="/sys-director">
-                      <DropdownMenuItem className="cursor-pointer focus:bg-white/10 rounded-lg focus:text-white transition-colors py-2.5">
-                        <ShieldCheck className="mr-3 h-4 w-4 text-amber-400" />
-                        <span className="font-medium">{LITERALS.NAVBAR.CONTROL_PANEL}</span>
-                      </DropdownMenuItem>
-                    </Link>
+                    <>
+                      <Link href="/sys-director">
+                        <DropdownMenuItem className="cursor-pointer focus:bg-white/10 rounded-lg focus:text-white transition-colors py-2.5">
+                          <ShieldCheck className="mr-3 h-4 w-4 text-amber-400" />
+                          <span className="font-medium">{LITERALS.NAVBAR.CONTROL_PANEL}</span>
+                        </DropdownMenuItem>
+                      </Link>
+                      <Link href="/sys-director/contabilidad">
+                        <DropdownMenuItem className="cursor-pointer focus:bg-white/10 rounded-lg focus:text-white transition-colors py-2.5">
+                          <Wallet className="mr-3 h-4 w-4 text-emerald-400" />
+                          <span className="font-medium">{LITERALS.NAVBAR.ACCOUNTING}</span>
+                        </DropdownMenuItem>
+                      </Link>
+                    </>
                   ) : (
                     <>
                       <Link href="/perfil">

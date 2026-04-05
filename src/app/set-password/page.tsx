@@ -7,7 +7,9 @@ import { Lock, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle, ShieldCheck } fr
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { setPasswordWithToken } from "./actions";
+import { setPasswordWithToken, logout } from "./actions";
+import { useEffect } from "react";
+import { PASSWORD_REQUIREMENTS } from "@/constants/security";
 
 function SetPasswordForm() {
     const searchParams = useSearchParams();
@@ -21,15 +23,18 @@ function SetPasswordForm() {
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
 
-    // 🛡️ Robust Validation Logic
-    const passwordRequirements = [
-        { id: 'length', label: 'Mínimo 8 caracteres', regex: /.{8,}/ },
-        { id: 'upper', label: 'Al menos una Mayúscula', regex: /[A-Z]/ },
-        { id: 'number', label: 'Al menos un Número', regex: /[0-9]/ },
-    ];
+    // 🛡️ Limpieza de Sesión: Si entramos a generar contraseña, 
+    // nos aseguramos de que no haya sesiones viejas (ej: del admin)
+    useEffect(() => {
+        if (token) {
+            logout();
+        }
+    }, [token]);
 
-    const metRequirements = passwordRequirements.filter(req => req.regex.test(password));
-    const allMet = metRequirements.length === passwordRequirements.length;
+
+    // 🛡️ Robust Validation Logic
+    const metRequirements = PASSWORD_REQUIREMENTS.filter(req => req.regex.test(password));
+    const allMet = metRequirements.length === PASSWORD_REQUIREMENTS.length;
     const isMatching = password !== "" && password === confirm;
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -48,7 +53,7 @@ function SetPasswordForm() {
         setIsLoading(true);
 
         try {
-            const result = await setPasswordWithToken(token, password, confirm);
+            const result = await setPasswordWithToken(token, password);
             if (result.success) {
                 setSuccess(true);
                 setTimeout(() => {
@@ -129,11 +134,11 @@ function SetPasswordForm() {
                         <div className="flex items-center justify-between mb-1">
                             <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Nivel de Seguridad</span>
                             <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${allMet ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                                {metRequirements.length}/3 Criterios
+                                {metRequirements.length}/{PASSWORD_REQUIREMENTS.length} Criterios
                             </span>
                         </div>
                         <div className="grid grid-cols-1 gap-2">
-                            {passwordRequirements.map((req) => {
+                            {PASSWORD_REQUIREMENTS.map((req) => {
                                 const isMet = req.regex.test(password);
                                 return (
                                     <div key={req.id} className="flex items-center gap-2.5 transition-all duration-300">

@@ -12,9 +12,10 @@ interface TabItem {
 interface NavigationTabsProps {
   tabs: TabItem[];
   className?: string;
+  onValueChange?: (value: string) => void;
 }
 
-export function NavigationTabs({ tabs, className = "" }: NavigationTabsProps) {
+export function NavigationTabs({ tabs, className = "", onValueChange }: NavigationTabsProps) {
   return (
     <TabsList className={`bg-zinc-900/50 p-1 rounded-2xl border border-white/5 w-full max-w-[600px] mx-auto sm:max-w-none !h-auto flex flex-row gap-1 ${className}`}>
       {tabs.map((tab) => (

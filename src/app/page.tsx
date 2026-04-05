@@ -1,6 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useState, useEffect, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,14 +9,28 @@ import { Button } from "@/components/ui/button";
 import { Instagram, MapPin, Youtube, Calendar } from "lucide-react";
 import Link from "next/link";
 
-
-const classes = [
-  { title: "Boxeo", type: "Técnica / Física", time: "10:00 - 11:00 AM", slots: "Verde" },
-  { title: "Boxeo", type: "General / Sparring", time: "18:00 - 19:30 PM", slots: "Amarillo" },
-  { title: "K1", type: "Kickboxing & Muay Thai", time: "19:30 - 21:00 PM", slots: "Verde" },
-];
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Home() {
+  const { availableClasses, announcements, user, loading } = useAuth();
+
+  // 🌪️ Filtrar clases para la Home (Próximas 7 días, limitadas a 3 principales)
+  const displayClasses = useMemo(() => {
+    if (!availableClasses || availableClasses.length === 0) {
+      return [
+        { title: "Boxeo", type: "Técnica / Física", time: "10:00 - 11:00 AM", slots: "Verde" },
+        { title: "Boxeo", type: "General / Sparring", time: "18:00 - 19:30 PM", slots: "Amarillo" },
+        { title: "K1", type: "Kickboxing & Muay Thai", time: "19:30 - 21:00 PM", slots: "Verde" },
+      ];
+    }
+    return availableClasses.slice(0, 3).map(c => ({
+      title: c.name,
+      type: c.coach,
+      time: `${c.time.split('-')[0].trim()} (${new Date(c.date).toLocaleDateString('es-ES', { weekday: 'short' })})`,
+      slots: c.registeredCount >= c.capacity ? 'Rojo' : c.registeredCount >= c.capacity * 0.8 ? 'Amarillo' : 'Verde'
+    }));
+  }, [availableClasses]);
+
   return (
     <div className="relative min-h-screen bg-black overflow-hidden font-sans text-white">
       {/* Background Video Simulator - Abstract Gradient Flow simulating slow motion */}
@@ -135,8 +150,8 @@ export default function Home() {
             </p>
           </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-            {classes.map((cls, idx) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
+            {displayClasses.map((cls, idx) => (
               <motion.div
                 key={idx}
                 initial={{ opacity: 0, y: 20 }}
@@ -156,14 +171,14 @@ export default function Home() {
                     <Calendar className="w-24 h-24" />
                   </div>
 
-                  <CardHeader className="relative z-10 pb-2">
-                    <CardTitle className="text-3xl text-white font-bold">{cls.title}</CardTitle>
-                    <CardDescription className="text-white/60 font-medium text-base mt-1">{cls.type}</CardDescription>
+                  <CardHeader className="relative z-10 p-4 md:pb-2">
+                    <CardTitle className="text-2xl md:text-3xl text-white font-bold">{cls.title}</CardTitle>
+                    <CardDescription className="text-white/60 font-medium text-sm md:text-base mt-1">{cls.type}</CardDescription>
                   </CardHeader>
-                  <CardContent className="relative z-10 pt-4">
+                  <CardContent className="relative z-10 p-4 md:pt-4">
                     <div className="flex flex-col space-y-4">
-                      <div className="bg-black/40 rounded-lg p-4 border border-white/5">
-                        <span className="text-xl font-semibold tracking-wider text-white/90">{cls.time}</span>
+                      <div className="bg-black/40 rounded-lg p-3 md:p-4 border border-white/5">
+                        <span className="text-lg md:text-xl font-semibold tracking-wider text-white/90">{cls.time}</span>
                       </div>
 
                       <div className="flex items-center justify-between mt-2">

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Bell, X, Info, AlertTriangle, CheckCircle2, Loader2, Signal } from "lucide-react";
-import { databases, DATABASE_ID, COLLECTION_NOTIFICATIONS, COLLECTION_NOTIFICATIONS_READ, client } from "@/lib/appwrite";
-import { Query, ID } from "appwrite";
+import { markNotificationAsReadAction, markAllNotificationsAsReadAction } from "@/app/sys-director/actions";
 import { motion, AnimatePresence } from "framer-motion";
 import { registerPushNotifications } from "@/lib/push-notifications";
 import { LITERALS } from "@/constants/literals";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Notification {
     $id: string;
@@ -16,108 +16,59 @@ interface Notification {
     createdAt: string;
 }
 
-interface NotificationPanelProps {
-    userId: string;
-    isLoggedIn: boolean;
-}
+export default function NotificationPanel() {
+    const { 
+        user, 
+        profile,
+        loading: authLoading, 
+        announcements, 
+        readNotifications,
+        unreadNotificationsCount: unreadCount,
+        refreshGlobalData
+    } = useAuth();
+    const userId = user?.$id || "";
+    const isLoggedIn = !!user;
 
-export default function NotificationPanel({ userId, isLoggedIn }: NotificationPanelProps) {
     const [isOpen, setIsOpen] = useState(false);
-    const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [readIds, setReadIds] = useState<string[]>([]);
-    const [loading, setLoading] = useState(true);
     const [isMarking, setIsMarking] = useState<string | null>(null);
     const [isSubscribed, setIsSubscribed] = useState(false);
+    const [localReadIds, setLocalReadIds] = useState<string[]>([]); // Optimistic UI
 
+    // Detect if already subscribed on mount or profile change
     useEffect(() => {
-        // Al montar o abrir, comprobamos si ya hay permiso concedido
-        if (typeof window !== "undefined" && "Notification" in window) {
-            setIsSubscribed(Notification.permission === "granted");
+        if (profile?.push_subscription) {
+            setIsSubscribed(true);
+        } else if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            setIsSubscribed(true);
         }
-    }, []);
+    }, [profile]);
 
-    const fetchNotifications = async () => {
-        if (!isLoggedIn || !userId) return;
+    // Combined read IDs for display (Global + Local Optimistic)
+    const allReadIds = useMemo(() => {
+        return Array.from(new Set([...readNotifications, ...localReadIds]));
+    }, [readNotifications, localReadIds]);
 
-        try {
-            setLoading(true);
-            // 1. Fetch all announcements
-            const globalResponse = await databases.listDocuments(
-                DATABASE_ID,
-                COLLECTION_NOTIFICATIONS,
-                [Query.orderDesc("createdAt"), Query.limit(50)]
-            );
+    // Optimistic unread count
+    const optimisticUnreadCount = useMemo(() => {
+        return announcements.filter(n => !allReadIds.includes(n.$id)).length;
+    }, [announcements, allReadIds]);
 
-            const allNotifs = globalResponse.documents as unknown as Notification[];
-
-            // 2. Fetch what the user has read
-            const readResponse = await databases.listDocuments(
-                DATABASE_ID,
-                COLLECTION_NOTIFICATIONS_READ,
-                [Query.equal("user_id", userId), Query.limit(100)]
-            );
-
-            const readLogIds = readResponse.documents.map(doc => doc.notification_id);
-
-            setNotifications(allNotifs);
-            setReadIds(readLogIds);
-        } catch (e) {
-            console.error("Error fetching notifications:", e);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchNotifications();
-
-        // 🟢 SUSCRIPCIÓN EN TIEMPO REAL (Appwrite Realtime)
-        // Escucha cambios en anuncios y en el estado de lectura
-        const unsubscribe = client.subscribe(
-            [
-                `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`,
-                `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS_READ}.documents`
-            ],
-            (response) => {
-                // Si alguien crea o borra un anuncio, o lo marca como leído desde otro sitio...
-                if (response.events.some(e => e.includes(".create") || e.includes(".delete") || e.includes(".update"))) {
-                    fetchNotifications();
-                }
-            }
-        );
-
-        return () => {
-            unsubscribe();
-        };
-    }, [userId, isLoggedIn]);
-
-    const unreadCount = notifications.filter(n => !readIds.includes(n.$id)).length;
-
-    // Filter visible notifications: Strictly last 48h
-    const visibleNotifications = notifications.filter(n => {
-        const createdDate = new Date(n.createdAt);
+    // Filter notifications from last 48 hours for the panel display
+    const visibleNotifications = announcements.filter(n => {
+        const createdDate = new Date(n.$createdAt);
         const fortyEightHoursAgo = new Date();
         fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
-
         return createdDate > fortyEightHoursAgo;
     });
 
     const handleMarkAsRead = async (notifId: string) => {
-        if (readIds.includes(notifId) || isMarking) return;
+        if (allReadIds.includes(notifId) || isMarking) return;
 
         setIsMarking(notifId);
+        setLocalReadIds(prev => [...prev, notifId]); // Optimistic update
         try {
-            await databases.createDocument(
-                DATABASE_ID,
-                COLLECTION_NOTIFICATIONS_READ,
-                ID.unique(),
-                {
-                    user_id: userId,
-                    notification_id: notifId,
-                    read_at: new Date().toISOString()
-                }
-            );
-            setReadIds(prev => [...prev, notifId]);
+            await markNotificationAsReadAction(userId, notifId);
+            // The Realtime in AuthContext will detect the change and update readNotifications.
         } catch (e) {
             console.error("Error marking as read:", e);
         } finally {
@@ -126,27 +77,14 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
     };
 
     const handleMarkAllAsRead = async () => {
-        const unreadNotifs = notifications.filter(n => !readIds.includes(n.$id));
+        const unreadNotifs = announcements.filter((n: any) => !allReadIds.includes(n.$id));
         if (unreadNotifs.length === 0 || isMarking) return;
 
         setIsMarking("all");
+        const unreadIds = unreadNotifs.map((n: any) => n.$id);
+        setLocalReadIds(prev => [...prev, ...unreadIds]); // Optimistic update
         try {
-            // Create read entries for all unread
-            const promises = unreadNotifs.map(n => 
-                databases.createDocument(
-                    DATABASE_ID,
-                    COLLECTION_NOTIFICATIONS_READ,
-                    ID.unique(),
-                    {
-                        user_id: userId,
-                        notification_id: n.$id,
-                        read_at: new Date().toISOString()
-                    }
-                )
-            );
-            await Promise.all(promises);
-            const markedIds = unreadNotifs.map(n => n.$id);
-            setReadIds(prev => [...prev, ...markedIds]);
+            await markAllNotificationsAsReadAction(userId, unreadIds);
         } catch (e) {
             console.error("Error marking all as read:", e);
         } finally {
@@ -163,15 +101,20 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
         >
             {/* Bell Icon */}
             <button
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={() => {
+                    const newOpen = !isOpen;
+                    setIsOpen(newOpen);
+                    if (newOpen) refreshGlobalData(true); // Explicitly silent refresh on open
+
+                }}
                 className="relative p-2.5 rounded-full hover:bg-white/10 transition-colors flex items-center justify-center text-white/80 hover:text-white"
             >
                 <Bell className="w-6 h-6 md:w-5 md:h-5" />
-                {unreadCount > 0 && (
+                {optimisticUnreadCount > 0 && (
                     <span className="absolute top-1.5 right-2 flex h-5 w-5 pointer-events-none">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-5 w-5 bg-red-600 text-[10px] items-center justify-center font-bold text-white border-2 border-black/50">
-                            {unreadCount}
+                            {optimisticUnreadCount}
                         </span>
                     </span>
                 )}
@@ -197,7 +140,7 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
                                 <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
                                     <div className="flex flex-col">
                                         <h3 className="font-bold text-lg text-white">{LITERALS.DASHBOARD.ANNOUNCEMENTS.PANEL_TITLE}</h3>
-                                        {unreadCount > 0 && (
+                                        {optimisticUnreadCount > 0 && (
                                             <button 
                                                 onClick={(e) => {
                                                     e.stopPropagation();
@@ -220,7 +163,7 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
                                 </div>
 
                                 <div className="max-h-[70vh] overflow-y-auto p-2 space-y-2 custom-scrollbar">
-                                    {/* Push Permission Button - Solo se muestra si NO está suscrito */}
+                                    {/* Push Permission Button - Only shown if not subscribed */}
                                     {!isSubscribed && (
                                         <div className="mb-2 p-3 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between gap-3 group hover:bg-white/10 transition-colors">
                                             <div className="flex items-center gap-3">
@@ -244,7 +187,7 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
                                         </div>
                                     )}
 
-                                    {loading && notifications.length === 0 ? (
+                                    {authLoading && announcements.length === 0 ? (
                                         <div className="py-12 flex flex-col items-center justify-center text-white/40 italic">
                                             <Loader2 className="w-8 h-8 animate-spin mb-2" />
                                             Cargando anuncios...
@@ -254,47 +197,51 @@ export default function NotificationPanel({ userId, isLoggedIn }: NotificationPa
                                             {LITERALS.DASHBOARD.ANNOUNCEMENTS.EMPTY_STATE}
                                         </div>
                                     ) : (
-                                        visibleNotifications.map((n) => {
-                                            const isRead = readIds.includes(n.$id);
+                                        visibleNotifications.map((n: any) => {
+                                            const isRead = allReadIds.includes(n.$id);
+                                            const typeLabel = n.type === 'urgent' ? 'Importante' : (n.type || 'Información');
+                                            const typeColor = n.type === 'urgent' ? 'text-red-500' : 
+                                                             n.type === 'warning' ? 'text-amber-400' : 
+                                                             n.type === 'success' ? 'text-emerald-400' : 
+                                                             'text-blue-400';
+
                                             return (
                                                 <div
                                                     key={n.$id}
                                                     onClick={() => handleMarkAsRead(n.$id)}
                                                     className={`p-4 rounded-xl transition-all border group cursor-pointer ${isRead
-                                                        ? "bg-white/5 border-white/5 opacity-60 grayscale-[0.5]"
+                                                        ? "bg-white/5 border-white/5 opacity-40 grayscale"
                                                         : "bg-white/10 border-white/10 hover:bg-white/15 hover:scale-[1.01] shadow-lg"
                                                         }`}
                                                 >
-                                                    <div className="flex items-start gap-3">
-                                                        <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${isRead ? 'bg-transparent' : 'bg-red-500 animate-pulse'}`} />
+                                                    <div className="flex items-start gap-4">
                                                         <div className="flex-1 min-w-0">
-                                                            <div className="flex justify-between items-start mb-1">
-                                                                <span className={`text-[10px] uppercase tracking-widest font-bold ${n.type === 'warning' ? 'text-amber-400' : n.type === 'success' ? 'text-emerald-400' : 'text-blue-400'
-                                                                    }`}>
-                                                                    {n.type || 'info'}
-                                                                </span>
-                                                                <span className="text-[10px] text-white/30 whitespace-nowrap">
-                                                                    {new Date(n.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
-                                                                </span>
-                                                            </div>
-                                                            <h4 className={`font-bold leading-tight mb-1 text-white ${isRead ? 'text-white/80' : 'text-white'}`}>
-                                                                {n.title}
-                                                            </h4>
-                                                            <p className="text-sm text-white/60 line-clamp-3 leading-relaxed">
-                                                                {n.content}
-                                                            </p>
-                                                            {!isRead && (
-                                                                <div className="mt-3 flex justify-end">
-                                                                    <span className="text-[10px] bg-white text-black px-2 py-0.5 rounded-full font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                        MARCAR COMO LEÍDO
+                                                            <div className="flex justify-between items-center mb-1.5">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className={`text-[9px] uppercase font-black tracking-tighter ${typeColor}`}>
+                                                                        {typeLabel}
+                                                                    </span>
+                                                                    <span className="text-[10px] text-white/20 whitespace-nowrap font-medium italic">
+                                                                        {new Date(n.createdAt || n.$createdAt || Date.now()).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}
                                                                     </span>
                                                                 </div>
-                                                            )}
+                                                                {!isRead && (
+                                                                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+                                                                )}
+                                                            </div>
+                                                            <h4 className={`font-bold leading-tight mb-1 text-white text-base ${isRead ? 'text-white/70' : 'text-white'}`}>
+                                                                {n.title}
+                                                            </h4>
+                                                            <p className="text-sm text-white/50 leading-relaxed font-light">
+                                                                {n.content}
+                                                            </p>
                                                         </div>
                                                     </div>
                                                 </div>
                                             );
                                         })
+
+
                                     )}
                                 </div>
 

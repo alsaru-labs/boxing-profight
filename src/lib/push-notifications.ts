@@ -1,53 +1,63 @@
-// f:\Proyectos\boxing_profight\src\lib\push-notifications.ts
-import { databases, DATABASE_ID, COLLECTION_PROFILES } from "./appwrite";
+// src/lib/push-notifications.ts
+import { savePushSubscriptionAction, clearPushSubscriptionAction } from "@/app/perfil/push-actions";
 
-// Replace with your real VAPID public key from your push service or Firebase
-const VAPID_PUBLIC_KEY = "BDhiTpGxkbPcWwD0tSkbJ5y_AUcE8lVWv9p1Jr1-m0TtAWBVQn4StkrJneU3xlDEjCucV1gT5Fj2ypqShlvN_Y4";
+// VAPID public key — must match the key used by the Appwrite function to sign pushes
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
 export async function registerPushNotifications(userId: string) {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        console.warn('Push not supported');
         return null;
     }
 
+    if (!userId) return null;
+
     try {
-        const registration = await navigator.serviceWorker.register('/sw.js', {
-            scope: '/'
-        });
+        await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        const registration = await navigator.serviceWorker.ready;
 
         const permission = await Notification.requestPermission();
         if (permission !== 'granted') return null;
 
-        let subscription = await registration.pushManager.getSubscription();
+        // Siempre forzar suscripción nueva para evitar claves VAPID desincronizadas
+        const existing = await registration.pushManager.getSubscription();
+        if (existing) await existing.unsubscribe();
 
-        // If no subscription, create one
-        if (!subscription) {
-            if (VAPID_PUBLIC_KEY.includes("PLACEHOLDER")) {
-                console.error("VAPID KEY is placeholder, skipping subscription");
-                return null;
-            }
-            subscription = await registration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-            });
+        if (!VAPID_PUBLIC_KEY) {
+            console.error('[Push] NEXT_PUBLIC_VAPID_PUBLIC_KEY no está configurada.');
+            return null;
         }
 
-        // Save to user profile in Appwrite
-        if (subscription && userId) {
-            await databases.updateDocument(
-                DATABASE_ID,
-                COLLECTION_PROFILES,
-                userId,
-                {
-                    push_subscription: JSON.stringify(subscription)
-                }
-            );
+        const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+
+        const result = await savePushSubscriptionAction(userId, JSON.stringify(subscription));
+        if (!result.success) {
+            console.error('[Push] Error guardando suscripción:', result.error);
+            return null;
         }
 
         return subscription;
     } catch (error) {
-        console.error('Error registering push:', error);
+        console.error('[Push] Error en registerPushNotifications:', error);
         return null;
+    }
+}
+
+export async function unregisterPushNotifications(userId: string) {
+    try {
+        const registration = await navigator.serviceWorker.getRegistration('/');
+        if (registration) {
+            const subscription = await registration.pushManager.getSubscription();
+            if (subscription) await subscription.unsubscribe();
+        }
+
+        if (userId) {
+            await clearPushSubscriptionAction(userId);
+        }
+    } catch (error) {
+        console.error('[Push] Error en unregisterPushNotifications:', error);
     }
 }
 

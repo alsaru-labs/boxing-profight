@@ -75,6 +75,9 @@ export function ProfileSettings({ profileInfo, onUpdatePhone, onChangePassword, 
             variant="ghost" 
             size="sm" 
             onClick={() => {
+              if (isEditingPhone) {
+                setTempPhone(profileInfo?.phone || "");
+              }
               setIsEditingPhone(!isEditingPhone);
               setPhoneError(""); // Clear error on cancel
             }}
@@ -104,13 +107,29 @@ export function ProfileSettings({ profileInfo, onUpdatePhone, onChangePassword, 
           </Button>
         </div>
 
-        <div className="pt-4 border-t border-white/5">
+        <div className="pt-6 border-t border-white/5 group-buttons">
           <Button 
             onClick={handleUpdate}
-            disabled={isUpdating || (isEditingPhone && tempPhone === profileInfo?.phone)}
-            className="w-full bg-white text-black hover:bg-emerald-500 hover:text-white font-black h-14 rounded-xl shadow-xl transition-all disabled:opacity-20 flex items-center justify-center gap-2"
+            disabled={isUpdating || (isEditingPhone && tempPhone === profileInfo?.phone) || (!isEditingPhone)}
+            className={`
+              w-full font-black h-14 rounded-xl transition-all duration-500 flex items-center justify-center gap-3 uppercase tracking-[0.15em] text-[11px]
+              ${isEditingPhone && tempPhone !== profileInfo?.phone
+                ? "bg-emerald-500 text-black hover:bg-emerald-400 shadow-[0_20px_40px_rgba(16,185,129,0.25)] hover:shadow-[0_25px_50px_rgba(16,185,129,0.35)] hover:scale-[1.02] active:scale-95"
+                : "bg-white/5 text-white/20 border border-white/5 cursor-not-allowed"
+              }
+              disabled:opacity-50 disabled:grayscale disabled:scale-100 disabled:shadow-none
+            `}
           >
-            {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Check className="w-5 h-5" /> ACTUALIZAR DATOS DE PERFIL</>}
+            {isUpdating ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
+                <div className={`p-1.5 rounded-lg transition-colors ${isEditingPhone && tempPhone !== profileInfo?.phone ? 'bg-black/10' : 'bg-white/5'}`}>
+                  <UserCog className="w-4 h-4" />
+                </div>
+                {isEditingPhone ? "Guardar cambios" : "Actualizar mis datos"}
+              </>
+            )}
           </Button>
         </div>
       </div>
