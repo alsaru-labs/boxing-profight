@@ -1,6 +1,5 @@
 // public/sw.js
 
-// Force immediate activation — no waiting for old SW to die
 self.addEventListener('install', function (event) {
     self.skipWaiting();
 });
@@ -34,7 +33,7 @@ self.addEventListener('push', function (event) {
             self.registration.showNotification(data.title || "ProFight: Nuevo Aviso", options)
         );
     } catch (e) {
-        // Fallback: intenta mostrar como texto plano
+        // Fallback con texto plano
         try {
             const text = event.data.text();
             event.waitUntil(
@@ -44,7 +43,7 @@ self.addEventListener('push', function (event) {
                 })
             );
         } catch (e2) {
-            console.error("Push event data error:", e2);
+            console.error('[SW] Error en push event:', e2);
         }
     }
 });
@@ -57,13 +56,11 @@ self.addEventListener('notificationclick', function (event) {
 
     event.waitUntil(
         self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-            // Si ya hay una ventana abierta, la enfocamos
             for (const client of clientList) {
                 if (client.url.includes(targetUrl) && 'focus' in client) {
                     return client.focus();
                 }
             }
-            // Si no, abrimos una nueva
             if (self.clients.openWindow) {
                 return self.clients.openWindow(targetUrl);
             }

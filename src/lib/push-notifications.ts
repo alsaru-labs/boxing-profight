@@ -1,56 +1,46 @@
-// f:\Proyectos\boxing_profight\src\lib\push-notifications.ts
-import { databases, DATABASE_ID, COLLECTION_PROFILES } from "./appwrite";
+// src/lib/push-notifications.ts
+import { savePushSubscriptionAction, clearPushSubscriptionAction } from "@/app/perfil/push-actions";
 
 // VAPID public key — must match the key used by the Appwrite function to sign pushes
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
 export async function registerPushNotifications(userId: string) {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        console.warn('Push not supported');
         return null;
     }
 
-    try {
-        // Ensure the SW is registered and ready
-        const registration = await navigator.serviceWorker.register('/sw.js', {
-            scope: '/'
-        });
+    if (!userId) return null;
 
-        // Wait for the SW to be active before trying to subscribe
-        await navigator.serviceWorker.ready;
+    try {
+        await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        const registration = await navigator.serviceWorker.ready;
 
         const permission = await Notification.requestPermission();
         if (permission !== 'granted') return null;
 
-        // Get existing subscription or create a new one
-        let subscription = await registration.pushManager.getSubscription();
+        // Siempre forzar suscripción nueva para evitar claves VAPID desincronizadas
+        const existing = await registration.pushManager.getSubscription();
+        if (existing) await existing.unsubscribe();
 
-        if (!subscription) {
-            if (!VAPID_PUBLIC_KEY) {
-                console.error("NEXT_PUBLIC_VAPID_PUBLIC_KEY no está configurada. No se puede suscribir a push.");
-                return null;
-            }
-            subscription = await registration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-            });
+        if (!VAPID_PUBLIC_KEY) {
+            console.error('[Push] NEXT_PUBLIC_VAPID_PUBLIC_KEY no está configurada.');
+            return null;
         }
 
-        // Save to user profile in Appwrite
-        if (subscription && userId) {
-            await databases.updateDocument(
-                DATABASE_ID,
-                COLLECTION_PROFILES,
-                userId,
-                {
-                    push_subscription: JSON.stringify(subscription)
-                }
-            );
+        const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+
+        const result = await savePushSubscriptionAction(userId, JSON.stringify(subscription));
+        if (!result.success) {
+            console.error('[Push] Error guardando suscripción:', result.error);
+            return null;
         }
 
         return subscription;
     } catch (error) {
-        console.error('Error registering push:', error);
+        console.error('[Push] Error en registerPushNotifications:', error);
         return null;
     }
 }
@@ -60,22 +50,14 @@ export async function unregisterPushNotifications(userId: string) {
         const registration = await navigator.serviceWorker.getRegistration('/');
         if (registration) {
             const subscription = await registration.pushManager.getSubscription();
-            if (subscription) {
-                await subscription.unsubscribe();
-            }
+            if (subscription) await subscription.unsubscribe();
         }
 
-        // Clear the subscription from the user's profile
         if (userId) {
-            await databases.updateDocument(
-                DATABASE_ID,
-                COLLECTION_PROFILES,
-                userId,
-                { push_subscription: null }
-            );
+            await clearPushSubscriptionAction(userId);
         }
     } catch (error) {
-        console.error('Error unregistering push:', error);
+        console.error('[Push] Error en unregisterPushNotifications:', error);
     }
 }
 
