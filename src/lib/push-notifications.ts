@@ -2,9 +2,7 @@
 import { databases, DATABASE_ID, COLLECTION_PROFILES } from "./appwrite";
 
 // VAPID public key — must match the key used by the Appwrite function to sign pushes
-const VAPID_PUBLIC_KEY =
-    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
-    "BF-jHL2MUUk35ZOLJzGJh2OKOmaSXhPQZZF8M4VfBfWy6W9VVdinnp4xzFOQ2q4aq9iN2wzy8p2UXx4YPgzDQSwE";
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
 export async function registerPushNotifications(userId: string) {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -28,6 +26,10 @@ export async function registerPushNotifications(userId: string) {
         let subscription = await registration.pushManager.getSubscription();
 
         if (!subscription) {
+            if (!VAPID_PUBLIC_KEY) {
+                console.error("NEXT_PUBLIC_VAPID_PUBLIC_KEY no está configurada. No se puede suscribir a push.");
+                return null;
+            }
             subscription = await registration.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
