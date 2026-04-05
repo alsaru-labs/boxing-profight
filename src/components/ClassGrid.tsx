@@ -235,7 +235,7 @@ export function ClassGrid({
                                                                 return (
                                                                     <Button
                                                                         onClick={() => onBookClass?.(cls)}
-                                                                        disabled={isFull || isProcessingBooking === cls.$id || !canBook}
+                                                                        disabled={isFull || !!isProcessingBooking || !canBook}
                                                                         className={`w-full font-black h-9 md:h-16 text-[10px] md:text-sm uppercase tracking-[0.2em] rounded-xl md:rounded-2xl transition-all duration-500 ${isFull
                                                                             ? 'bg-zinc-900 text-zinc-600 border border-white/5 cursor-not-allowed shadow-none'
                                                                             : !canBook
@@ -243,7 +243,7 @@ export function ClassGrid({
                                                                                 : 'bg-white text-black hover:bg-emerald-500 hover:text-white hover:scale-[1.03] hover:shadow-[0_20px_40px_rgba(16,185,129,0.25)] active:scale-95 border-b-4 border-zinc-200 hover:border-emerald-700'
                                                                             }`}
                                                                     >
-                                                                        {isProcessingBooking === cls.$id ? (
+                                                                        {!!isProcessingBooking && (isProcessingBooking === "ALL" || isProcessingBooking === cls.$id) ? (
                                                                             <Loader2 className="w-6 h-6 animate-spin" />
                                                                         ) : (
                                                                             !canBook ? LITERALS.CLASS_CARD.PENDING_PAYMENT : isFull ? LITERALS.CLASS_CARD.NO_SPACES : LITERALS.CLASS_CARD.RESERVE_BUTTON

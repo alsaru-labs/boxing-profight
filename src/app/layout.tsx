@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { Toaster } from "sonner";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -19,15 +21,12 @@ export const metadata: Metadata = {
     icon: "/favicon.ico",
     apple: "/icon_boxing_profight-192x192.webp",
   },
-  // Esto es vital para que se abra sin la barra del navegador (modo app)
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "Boxing Profight",
   },
 };
-
-import { AuthProvider } from "@/contexts/AuthContext";
 
 export default function RootLayout({
   children,
@@ -36,11 +35,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className="scroll-smooth" suppressHydrationWarning>
-      <body
-        className={`${inter.variable} font-sans antialiased selection:bg-white/30 selection:text-white`}
-      >
+      <body className={`${inter.className} bg-black text-white antialiased`}>
         <AuthProvider>
           {children}
+          <Toaster 
+            position="bottom-right"
+            toastOptions={{
+              className: "bg-zinc-900 border-white/10 text-white font-sans",
+              style: {
+                background: "rgba(9, 9, 11, 0.95)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                color: "white",
+              },
+            }}
+            theme="dark"
+            richColors
+            closeButton
+          />
         </AuthProvider>
       </body>
     </html>

@@ -24,11 +24,11 @@ interface StudentMobileCardProps {
   isUpdating: boolean;
   handleActionClick: (student: any) => void;
   handleOpenEditModal: (student: any) => void;
-  deleteStudentAccount: (id: string, userId: string) => Promise<{ success: boolean; error?: string }>;
-  handlePermanentDeleteStudent: (profileId: string, userId: string, studentName: string) => void;
+  deleteStudentAccount: (id: string, userId: string, name: string) => Promise<boolean>;
+  handlePermanentDeleteStudent: (profileId: string, userId: string, studentName: string) => Promise<boolean>;
   setStudentsList: React.Dispatch<React.SetStateAction<any[]>>;
   showAlert: (title: string, message: string, variant: "success" | "danger" | "warning") => void;
-  showConfirm: (title: string, message: string, onConfirm: () => void, variant?: "danger" | "warning") => void;
+  showConfirm: (title: string, message: string, onConfirm: () => Promise<any>, variant?: "danger" | "warning") => void;
 }
 
 export function StudentMobileCard({
@@ -136,17 +136,9 @@ export function StudentMobileCard({
                   className="flex items-center gap-2 px-3 py-3 rounded-xl text-sm font-bold text-red-400 focus:bg-red-500/20 focus:text-red-400 cursor-pointer transition-colors"
                   onClick={() => {
                     showConfirm(
-                      "Dar de baja (Soft)",
+                      "Dar de baja",
                       `¿Seguro borrar a ${student.name}? El alumno dejará de tener acceso, pero se mantendrá su historial.`,
-                      async () => {
-                        const res = await deleteStudentAccount(student.$id, student.user_id);
-                        if (res.success) {
-                          setStudentsList(prev => prev.map(s => s.$id === student.$id ? { ...s, status: "Baja", is_active: false } : s));
-                          showAlert("Éxito", "Alumno dado de baja.", "success");
-                        } else {
-                          showAlert("Error", res.error || "No se pudo dar de baja", "danger");
-                        }
-                      },
+                      () => deleteStudentAccount(student.$id, student.user_id, student.name),
                       "danger"
                     );
                   }}
@@ -158,7 +150,14 @@ export function StudentMobileCard({
 
                 <DropdownMenuItem
                   className="flex items-center gap-2 px-3 py-3 rounded-xl text-sm font-bold text-red-600 focus:bg-red-600/20 focus:text-red-600 cursor-pointer transition-colors"
-                  onClick={() => handlePermanentDeleteStudent(student.$id, student.user_id, student.name)}
+                  onClick={() => {
+                    showConfirm(
+                      "Eliminación Permanente",
+                      `¿BORRADO TOTAL de ${student.name}? Acción irreversible.`,
+                      () => handlePermanentDeleteStudent(student.$id, student.user_id, student.name),
+                      "danger"
+                    );
+                  }}
                   disabled={isUpdating}
                 >
                   <Trash2 className="w-4 h-4" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Loader2, ShieldCheck, CalendarDays, Plus } from "lucide-react";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -47,7 +47,10 @@ export default function AdminDashboard() {
     setSelectedMonth,
     loadDashboardData,
     refreshStudentsList,
-    paidStudentIds
+    paidStudentIds,
+    registerProfileOptimistically,
+    deactivateProfileOptimistically,
+    updatePaymentOptimistically
   } = useAdminData();
 
   // Modal States
@@ -76,27 +79,35 @@ export default function AdminDashboard() {
     onConfirm: () => { },
   });
 
-  const showAlert = (title: string, description: string, variant: "info" | "success" | "warning" | "danger" = "info") => {
-    setModalConfig({
-      isOpen: true, title, description, variant,
-      onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false })),
-      showCancel: false, confirmText: "Entendido"
+  // Toasts replacement for showAlert
+  const showAlert = (title: string, msg: string, variant: "info" | "success" | "warning" | "danger" = "info") => {
+    import("sonner").then(({ toast }) => {
+      const type = variant === "danger" ? "error" : variant === "warning" ? "warning" : variant === "success" ? "success" : "info";
+      toast[type](title, { description: msg });
     });
   };
 
-  const showConfirm = (title: string, description: string, onConfirm: () => void | Promise<void>, variant: "info" | "success" | "warning" | "danger" = "warning") => {
+  const showConfirm = (title: string, description: string, onConfirm: () => Promise<any>, variant: "info" | "success" | "warning" | "danger" = "warning") => {
     setModalConfig({
-      isOpen: true, title, description, variant,
-      onConfirm: async () => {
-        await onConfirm();
-        setModalConfig(prev => ({ ...prev, isOpen: false }));
-      },
-      showCancel: true, confirmText: "Confirmar"
+        isOpen: true,
+        title,
+        description,
+        variant,
+        onConfirm: async () => {
+          const result = await onConfirm();
+          // Assume result format { success: boolean, error?: string } or boolean
+          const success = typeof result === 'boolean' ? result : result?.success;
+          if (success) {
+              setModalConfig(prev => ({ ...prev, isOpen: false }));
+          }
+        },
+        showCancel: true,
+        confirmText: "Confirmar"
     });
   };
 
   const {
-    isUpdating,
+    isUpdating, // Local hook state still useful for some internal logic
     handleConfirmPayment,
     handleSaveProfile,
     handleCreateStudent,
@@ -106,15 +117,165 @@ export default function AdminDashboard() {
   } = useAdminActions({
     studentsList, setStudentsList, classesList, setClassesList,
     setMonthlyRevenue, setUnpaidCount, setTotalStudents,
-    showAlert, showConfirm, selectedMonth, paidStudentIds
+    showAlert, showConfirm, selectedMonth, paidStudentIds,
+    registerProfileOptimistically, deactivateProfileOptimistically, 
+    updatePaymentOptimistically
   });
+
+  const [isPending, startTransition] = useTransition();
+
+  // Wrapped Actions for UI feedback
+  const wrappedHandleDeleteClass = (classObj: any) => {
+    try {
+      const startTime = classObj.time.split('-')[0].trim();
+      const [year, month, day] = classObj.date.substring(0, 10).split("-").map(Number);
+      const [hours, minutes] = startTime.split(":").map(Number);
+      const classDateTime = new Date(year, month - 1, day, hours, minutes);
+
+      if (classDateTime < new Date()) {
+        showAlert("Acción Prohibida", "No se puede cancelar una clase que ya ha ocurrido.", "warning");
+        return;
+      }
+    } catch (e) { }
+
+    showConfirm(
+      "Borrar Clase",
+      "¿Seguro que quieres borrar esta clase de forma permanente? Se cancelarán también todas las reservas de los alumnos.",
+      async () => {
+        let success = false;
+        await new Promise<void>((resolve) => {
+          startTransition(async () => {
+            try {
+              const result = await handleDeleteClass(classObj.$id);
+              if (result.success) {
+                import("sonner").then(({ toast }) => {
+                  toast.success("Éxito", { description: "Clase eliminada correctamente." });
+                });
+                success = true;
+              } else {
+                import("sonner").then(({ toast }) => {
+                  toast.error("Error", { description: result.error || "No se pudo borrar la clase." });
+                });
+              }
+            } catch (err) {
+              import("sonner").then(({ toast }) => {
+                toast.error("Error", { description: "Error de red al intentar borrar la clase." });
+              });
+            } finally { resolve(); }
+          });
+        });
+        return success;
+      },
+      "danger"
+    );
+  };
+
+  const handleConfirmPaymentUI = async (...args: any[]) => {
+    const res = await handleConfirmPayment(args[0], args[1], args[2], args[3]);
+    if (res.success) {
+      import("sonner").then(({ toast }) => toast.success("Pago Registrado", { description: "El estado de pago ha sido actualizado." }));
+    } else {
+      import("sonner").then(({ toast }) => toast.error("Error", { description: res.error || "No se pudo registrar el pago." }));
+    }
+    return res;
+  };
+
+  const handleSaveProfileUI = async (...args: any[]) => {
+    const res = await handleSaveProfile(args[0], args[1], args[2], args[3], args[4], args[5]);
+    if (res.success) {
+      import("sonner").then(({ toast }) => toast.success("Perfil Actualizado", { description: "Los cambios se han guardado correctamente." }));
+    } else {
+      import("sonner").then(({ toast }) => toast.error("Error", { description: res.error || "No se pudo actualizar el perfil." }));
+    }
+    return res;
+  };
+
+  const handleCreateStudentUI = async (...args: any[]) => {
+    const res = await handleCreateStudent(args[0]);
+    if (res.success) {
+      import("sonner").then(({ toast }) => toast.success("Alumno Registrado", { description: res.reactivated ? "Cuenta reactivada con éxito." : "Acceso enviado por email." }));
+    } else {
+      import("sonner").then(({ toast }) => toast.error("Error", { description: res.error || "No se pudo crear el alumno." }));
+    }
+    return res;
+  };
+
+  const handleCreateClassUI = async (...args: any[]) => {
+    const res = await handleCreateClass(args[0]);
+    if (res.success) {
+      import("sonner").then(({ toast }) => toast.success("Clase Programada", { description: "La clase ya es visible para los alumnos." }));
+    } else {
+      import("sonner").then(({ toast }) => toast.error("Error", { description: res.error || "No se pudo programar la clase." }));
+    }
+    return res;
+  };
+
+  const wrappedDeleteStudentAccount = async (profileId: string, userId: string, name: string) => {
+    let success = false;
+    await new Promise<void>((resolve) => {
+      startTransition(async () => {
+        try {
+          const result = await deleteStudentAccount(profileId, userId);
+          if (result.success) {
+            deactivateProfileOptimistically(profileId);
+            import("sonner").then(({ toast }) => toast.success("Alumno dado de baja", { description: `${name} ha sido desactivado.` }));
+            success = true;
+          } else {
+            import("sonner").then(({ toast }) => toast.error("Error", { description: result.error || "No se pudo dar de baja." }));
+          }
+        } catch (err) {
+          import("sonner").then(({ toast }) => toast.error("Error", { description: "Error de red al intentar dar de baja." }));
+        } finally { resolve(); }
+      });
+    });
+    return success;
+  };
+
+  const wrappedPermanentDeleteStudentUI = async (profileId: string, userId: string, name: string) => {
+    let success = false;
+    await new Promise<void>((resolve) => {
+      startTransition(async () => {
+        try {
+          const result = await handlePermanentDeleteStudent(profileId, userId);
+          if (result.success) {
+            import("sonner").then(({ toast }) => toast.success("Eliminación Permanente", { description: `Los datos de ${name} han sido borrados.` }));
+            success = true;
+          } else {
+            import("sonner").then(({ toast }) => toast.error("Error", { description: result.error || "No se pudo eliminar permanentemente." }));
+          }
+        } catch (err) {
+          import("sonner").then(({ toast }) => toast.error("Error", { description: "Error de red al intentar el borrado físico." }));
+        } finally { resolve(); }
+      });
+    });
+    return success;
+  };
 
   const handleActionClick = (student: any) => {
     if (student.is_paid) {
       showConfirm(
         "Marcar Pendiente",
         `¿Confirmar que el pago de ${student.name} vuelve a estar PENDIENTE?`,
-        async () => { await handleConfirmPayment(student.$id, false); },
+        async () => {
+          let success = false;
+          await new Promise<void>(resolve => {
+            startTransition(async () => {
+              const result = await handleConfirmPayment(student.$id, false);
+              if (result.success) {
+                import("sonner").then(({ toast }) => {
+                  toast.success("Éxito", { description: "Estado de pago actualizado." });
+                });
+                success = true;
+              } else {
+                import("sonner").then(({ toast }) => {
+                  toast.error("Error", { description: result.error || "No se pudo actualizar el pago." });
+                });
+              }
+              resolve();
+            });
+          });
+          return success;
+        },
         "warning"
       );
     } else {
@@ -185,8 +346,10 @@ export default function AdminDashboard() {
             <AnnouncementManager
               announcements={announcements}
               setAnnouncements={setAnnouncements}
-              showAlert={showAlert}
-              showConfirm={showConfirm}
+              showAlert={showAlert as any}
+              showConfirm={showConfirm as any}
+              isPending={isPending}
+              startTransition={startTransition}
             />
           </TabsContent>
 
@@ -228,11 +391,11 @@ export default function AdminDashboard() {
             />
 
             <StudentDirectory
-              isUpdating={isUpdating}
+              isUpdating={isPending || isUpdating}
               handleActionClick={handleActionClick}
               handleOpenEditModal={handleOpenEditModal}
-              deleteStudentAccount={deleteStudentAccount}
-              handlePermanentDeleteStudent={handlePermanentDeleteStudent}
+              deleteStudentAccount={wrappedDeleteStudentAccount}
+              handlePermanentDeleteStudent={wrappedPermanentDeleteStudentUI}
               setStudentsList={setStudentsList}
               showAlert={showAlert as any}
               showConfirm={showConfirm as any}
@@ -252,7 +415,7 @@ export default function AdminDashboard() {
                   </Button>
                 </div>
               </div>
-              <ClassGrid isAdmin classes={sortedClassesList} onViewAttendees={handleViewAttendees} onCancelClass={handleDeleteClass} />
+              <ClassGrid isAdmin classes={sortedClassesList} onViewAttendees={handleViewAttendees} onCancelClass={wrappedHandleDeleteClass} />
             </div>
 
             <div className="space-y-4 pt-16 border-t border-white/10 pb-12">
@@ -268,27 +431,27 @@ export default function AdminDashboard() {
         isOpen={isPaymentModalOpen}
         onOpenChange={setIsPaymentModalOpen}
         student={selectedStudent}
-        isUpdating={isUpdating}
-        onConfirm={handleConfirmPayment}
+        isUpdating={isPending || isUpdating}
+        onConfirm={handleConfirmPaymentUI}
       />
       <EditStudentModal
         isOpen={isEditModalOpen}
         onOpenChange={setIsEditModalOpen}
         student={selectedStudent}
-        isUpdating={isUpdating}
-        onSave={handleSaveProfile}
+        isUpdating={isPending || isUpdating}
+        onSave={handleSaveProfileUI}
       />
       <NewStudentModal
         isOpen={isNewStudentModalOpen}
         onOpenChange={setIsNewStudentModalOpen}
-        isUpdating={isUpdating}
-        onSave={handleCreateStudent}
+        isUpdating={isPending || isUpdating}
+        onSave={handleCreateStudentUI}
       />
       <CreateClassModal
         isOpen={isClassModalOpen}
         onOpenChange={setIsClassModalOpen}
-        isUpdating={isUpdating}
-        onSave={handleCreateClass}
+        isUpdating={isPending || isUpdating}
+        onSave={handleCreateClassUI}
         classesList={classesList}
       />
       <AttendeesModal
@@ -299,13 +462,14 @@ export default function AdminDashboard() {
 
       <ConfirmModal
         isOpen={modalConfig.isOpen}
-        onOpenChange={(open) => setModalConfig(prev => ({ ...prev, isOpen: open }))}
+        onOpenChange={(open) => !isPending && setModalConfig(prev => ({ ...prev, isOpen: open }))}
         title={modalConfig.title}
         description={modalConfig.description}
         variant={modalConfig.variant}
         onConfirm={modalConfig.onConfirm}
-        showCancel={modalConfig.showCancel}
+        showCancel={modalConfig.showCancel && !isPending}
         confirmText={modalConfig.confirmText}
+        isLoading={isPending}
       />
     </div>
   );

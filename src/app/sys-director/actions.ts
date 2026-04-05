@@ -109,6 +109,17 @@ export async function bootstrapAdminAction(data: { name: string, lastName: strin
     }
 }
 
+/**
+ * 🔄 SYNC AGRESIVA: Forza limpieza de caché completa para el Dashboard
+ * Asegura que tras cualquier mutación, un F5 muestre datos frescos.
+ */
+function revalidateAdminDashboard() {
+    revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
+    revalidateTag(CACHE_TAGS.PAYMENTS, "max" as any);
+    revalidateTag(CACHE_TAGS.REVENUE, "max" as any);
+    revalidatePath("/sys-director");
+}
+
 // ==========================================
 // 🚀 SECCIÓN 2: HIDRATACIÓN DE DATOS (MEGA-ACTIONS)
 // ==========================================
@@ -456,8 +467,7 @@ export async function handleCreateOrReactivateStudent(form: any) {
             } 
         );
 
-        revalidatePath("/sys-director");
-        revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
+        revalidateAdminDashboard();
         return { success: true, profile: JSON.parse(JSON.stringify(newProfile)), reactivated: false, token: inviteToken };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -506,9 +516,8 @@ export async function updateStudentProfileAction(profileId: string, data: any) {
                 level: data.level
             } 
         );
-        revalidatePath("/sys-director");
+        revalidateAdminDashboard();
         revalidatePath("/perfil");
-        revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
         return { success: true, data: JSON.parse(JSON.stringify(updated)) };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -563,7 +572,7 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
         });
 
         // 3. Invalidad Cachés
-        revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
+        revalidateAdminDashboard();
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
 
         return { success: true };
@@ -624,6 +633,7 @@ export async function permanentDeleteStudentAction(profileId: string, userId: st
         await databases.deleteDocument(DATABASE_ID, COLLECTION_PROFILES, profileId);
 
         // 4. Invalidación Total
+        revalidateAdminDashboard();
         revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
         revalidateTag(CACHE_TAGS.PAYMENTS, "max" as any);
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
@@ -663,9 +673,7 @@ export async function recordPaymentAction(studentId: string, amount: number, met
                                 } });
             }
         }
-        revalidateTag(CACHE_TAGS.PAYMENTS, "max" as any);
-        revalidateTag(CACHE_TAGS.REVENUE, "max" as any);
-        revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
+        revalidateAdminDashboard();
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -696,9 +704,7 @@ export async function deletePaymentAction(studentId: string, month?: string) {
                         } });
         } catch (e) { }
 
-        revalidateTag(CACHE_TAGS.PAYMENTS, "max" as any);
-        revalidateTag(CACHE_TAGS.REVENUE, "max" as any);
-        revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
+        revalidateAdminDashboard();
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -748,6 +754,7 @@ export async function publishAnnouncementAction(data: { title: string, content: 
                 });
         
         // 🔄 REVALIDACIÓN: Forzar limpieza de caché del servidor (Real-Time Integrity)
+        revalidateAdminDashboard();
         revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max" as any);
         revalidatePath("/sys-director");
         revalidatePath("/bookings");
@@ -782,6 +789,7 @@ export async function deleteAnnouncement(id: string) {
         await databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, id);
         
         // 🔄 REVALIDACIÓN: Limpiar caché al borrar aviso
+        revalidateAdminDashboard();
         revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max" as any);
         revalidatePath("/sys-director");
         revalidatePath("/bookings");
@@ -855,6 +863,7 @@ export async function createClassServer(newClass: any) {
                 status: "Activa"
             }
         );
+        revalidateAdminDashboard();
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
         return { success: true, class: JSON.parse(JSON.stringify(created)) };
     } catch (error: any) {
@@ -872,6 +881,7 @@ export async function deleteClassAction(classId: string) {
             await Promise.all(bookingsList.documents.map(b => databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, b.$id)));
         }
         await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
+        revalidateAdminDashboard();
         revalidatePath("/sys-director");
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
         revalidateTag(CACHE_TAGS.PROFILE, "max" as any);

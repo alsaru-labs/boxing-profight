@@ -14,7 +14,7 @@ interface EditStudentModalProps {
   onOpenChange: (open: boolean) => void;
   student: any;
   isUpdating: boolean;
-  onSave: (student: any, name: string, lastName: string, email: string, phone: string, level: string) => Promise<boolean>;
+  onSave: (student: any, name: string, lastName: string, email: string, phone: string, level: string) => Promise<any>;
 }
 
 export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, onSave }: EditStudentModalProps) {
@@ -52,10 +52,10 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
     if (!isFormValid) return;
 
     const result = await onSave(student, name, lastName, email, phone, level);
-    if (result) {
+    if (result?.success) {
       onOpenChange(false);
     } else {
-        setErrors({ server: "Email ya en uso o error de servidor." });
+        setErrors({ server: result?.error || "Email ya en uso o error de servidor." });
     }
   };
 

@@ -12,7 +12,7 @@ interface PaymentModalProps {
   onOpenChange: (open: boolean) => void;
   student: any;
   isUpdating: boolean;
-  onConfirm: (studentId: string, status: boolean, method: string, amount: string) => Promise<boolean>;
+  onConfirm: (studentId: string, status: boolean, method: string, amount: string) => Promise<any>;
 }
 
 export function PaymentModal({ isOpen, onOpenChange, student, isUpdating, onConfirm }: PaymentModalProps) {
@@ -93,8 +93,8 @@ export function PaymentModal({ isOpen, onOpenChange, student, isUpdating, onConf
             <Button
               size="xl"
               onClick={async () => {
-                const success = await onConfirm(student?.$id, true, method, amount);
-                if (success) onOpenChange(false);
+                const res = await onConfirm(student?.$id, true, method, amount);
+                if (res?.success) onOpenChange(false);
               }}
               disabled={isUpdating}
               className="w-full bg-white text-black hover:bg-emerald-500 hover:text-white font-black tracking-widest uppercase rounded-xl shadow-xl transition-all disabled:opacity-20"

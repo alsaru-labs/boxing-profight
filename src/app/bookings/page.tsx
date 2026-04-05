@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useOptimistic, startTransition } from "react";
+import { useState, useEffect, useMemo, useOptimistic, startTransition, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import AuthTransition from "@/components/AuthTransition";
@@ -24,7 +24,7 @@ export default function BookingsPage() {
         availableClasses: allPossibleClasses 
     } = useAuth();
     
-    const [isProcessingBooking, setIsProcessingBooking] = useState<string | null>(null);
+    const [isPending, startTransition] = useTransition();
     const [currentTime, setCurrentTime] = useState(new Date());
 
     const [optimisticBookings, setOptimisticBookings] = useOptimistic(
@@ -83,27 +83,19 @@ export default function BookingsPage() {
         onConfirm: () => { },
     });
 
-    const showAlert = (title: string, description: string, variant: "info" | "success" | "warning" | "danger" = "info") => {
-        setModalConfig({
-            isOpen: true,
-            title,
-            description,
-            variant,
-            onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false })),
-            showCancel: false,
-            confirmText: "Entendido"
-        });
-    };
-
-    const showConfirm = (title: string, description: string, onConfirm: () => void | Promise<void>, variant: "info" | "success" | "warning" | "danger" = "warning") => {
+    // Toasts replacement for showAlert
+    const showConfirm = (title: string, description: string, onConfirm: () => Promise<boolean>, variant: "info" | "success" | "warning" | "danger" = "warning") => {
         setModalConfig({
             isOpen: true,
             title,
             description,
             variant,
             onConfirm: async () => {
-                await onConfirm();
-                setModalConfig(prev => ({ ...prev, isOpen: false }));
+                // Not using startTransition here directly because we need to await the result to decide if we close the modal
+                const success = await onConfirm();
+                if (success) {
+                    setModalConfig(prev => ({ ...prev, isOpen: false }));
+                }
             },
             showCancel: true,
             confirmText: "Confirmar"
@@ -131,30 +123,43 @@ export default function BookingsPage() {
         showConfirm(
             LITERALS.BOOKINGS.CONFIRM_RESERVATION_TITLE, 
             LITERALS.BOOKINGS.CONFIRM_RESERVATION_DESC(classObj.name, classObj.coach),
-            () => {
-                startTransition(async () => {
-                    setOptimisticBookings({ action: "add", booking: { $id: `opt-${Date.now()}`, class_id: classObj.$id, student_id: user.$id } });
-                    setOptimisticClasses({ class_id: classObj.$id, action: "increment" });
-                    setIsProcessingBooking(classObj.$id);
+            async () => {
+                let success = false;
+                // Wrapping the server action in startTransition for mutation blocking
+                await new Promise<void>((resolve) => {
+                    startTransition(async () => {
+                        setOptimisticBookings({ action: "add", booking: { $id: `opt-${Date.now()}`, class_id: classObj.$id, student_id: user.$id } });
+                        setOptimisticClasses({ class_id: classObj.$id, action: "increment" });
 
-                    try {
-                        const result: any = await bookClassAction(classObj.$id, user.$id);
-                        if (result.success) {
-                            showAlert("¡Reserva Éxitosa!", "Tu plaza ha quedado confirmada. ¡Nos vemos en el tatami!", "success");
-                        } else {
-                            if (result.code === "FULL") {
-                                showAlert("Clase Llena", "¡Lo sentimos! Las plazas para esta clase se acaban de llenar.", "warning");
+                        try {
+                            const result: any = await bookClassAction(classObj.$id, user.$id);
+                            if (result.success) {
+                                import("sonner").then(({ toast }) => {
+                                    toast.success("¡Reserva Éxitosa!", {
+                                        description: "Tu plaza ha quedado confirmada. ¡Nos vemos en el tatami!"
+                                    });
+                                });
+                                success = true;
                             } else {
-                                showAlert("Error", result.error || "No se ha podido realizar la reserva. Inténtalo de nuevo.", "danger");
+                                import("sonner").then(({ toast }) => {
+                                    if (result.code === "FULL") {
+                                        toast.warning("Clase Llena", { description: "¡Lo sentimos! Las plazas para esta clase se acaban de llenar." });
+                                    } else {
+                                        toast.error("Error", { description: result.error || "No se ha podido realizar la reserva. Inténtalo de nuevo." });
+                                    }
+                                });
                             }
+                        } catch (err: any) {
+                            import("sonner").then(({ toast }) => {
+                                toast.error("Error", { description: "No se ha podido realizar la reserva. Inténtalo de nuevo." });
+                            });
+                            console.error(err);
+                        } finally {
+                            resolve();
                         }
-                    } catch (err: any) {
-                        showAlert("Error", "No se ha podido realizar la reserva. Inténtalo de nuevo.", "danger");
-                        console.error(err);
-                    } finally {
-                        setIsProcessingBooking(null);
-                    }
+                    });
                 });
+                return success;
             },
             "info"
         );
@@ -162,36 +167,53 @@ export default function BookingsPage() {
 
     const handleCancelBooking = async (classObj: any) => {
         if (!isCancellable(classObj.date, classObj.time, new Date())) {
-            showAlert("Acción Prohibida", "Por política del club, solo se puede cancelar hasta 1 minute antes del inicio de la clase.", "warning");
+            import("sonner").then(({ toast }) => {
+                toast.warning("Acción Prohibida", {
+                    description: "Por política del club, solo se puede cancelar hasta 1 minuto antes del inicio de la clase."
+                });
+            });
             return;
         }
 
         showConfirm(
             LITERALS.BOOKINGS.CANCEL_RESERVATION_TITLE, 
             LITERALS.BOOKINGS.CANCEL_RESERVATION_DESC,
-            () => {
-                startTransition(async () => {
-                    const bookingToCancel = userBookings.find((b: any) => b.class_id === classObj.$id);
-                    if (!bookingToCancel) return;
-
-                    setOptimisticBookings({ action: "remove", booking: bookingToCancel });
-                    setOptimisticClasses({ class_id: classObj.$id, action: "decrement" });
-                    setIsProcessingBooking(classObj.$id);
-
-                    try {
-                        const result = await cancelBookingAction(classObj.$id, bookingToCancel.$id);
-                        if (result.success) {
-                            showAlert("Éxito", "Reserva cancelada correctamente.", "success");
-                        } else {
-                            showAlert("Error", result.error || "No se ha podido cancelar la reserva.", "danger");
+            async () => {
+                let success = false;
+                await new Promise<void>((resolve) => {
+                    startTransition(async () => {
+                        const bookingToCancel = userBookings.find((b: any) => b.class_id === classObj.$id);
+                        if (!bookingToCancel) {
+                            resolve();
+                            return;
                         }
-                    } catch (err: any) {
-                        showAlert("Error", "No se ha podido cancelar la reserva.", "danger");
-                        console.error(err);
-                    } finally {
-                        setIsProcessingBooking(null);
-                    }
+
+                        setOptimisticBookings({ action: "remove", booking: bookingToCancel });
+                        setOptimisticClasses({ class_id: classObj.$id, action: "decrement" });
+
+                        try {
+                            const result = await cancelBookingAction(classObj.$id, bookingToCancel.$id);
+                            if (result.success) {
+                                import("sonner").then(({ toast }) => {
+                                    toast.success("Éxito", { description: "Reserva cancelada correctamente." });
+                                });
+                                success = true;
+                            } else {
+                                import("sonner").then(({ toast }) => {
+                                    toast.error("Error", { description: result.error || "No se ha podido cancelar la reserva." });
+                                });
+                            }
+                        } catch (err: any) {
+                            import("sonner").then(({ toast }) => {
+                                toast.error("Error", { description: "No se ha podido cancelar la reserva." });
+                            });
+                            console.error(err);
+                        } finally {
+                            resolve();
+                        }
+                    });
                 });
+                return success;
             },
             "danger"
         );
@@ -221,7 +243,7 @@ export default function BookingsPage() {
                     <ConfirmedClasses
                         availableClasses={availableClasses}
                         userBookings={optimisticBookings}
-                        isProcessingBooking={isProcessingBooking}
+                        isProcessingBooking={isPending ? "ALL" : null}
                         handleCancelBooking={handleCancelBooking}
                         currentTime={currentTime}
                     />
@@ -229,13 +251,14 @@ export default function BookingsPage() {
             </main>
             <ConfirmModal
                 isOpen={modalConfig.isOpen}
-                onOpenChange={(open) => setModalConfig(prev => ({ ...prev, isOpen: open }))}
+                onOpenChange={(open) => !isPending && setModalConfig(prev => ({ ...prev, isOpen: open }))}
                 title={modalConfig.title}
                 description={modalConfig.description}
                 variant={modalConfig.variant}
                 onConfirm={modalConfig.onConfirm}
-                showCancel={modalConfig.showCancel}
+                showCancel={modalConfig.showCancel && !isPending}
                 confirmText={modalConfig.confirmText}
+                isLoading={isPending}
             />
         </div>
     );

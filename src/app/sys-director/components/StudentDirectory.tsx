@@ -29,11 +29,11 @@ interface StudentDirectoryProps {
   isUpdating: boolean;
   handleActionClick: (student: any) => void;
   handleOpenEditModal: (student: any) => void;
-  deleteStudentAccount: (id: string, userId: string) => Promise<{ success: boolean; error?: string }>;
-  handlePermanentDeleteStudent: (profileId: string, userId: string, studentName: string) => void;
+  deleteStudentAccount: (id: string, userId: string, name: string) => Promise<boolean>;
+  handlePermanentDeleteStudent: (profileId: string, userId: string, studentName: string) => Promise<boolean>;
   setStudentsList: React.Dispatch<React.SetStateAction<any[]>>;
   showAlert: (title: string, message: string, variant: "success" | "danger" | "warning") => void;
-  showConfirm: (title: string, message: string, onConfirm: () => void, variant?: "danger" | "warning") => void;
+  showConfirm: (title: string, message: string, onConfirm: () => Promise<any>, variant?: "danger" | "warning") => void;
 }
 
 export function StudentDirectory({

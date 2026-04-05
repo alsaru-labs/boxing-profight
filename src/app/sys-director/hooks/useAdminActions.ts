@@ -20,9 +20,12 @@ interface UseAdminActionsProps {
   setUnpaidCount: (val: any) => void;
   setTotalStudents: (val: any) => void;
   showAlert: (title: string, description: string, variant?: any) => void;
-  showConfirm: (title: string, description: string, onConfirm: () => void | Promise<void>, variant?: any) => void;
+  showConfirm: (title: string, description: string, onConfirm: () => Promise<any>, variant?: any) => void;
   selectedMonth: string;
   paidStudentIds: Set<string>;
+  registerProfileOptimistically: (profile: any) => void;
+  deactivateProfileOptimistically: (profileId: string) => void;
+  updatePaymentOptimistically: (studentId: string, isPaid: boolean, amount: number, method?: string) => void;
 }
 
 export function useAdminActions({
@@ -36,7 +39,10 @@ export function useAdminActions({
   showAlert,
   showConfirm,
   selectedMonth,
-  paidStudentIds
+  paidStudentIds,
+  registerProfileOptimistically,
+  deactivateProfileOptimistically,
+  updatePaymentOptimistically
 }: UseAdminActionsProps) {
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -53,21 +59,13 @@ export function useAdminActions({
         result = await deletePaymentAction(studentId, selectedMonth);
       }
 
-      if (!result.success) {
-        showAlert("Error", result.error || "No se pudo procesar el pago.", "danger");
-        return false;
+      if (result.success) {
+        updatePaymentOptimistically(studentId, newStatus, pAmount, paymentMethod);
       }
-
-      // Update local state for immediate feedback (Individual student row)
-      const newList = studentsList.map(s => s.$id === studentId ? { ...s, is_paid: newStatus, payment_method: newStatus ? paymentMethod : null } : s);
-      setStudentsList(newList);
-
-      // aggregators (revenue, unpaidCount) will be updated by AdminContext's REALTIME subscription
-      return true;
+      return result;
     } catch (error) {
       console.error(error);
-      showAlert("Error", "Error de red al procesar el pago.", "danger");
-      return false;
+      return { success: false, error: "Error de red al procesar el pago." };
     } finally {
       setIsUpdating(false);
     }
@@ -84,18 +82,15 @@ export function useAdminActions({
         level: editLevel
       });
 
-      if (!result.success) {
-        showAlert("Error", result.error || "No se pudo actualizar el perfil.", "danger");
-        return false;
+      if (result.success) {
+        setStudentsList(studentsList.map(s =>
+          s.$id === selectedStudent.$id ? { ...s, name: editName, last_name: editLastName, email: editEmail.toLowerCase(), phone: editPhone, level: editLevel } : s
+        ));
       }
-
-      setStudentsList(studentsList.map(s =>
-        s.$id === selectedStudent.$id ? { ...s, name: editName, last_name: editLastName, email: editEmail.toLowerCase(), phone: editPhone, level: editLevel } : s
-      ));
-      return true;
+      return result;
     } catch (error) {
       console.error(error);
-      return false;
+      return { success: false, error: "Error de red." };
     } finally {
       setIsUpdating(false);
     }
@@ -104,30 +99,15 @@ export function useAdminActions({
   const handleCreateStudent = async (form: any) => {
     try {
       setIsUpdating(true);
-
       const result = await handleCreateOrReactivateStudent(form);
 
-      if (!result.success) {
-        showAlert("Error", result.error || "No se pudo registrar al alumno.", "danger");
-        return false;
+      if (result.success) {
+        registerProfileOptimistically(result.profile);
       }
-
-      const newProfile = result.profile;
-
-      if (result.reactivated) {
-        setStudentsList((prev: any[]) => prev.map(s => s.$id === newProfile.$id ? { ...s, ...newProfile } : s));
-        showAlert("Reactivación Exitosa", `Se ha reactivado la cuenta de ${newProfile.name} ${newProfile.last_name || ""}.`, "success");
-      } else {
-        // Por ser creación nueva, el Realtime listener lo añadirá solo, 
-        // pero podemos añadirlo aquí también para mayor velocidad si preferimos.
-        showAlert("Éxito", "Alumno registrado correctamente. Se le ha enviado el acceso.", "success");
-      }
-
       return result;
     } catch (err) {
       console.error(err);
-      showAlert("Error", "Error de red al registrar al alumno.", "danger");
-      return { success: false, error: "Error de red." };
+      return { success: false, error: "Error de red al registrar al alumno." };
     } finally {
       setIsUpdating(false);
     }
@@ -138,129 +118,48 @@ export function useAdminActions({
     try {
       setIsUpdating(true);
       const result = await createClassServer(newClass);
-
-      if (result.success && result.class) {
-        return true;
-      } else {
-        showAlert("Error", result.error || "No se pudo programar la clase. Revisa los datos.", "danger");
-        return false;
-      }
+      return result;
     } catch (error) {
       console.error(error);
-      return false;
+      return { success: false, error: "Error de red." };
     } finally {
       setIsUpdating(false);
     }
   };
-  /** Se oculta esta funcion por ahora ya que tenemos el cronJob
-  const handleAutoGenerateWeekClasses = async () => {
-    showConfirm(
-      "Generar Clases",
-      "¿Seguro que quieres auto-generar las clases de la PRÓXIMA SEMANA? (El sistema saltará las que ya existan)",
-      async () => {
-        try {
-          setIsUpdating(true);
-          const result = await autoGenerateNextWeekClasses();
-          console.log("[useAdminActions] autoGenerateNextWeekClasses Result:", result);
 
-          if (result.success) {
-            if (result.count === 0) {
-              showAlert("Info", "No se han generado clases nuevas porque ya existían todas.", "info");
-            } else {
-              setClassesList((prev: any[]) => {
-                const existingIds = new Set(prev.map(c => c.$id));
-                const newClasses = (result.classes || []).filter((c: any) => !existingIds.has(c.$id));
-                return [...prev, ...newClasses].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-              });
-              showAlert("Éxito", `Generadas ${result.count} clases para la semana del ${result.period || "seleccionada"}.`, "success");
-            }
-          } else {
-            showAlert("Error", result.error || "No se pudieron generar las clases.", "danger");
-          }
-        } catch (e) {
-          console.error(e);
-          showAlert("Error", "Error de red al generar la semana.", "danger");
-        } finally {
-          setIsUpdating(false);
-        }
-      }
-    );
-  };*/
-  const handleDeleteClass = async (classObj: any) => {
+  const handleDeleteClass = async (classObjId: string) => {
     try {
-      const startTime = classObj.time.split('-')[0].trim();
-      const [year, month, day] = classObj.date.substring(0, 10).split("-").map(Number);
-      const [hours, minutes] = startTime.split(":").map(Number);
-      const classDateTime = new Date(year, month - 1, day, hours, minutes);
-
-      if (classDateTime < new Date()) {
-        showAlert("Acción Prohibida", "No se puede cancelar una clase que ya ha ocurrido. Queda registrada en el historial.", "warning");
-        return;
+      setIsUpdating(true);
+      const result = await deleteClassAction(classObjId);
+      if (result.success) {
+        setClassesList(classesList.filter(c => c.$id !== classObjId));
       }
-    } catch (e) {
-      // Allow passing if date parsing fails
+      return result;
+    } catch (error: any) {
+      console.error("Error al borrar la clase:", error);
+      return { success: false, error: "Error de red al intentar borrar la clase." };
+    } finally {
+      setIsUpdating(false);
     }
-
-    showConfirm(
-      "Borrar Clase",
-      "¿Seguro que quieres borrar esta clase de forma permanente? Se cancelarán también todas las reservas de los alumnos.",
-      async () => {
-        try {
-          setIsUpdating(true);
-          const result = await deleteClassAction(classObj.$id);
-
-          if (result.success) {
-            setClassesList(classesList.filter(c => c.$id !== classObj.$id));
-            showAlert("Éxito", "Clase eliminada correctamente.", "success");
-          } else {
-            showAlert("Error", result.error || "No se pudo borrar la clase.", "danger");
-          }
-        } catch (error: any) {
-          console.error("Error al borrar la clase:", error);
-          showAlert("Error", "Error de red al intentar borrar la clase.", "danger");
-        } finally {
-          setIsUpdating(false);
-        }
-      },
-      "danger"
-    );
   };
 
-  const handlePermanentDeleteStudent = (profileId: string, userId: string, studentName: string, onSuccess?: () => void) => {
-    showConfirm(
-      "ELIMINACIÓN PERMANENTE",
-      `¿Estás absolutamente seguro de borrar a ${studentName}? Esta acción eliminará su cuenta de acceso, su ficha y todas sus reservas de forma IRREVERSIBLE.`,
-      async () => {
-        try {
-          console.log(`🚀 [CLIENT] Iniciando borrado permanente para: ${studentName} (Profile: ${profileId}, User: ${userId})`);
-          setIsUpdating(true);
-          const { permanentDeleteStudentAction } = await import("../actions");
-          const result = await permanentDeleteStudentAction(profileId, userId);
+  const handlePermanentDeleteStudent = async (profileId: string, userId: string) => {
+    try {
+      setIsUpdating(true);
+      const { permanentDeleteStudentAction } = await import("../actions");
+      const result = await permanentDeleteStudentAction(profileId, userId);
 
-          if (result.success) {
-            setStudentsList((prev: any[]) => prev.filter(s => s.$id !== profileId));
-
-            // 🛡️ ACTUALIZACIÓN MANUAL DE CONTADORES (Optimista)
-            // Esto evita que el dashboard se quede "congelado" debido a la race condition con Realtime
-            setTotalStudents((t: number) => Math.max(0, t - 1));
-            if (!paidStudentIds.has(profileId)) {
-              setUnpaidCount((u: number) => Math.max(0, u - 1));
-            }
-
-            showAlert("Éxito", "Alumno eliminado permanentemente de la base de datos.", "success");
-            if (onSuccess) onSuccess();
-          } else {
-            showAlert("Error", result.error || "No se pudo realizar el borrado físico.", "danger");
-          }
-        } catch (err) {
-          console.error(err);
-          showAlert("Error", "Error de red al intentar el borrado físico.", "danger");
-        } finally {
-          setIsUpdating(false);
-        }
-      },
-      "danger"
-    );
+      if (result.success) {
+        // Usar el ayudante atómico para evitar doble-conteo con el Realtime (.delete)
+        deactivateProfileOptimistically(profileId);
+      }
+      return result;
+    } catch (err) {
+      console.error(err);
+      return { success: false, error: "Error de red al intentar el borrado físico." };
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   return {

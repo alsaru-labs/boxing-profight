@@ -17,7 +17,7 @@ interface CreateClassModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   isUpdating: boolean;
-  onSave: (newClass: any) => Promise<boolean>;
+  onSave: (newClass: any) => Promise<any>;
   classesList: any[];
 }
 
@@ -67,8 +67,8 @@ export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, cla
   const isPastTime = newClass.date === localTodayISO && selectedStartHour <= currentHour;
 
   const handleSubmit = async () => {
-    const success = await onSave(newClass);
-    if (success) {
+    const res = await onSave(newClass);
+    if (res?.success) {
       setIsSuccess(true);
       onOpenChange(false);
     }

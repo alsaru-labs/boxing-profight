@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useMemo, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Calendar, ArrowRight, Clock, CheckCircle2, History as HistoryIcon, Loader2 } from "lucide-react";
+import { Calendar, ArrowRight, Clock, CheckCircle2, History as HistoryIcon, Loader2, BicepsFlexed } from "lucide-react";
 import AuthTransition from "@/components/AuthTransition";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -35,7 +35,7 @@ export default function StudentProfile() {
   
   const [activeTab, setActiveTab] = useState("resumen");
   const [simulatedDay, setSimulatedDay] = useState<number | undefined>(undefined);
-  const [isProcessingBooking, setIsProcessingBooking] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
   const [isUpdating, setIsUpdating] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -57,26 +57,23 @@ export default function StudentProfile() {
   });
 
   const showAlert = (title: string, description: string, variant: "info" | "success" | "warning" | "danger" = "info") => {
-    setModalConfig({
-        isOpen: true,
-        title,
-        description,
-        variant,
-        onConfirm: () => setModalConfig(prev => ({ ...prev, isOpen: false })),
-        showCancel: false,
-        confirmText: "Entendido"
+    import("sonner").then(({ toast }) => {
+      const type = variant === "danger" ? "error" : variant === "warning" ? "warning" : variant === "success" ? "success" : "info";
+      toast[type](title, { description: description });
     });
   };
 
-  const showConfirm = (title: string, description: string, onConfirm: () => void | Promise<void>, variant: "info" | "success" | "warning" | "danger" = "warning") => {
+  const showConfirm = (title: string, description: string, onConfirm: () => Promise<boolean>, variant: "info" | "success" | "warning" | "danger" = "warning") => {
     setModalConfig({
         isOpen: true,
         title,
         description,
         variant,
         onConfirm: async () => {
-            await onConfirm();
-            setModalConfig(prev => ({ ...prev, isOpen: false }));
+            const success = await onConfirm();
+            if (success) {
+                setModalConfig(prev => ({ ...prev, isOpen: false }));
+            }
         },
         showCancel: true,
         confirmText: "Confirmar"
@@ -139,24 +136,33 @@ export default function StudentProfile() {
         "Cancelar Reserva", 
         "¿Seguro que quieres cancelar tu plaza en esta clase? Esta acción liberará el sitio para otro compañero.",
         async () => {
-            try {
-              setIsProcessingBooking(classObj.$id);
-              const bookingToCancel = userBookings.find((b: any) => b.class_id === classObj.$id);
-              if (!bookingToCancel) return;
-        
-              const result = await cancelBookingAction(classObj.$id, bookingToCancel.$id);
-              
-              if (result.success) {
-                showAlert("Éxito", "Reserva cancelada correctamente.", "success");
-              } else {
-                showAlert("Error", result.error || "No se ha podido cancelar la reserva.", "danger");
-              }
-            } catch (err: any) {
-              showAlert("Error", "No se ha podido cancelar la reserva.", "danger");
-              console.error(err);
-            } finally {
-              setIsProcessingBooking(null);
-            }
+            let successResult = false;
+            await new Promise<void>((resolve) => {
+              startTransition(async () => {
+                try {
+                  const bookingToCancel = userBookings.find((b: any) => b.class_id === classObj.$id);
+                  if (!bookingToCancel) {
+                    resolve();
+                    return;
+                  }
+            
+                  const result = await cancelBookingAction(classObj.$id, bookingToCancel.$id);
+                  
+                  if (result.success) {
+                    showAlert("Éxito", "Reserva cancelada correctamente.", "success");
+                    successResult = true;
+                  } else {
+                    showAlert("Error", result.error || "No se ha podido cancelar la reserva.", "danger");
+                  }
+                } catch (err: any) {
+                  showAlert("Error", "No se ha podido cancelar la reserva.", "danger");
+                  console.error(err);
+                } finally {
+                  resolve();
+                }
+              });
+            });
+            return successResult;
         },
         "danger"
     );
@@ -168,25 +174,31 @@ export default function StudentProfile() {
         LITERALS.BOOKINGS.CONFIRM_RESERVATION_TITLE, 
         LITERALS.BOOKINGS.CONFIRM_RESERVATION_DESC(classObj.name, classObj.coach),
         async () => {
-            try {
-                setIsProcessingBooking(classObj.$id);
-                const result: any = await bookClassAction(classObj.$id, user.$id);
-                
-                if (result.success) {
-                    showAlert("¡Reserva Éxitosa!", "Tu plaza ha quedado confirmada. ¡Nos vemos en el tatami!", "success");
-                } else {
-                    if (result.code === "FULL") {
-                        showAlert("Clase Llena", "¡Lo sentimos! Las plazas para esta clase se acaban de llenar.", "warning");
+            let successResult = false;
+            await new Promise<void>((resolve) => {
+              startTransition(async () => {
+                try {
+                    const result: any = await bookClassAction(classObj.$id, user.$id);
+                    
+                    if (result.success) {
+                        showAlert("¡Reserva Éxitosa!", "Tu plaza ha quedado confirmada. ¡Nos vemos en el tatami!", "success");
+                        successResult = true;
                     } else {
-                        showAlert("Error", result.error || "No se ha podido realizar la reserva. Inténtalo de nuevo.", "danger");
+                        if (result.code === "FULL") {
+                            showAlert("Clase Llena", "¡Lo sentimos! Las plazas para esta clase se acaban de llenar.", "warning");
+                        } else {
+                            showAlert("Error", result.error || "No se ha podido realizar la reserva. Inténtalo de nuevo.", "danger");
+                        }
                     }
+                } catch (err: any) {
+                    showAlert("Error", "No se ha podido realizar la reserva. Inténtalo de nuevo.", "danger");
+                    console.error(err);
+                } finally {
+                    resolve();
                 }
-            } catch (err: any) {
-                showAlert("Error", "No se ha podido realizar la reserva. Inténtalo de nuevo.", "danger");
-                console.error(err);
-            } finally {
-                setIsProcessingBooking(null);
-            }
+              });
+            });
+            return successResult;
         },
         "info"
     );
@@ -233,7 +245,7 @@ export default function StudentProfile() {
     : user?.name ? user.name.substring(0, 2).toUpperCase() : "US";
 
   return (
-    <div className="dark min-h-screen bg-black text-white font-sans flex flex-col relative w-full">
+    <div className="dark min-h-screen bg-black text-white font-sans flex flex-col relative w-full text-center md:text-left">
       <Navbar isHome={false} />
 
       <main className="flex-1 w-full max-w-[1400px] mx-auto pt-4 md:pt-6 lg:pt-8 px-6 md:px-8 lg:px-12 pb-12 z-10">
@@ -319,7 +331,7 @@ export default function StudentProfile() {
                 </motion.div>
               </TabsContent>
 
-              <TabsContent key="clases" value="clases" className="focus-visible:outline-none">
+              <TabsContent key="clases" value="clases" className="focus-visible:outline-none focus:outline-none">
                 <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="space-y-12">
                   <div className="space-y-6">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -354,7 +366,7 @@ export default function StudentProfile() {
                           classes={validUpcomingClasses}
                           userBookings={userBookings}
                           profileInfo={profileInfo}
-                          isProcessingBooking={isProcessingBooking}
+                          isProcessingBooking={isPending ? "ALL" : null}
                           onBookClass={handleBookClass}
                           simulatedDay={simulatedDay}
                       />
@@ -396,7 +408,7 @@ export default function StudentProfile() {
                   profileInfo={profileInfo} 
                   onUpdatePhone={handleUpdatePhone}
                   onChangePassword={handleChangePassword}
-                  isUpdating={isUpdating}
+                  isUpdating={isPending || isUpdating}
                 />
               </TabsContent>
             </AnimatePresence>
@@ -405,35 +417,15 @@ export default function StudentProfile() {
       </main>
       <ConfirmModal 
         isOpen={modalConfig.isOpen}
-        onOpenChange={(open) => setModalConfig(prev => ({ ...prev, isOpen: open }))}
+        onOpenChange={(open) => !isPending && setModalConfig(prev => ({ ...prev, isOpen: open }))}
         title={modalConfig.title}
         description={modalConfig.description}
         variant={modalConfig.variant}
         onConfirm={modalConfig.onConfirm}
-        showCancel={modalConfig.showCancel}
+        showCancel={modalConfig.showCancel && !isPending}
         confirmText={modalConfig.confirmText}
+        isLoading={isPending}
       />
     </div>
-  );
-}
-
-function BicepsFlexed({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <path d="M12.42 17.10c-.96.39-1.85.73-2.73.96-1.58.41-3.23.11-4.66-.82-1.34-.87-2.22-2.31-2.43-3.95-.24-1.8.31-3.56 1.48-4.88 1.15-1.3 2.76-2 4.47-1.92 1.62.08 3.12.83 4.14 2.06.49-.07.98-.11 1.47-.11 3.73 0 6.84 2.82 7.15 6.31.06.72-.04 1.45-.3 2.13l-1.61-2.11" />
-      <path d="M9 14.5c.33-.33.74-.5 1.1-.37.36.13.62.53.62.94 0 .41-.26.81-.62.94-.36.13-.77-.04-1.1-.37Z" />
-      <path d="M16 8.5c.33-.33.74-.5 1.1-.37.36.13.62.53.62.94 0 .41-.26.81-.62.94-.36.13-.77-.04-1.1-.37Z" />
-    </svg>
   );
 }

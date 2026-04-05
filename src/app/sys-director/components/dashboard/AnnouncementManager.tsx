@@ -14,18 +14,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LITERALS } from "@/constants/literals";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { publishAnnouncementAction, deleteAnnouncement } from "../../actions";
 
 interface AnnouncementManagerProps {
   announcements: any[];
   setAnnouncements: (val: any) => void;
   showAlert: (title: string, msg: string, v: any) => void;
-  showConfirm: (t: string, d: string, c: () => void, v: any) => void;
+  showConfirm: (t: string, d: string, c: () => Promise<any>, v: any) => void;
+  isPending: boolean;
+  startTransition: (callback: () => void) => void;
 }
 
-export function AnnouncementManager({ announcements, setAnnouncements, showAlert, showConfirm }: AnnouncementManagerProps) {
-  const [isCreating, setIsCreating] = useState(false);
+export function AnnouncementManager({ announcements, setAnnouncements, showAlert, showConfirm, isPending, startTransition }: AnnouncementManagerProps) {
   const [newAnnouncement, setNewAnnouncement] = useState({ title: "", content: "", type: "info" });
 
   const handlePublish = () => {
@@ -34,28 +35,34 @@ export function AnnouncementManager({ announcements, setAnnouncements, showAlert
       "Confirmar Publicación",
       "¿Estás seguro de que quieres publicar este anuncio?",
       async () => {
-        setIsCreating(true);
-        try {
-          const res = await publishAnnouncementAction({
-            title: newAnnouncement.title,
-            content: newAnnouncement.content,
-            type: newAnnouncement.type
+        let success = false;
+        await new Promise<void>((resolve) => {
+          startTransition(async () => {
+            try {
+              const res = await publishAnnouncementAction({
+                title: newAnnouncement.title,
+                content: newAnnouncement.content,
+                type: newAnnouncement.type
+              });
+              if (res.success && res.data) {
+                setAnnouncements((prev: any[]) => {
+                  if (prev.some(a => a.$id === res.data.$id)) return prev;
+                  return [res.data, ...prev];
+                });
+                setNewAnnouncement({ title: "", content: "", type: "info" });
+                import("sonner").then(({ toast }) => toast.success("Éxito", { description: "Anuncio publicado." }));
+                success = true;
+              } else {
+                import("sonner").then(({ toast }) => toast.error("Error", { description: res.error || "No se pudo publicar." }));
+              }
+            } catch (e) {
+              import("sonner").then(({ toast }) => toast.error("Error", { description: "No se pudo publicar." }));
+            } finally {
+              resolve();
+            }
           });
-          if (res.success && res.data) {
-            setAnnouncements((prev: any[]) => {
-              if (prev.some(a => a.$id === res.data.$id)) return prev;
-              return [res.data, ...prev];
-            });
-            setNewAnnouncement({ title: "", content: "", type: "info" });
-            showAlert("Éxito", "Anuncio publicado.", "success");
-          } else {
-            showAlert("Error", res.error || "No se pudo publicar.", "danger");
-          }
-        } catch (e) {
-          showAlert("Error", "No se pudo publicar.", "danger");
-        } finally {
-          setIsCreating(false);
-        }
+        });
+        return success;
       },
       "warning"
     );
@@ -66,17 +73,26 @@ export function AnnouncementManager({ announcements, setAnnouncements, showAlert
       "Confirmar Eliminación",
       "¿Seguro que quieres borrar este anuncio?",
       async () => {
-        try {
-          const result = await deleteAnnouncement(id);
-          if (result.success) {
-            setAnnouncements((prev: any[]) => prev.filter((a: any) => a.$id !== id));
-            showAlert("Éxito", "Anuncio eliminado.", "success");
-          } else {
-            showAlert("Error", result.error || "No se pudo borrar.", "danger");
-          }
-        } catch (e) {
-          showAlert("Error", "No se pudo borrar.", "danger");
-        }
+        let success = false;
+        await new Promise<void>((resolve) => {
+          startTransition(async () => {
+            try {
+              const result = await deleteAnnouncement(id);
+              if (result.success) {
+                setAnnouncements((prev: any[]) => prev.filter((a: any) => a.$id !== id));
+                import("sonner").then(({ toast }) => toast.success("Éxito", { description: "Anuncio eliminado." }));
+                success = true;
+              } else {
+                import("sonner").then(({ toast }) => toast.error("Error", { description: result.error || "No se pudo borrar." }));
+              }
+            } catch (e) {
+              import("sonner").then(({ toast }) => toast.error("Error", { description: "No se pudo borrar." }));
+            } finally {
+              resolve();
+            }
+          });
+        });
+        return success;
       },
       "danger"
     );
@@ -99,6 +115,7 @@ export function AnnouncementManager({ announcements, setAnnouncements, showAlert
               onChange={(e) => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })}
               placeholder="Ej: Festivo el Lunes"
               className="bg-black/40 border-white/10"
+              disabled={isPending}
             />
           </div>
           <div className="space-y-2">
@@ -107,7 +124,8 @@ export function AnnouncementManager({ announcements, setAnnouncements, showAlert
               value={newAnnouncement.content}
               onChange={(e) => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })}
               placeholder="Escribe el aviso aquí..."
-              className="w-full bg-black/40 border border-white/10 rounded-md p-3 text-sm min-h-[100px] focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full bg-black/40 border border-white/10 rounded-md p-3 text-sm min-h-[100px] focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-50"
+              disabled={isPending}
             />
           </div>
           <div className="space-y-2">
@@ -118,6 +136,7 @@ export function AnnouncementManager({ announcements, setAnnouncements, showAlert
                 variant={newAnnouncement.type === 'info' ? 'default' : 'outline'}
                 onClick={() => setNewAnnouncement({ ...newAnnouncement, type: 'info' })}
                 className={`text-[10px] font-bold ${newAnnouncement.type === 'info' ? 'bg-blue-600' : ''}`}
+                disabled={isPending}
               >
                 Información
               </Button>
@@ -126,6 +145,7 @@ export function AnnouncementManager({ announcements, setAnnouncements, showAlert
                 variant={newAnnouncement.type === 'urgent' ? 'default' : 'outline'}
                 onClick={() => setNewAnnouncement({ ...newAnnouncement, type: 'urgent' })}
                 className={`text-[10px] font-bold ${newAnnouncement.type === 'urgent' ? 'bg-red-600' : ''}`}
+                disabled={isPending}
               >
                 Importante
               </Button>
@@ -133,10 +153,11 @@ export function AnnouncementManager({ announcements, setAnnouncements, showAlert
           </div>
           <Button
             onClick={handlePublish}
-            disabled={isCreating || !newAnnouncement.title || !newAnnouncement.content}
+            disabled={isPending || !newAnnouncement.title || !newAnnouncement.content}
             className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-10"
+            loading={isPending}
           >
-            {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Publicar Anuncio"}
+            {isPending ? "Publicando..." : "Publicar Anuncio"}
           </Button>
         </CardContent>
       </Card>
@@ -178,6 +199,7 @@ export function AnnouncementManager({ announcements, setAnnouncements, showAlert
                     size="icon"
                     onClick={() => handleDelete(a.$id)}
                     className="text-white/20 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                    disabled={isPending}
                   >
                     <X className="w-4 h-4" />
                   </Button>

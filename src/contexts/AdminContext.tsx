@@ -37,6 +37,9 @@ interface AdminContextType {
   refreshStudentsList: (silent?: boolean) => Promise<void>;
   loadRevenueHistory: (silent?: boolean) => Promise<void>;
   paidStudentIds: Set<string>;
+  registerProfileOptimistically: (profile: any) => void;
+  deactivateProfileOptimistically: (profileId: string) => void;
+  updatePaymentOptimistically: (studentId: string, isPaid: boolean, amount: number, method?: string) => void;
 }
 
 
@@ -259,6 +262,58 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     }
   }, [selectedMonth, isHydrated, isAdmin, authLoading]);
 
+  const registerProfileOptimistically = React.useCallback((prof: any) => {
+    // 🛡️ RECLAMAR ID SÍNCRONAMENTE: Evitar que el Realtime duplique
+    if (processedProfilesRef.current.has(prof.$id)) return;
+    processedProfilesRef.current.add(prof.$id);
+
+    setStudentsList(prev => {
+      const exists = prev.some(s => s.$id === prof.$id);
+      if (exists) return prev.map(s => s.$id === prof.$id ? { ...s, ...prof } : s);
+      return [prof, ...prev];
+    });
+
+    setTotalStudents(t => t + 1);
+    if (!paidStudentIdsRef.current.has(prof.$id)) {
+      setUnpaidCount(u => u + 1);
+    }
+  }, []);
+
+  const deactivateProfileOptimistically = React.useCallback((profileId: string) => {
+    // 🛡️ LIBRAR ID SÍNCRONAMENTE: Evitar que el Realtime duplique la resta
+    if (!processedProfilesRef.current.has(profileId)) return;
+    processedProfilesRef.current.delete(profileId);
+
+    setStudentsList(prev => prev.filter(s => s.$id !== profileId));
+    setTotalStudents(t => Math.max(0, t - 1));
+    
+    if (!paidStudentIdsRef.current.has(profileId)) {
+      setUnpaidCount(u => Math.max(0, u - 1));
+    }
+  }, []);
+
+  const updatePaymentOptimistically = React.useCallback((studentId: string, isPaid: boolean, amount: number, method?: string) => {
+    // 🛡️ RECLAMAR ID DE PAGO SÍNCRONAMENTE: Evitar doble-conteo en Realtime
+    const alreadyPaid = paidStudentIdsRef.current.has(studentId);
+    if (isPaid === alreadyPaid) return; 
+
+    if (isPaid) {
+      paidStudentIdsRef.current.add(studentId);
+      setUnpaidCount(u => Math.max(0, u - 1));
+      setMonthlyRevenue(r => r + amount);
+    } else {
+      paidStudentIdsRef.current.delete(studentId);
+      setUnpaidCount(u => u + 1);
+      setMonthlyRevenue(r => Math.max(0, r - amount));
+    }
+
+    // Actualizamos el Set reactivo y la lista de alumnos
+    setPaidStudentIds(new Set(paidStudentIdsRef.current));
+    setStudentsList(prev => prev.map(s => 
+      s.$id === studentId ? { ...s, is_paid: isPaid, payment_method: isPaid ? (method || "Efectivo") : null } : s
+    ));
+  }, []);
+
   // Suscripción Realtime Singleton para el Administrador
   useEffect(() => {
     if (!isAdmin || !user?.$id) return;
@@ -288,14 +343,16 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       if (collectionId === COLLECTION_PAYMENTS) {
         if (payload.month === currentMonth) {
           if (event.includes(".create")) {
-             // Actualizamos el Set de IDs de pago (esto dispara el re-render de la tabla)
+             // 🛡️ ESCUDO: Si ya lo tenemos marcado como pagado (por acción manual), no duplicamos contadores
+             if (paidStudentIdsRef.current.has(payload.student_id)) return;
+
+             // Actualizamos el Set de IDs de pago
              setPaidStudentIds(prev => {
                 const next = new Set([...prev, payload.student_id]);
                 paidStudentIdsRef.current = next;
                 return next;
              });
              
-             // Actualizamos datos adicionales en la lista de alumnos
              setStudentsList(prev => prev.map(s => 
                s.$id === payload.student_id ? { ...s, payment_method: payload.method } : s
              ));
@@ -306,6 +363,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (event.includes(".delete")) {
+             // 🛡️ ESCUDO: Si ya NO lo tenemos marcado como pagado, ignoramos para no duplicar restas
+             if (!paidStudentIdsRef.current.has(payload.student_id)) return;
+
              setPaidStudentIds(prev => {
                 const next = new Set(prev);
                 next.delete(payload.student_id);
@@ -344,7 +404,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       // 3. ⚡️ ACTUALIZACIÓN INCREMENTAL: Clases (Crear/Editar/Borrar)
       if (collectionId === COLLECTION_CLASSES) {
         if (event.includes(".create")) {
-          console.log("[AdminContext] Realtime Event: CLASS CREATE", payload);
           setClassesList(prev => {
             if (prev.some(c => c.$id === payload.$id)) return prev;
             return [...prev, payload].sort((a,b) => a.date.localeCompare(b.date));
@@ -397,12 +456,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
         if (event.includes(".update")) {
             setStudentsList(prev => {
-              const exists = prev.find(s => s.$id === payload.$id);
               const nowActive = payload.is_active === true && payload.status !== "Baja" && payload.role === "alumno";
-              const wasActive = !!exists;
+              const wasInList = prev.some(s => s.$id === payload.$id);
 
-              // Activación / Re-registro
-              if (nowActive && !wasActive) {
+              // 🟢 Activación / Re-registro (No estaba en lista y ahora es activo)
+              if (nowActive && !wasInList) {
                 if (!processedProfilesRef.current.has(payload.$id)) {
                     processedProfilesRef.current.add(payload.$id);
                     setTotalStudents(t => t + 1);
@@ -410,20 +468,21 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                         setUnpaidCount(u => u + 1);
                     }
                 }
-                return [payload, ...prev.filter(s => s.$id !== payload.$id)];
+                return [payload, ...prev];
               } 
-              // Baja / Desactivación
-              else if (!nowActive && wasActive) {
+              // 🔴 Baja / Desactivación (Estaba en la lista y ya no es activo)
+              else if (!nowActive && wasInList) {
                 if (processedProfilesRef.current.has(payload.$id)) {
                     processedProfilesRef.current.delete(payload.$id);
                     setTotalStudents(t => Math.max(0, t - 1));
                     const isPaid = paidStudentIdsRef.current.has(payload.$id);
                     if (!isPaid) setUnpaidCount(u => Math.max(0, u - 1));
                 }
+                // REMOVE from list (not just gray out) for consistency with server view
                 return prev.filter(s => s.$id !== payload.$id);
               }
-              // Actualización normal de datos
-              else if (nowActive && wasActive) {
+              // 🔵 Actualización normal de datos (Nombre, Tel, etc.)
+              else if (nowActive && wasInList) {
                 return prev.map(s => s.$id === payload.$id ? { ...s, ...payload } : s);
               }
               return prev;
@@ -481,8 +540,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     refreshAdminData: loadDashboardData,
     refreshStudentsList: loadStudentsList,
     loadRevenueHistory,
-    paidStudentIds
-  }), [studentsList, classesList, announcements, totalStudents, monthlyRevenue, unpaidCount, loading, studentsLoading, selectedMonth, revenueRecords, setStudentsList, setClassesList, setAnnouncements, setMonthlyRevenue, setUnpaidCount, setTotalStudents, loadDashboardData, loadStudentsList, loadRevenueHistory, paidStudentIds]);
+    paidStudentIds,
+    registerProfileOptimistically,
+    deactivateProfileOptimistically,
+    updatePaymentOptimistically
+  }), [studentsList, classesList, announcements, totalStudents, monthlyRevenue, unpaidCount, loading, studentsLoading, selectedMonth, revenueRecords, setStudentsList, setClassesList, setAnnouncements, setMonthlyRevenue, setUnpaidCount, setTotalStudents, loadDashboardData, loadStudentsList, loadRevenueHistory, paidStudentIds, registerProfileOptimistically, deactivateProfileOptimistically, updatePaymentOptimistically]);
 
   return (
     <AdminContext.Provider value={value}>

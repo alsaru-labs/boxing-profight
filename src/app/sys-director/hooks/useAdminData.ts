@@ -22,7 +22,10 @@ export function useAdminData() {
     refreshStudentsList,
     setClassesList,
     setAnnouncements,
-    paidStudentIds
+    paidStudentIds,
+    registerProfileOptimistically,
+    deactivateProfileOptimistically,
+    updatePaymentOptimistically
   } = useAdmin();
 
   return {
@@ -44,6 +47,9 @@ export function useAdminData() {
     setSelectedMonth,
     loadDashboardData: refreshAdminData,
     refreshStudentsList,
-    paidStudentIds
+    paidStudentIds,
+    registerProfileOptimistically,
+    deactivateProfileOptimistically,
+    updatePaymentOptimistically
   };
 }

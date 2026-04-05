@@ -89,14 +89,20 @@ export function ConfirmModal({
               }}
               disabled={isLoading}
               size="xl"
-              className={`flex-1 shadow-xl ${
+              className={`flex-1 shadow-xl transition-all duration-300 ${
                 variant === 'danger' ? 'bg-red-500 hover:bg-red-600 text-white' : 
                 variant === 'success' ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 
                 'bg-white text-black hover:bg-neutral-200 shadow-white/5'
-              }`}
+              } ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
-              {isLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-              {confirmText}
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                  <span>Procesando...</span>
+                </>
+              ) : (
+                <span>{confirmText}</span>
+              )}
             </Button>
           </div>
         </div>
