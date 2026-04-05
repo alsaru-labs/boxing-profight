@@ -1,6 +1,7 @@
 import "server-only";
 import { Client, Account, Databases, Users, Functions, Query } from "node-appwrite";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { PROJECT_ID, ENDPOINT, DATABASE_ID, COLLECTION_PAYMENTS } from "@/lib/appwrite";
 
 /**
@@ -103,9 +104,10 @@ export async function getAppwriteConfigStatus() {
 }
 
 /**
- * PASO 1: Helper para comprobar estado de pago de un alumno en el mes actual.
+ * 🛡️ LEY 2: DEDUPLICACIÓN (React.cache)
+ * Evita que múltiples componentes en el mismo render cycle RSC disparen la misma lectura.
  */
-export async function checkPaymentStatus(userId: string, currentMonth: string): Promise<boolean> {
+export const checkPaymentStatus = cache(async (userId: string, currentMonth: string): Promise<boolean> => {
     const { databases } = await createAdminClient();
     
     try {
@@ -123,4 +125,4 @@ export async function checkPaymentStatus(userId: string, currentMonth: string): 
         console.error(`[checkPaymentStatus] Error checking payment for ${userId}:`, error);
         return false;
     }
-}
+});

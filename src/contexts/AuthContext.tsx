@@ -157,106 +157,153 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fetchUserAndProfile();
   }, [fetchUserAndProfile]);
 
-  // 📡 CENTRALIZACIÓN DE TIEMPO REAL (Suscripción Unificada Zero-Fetch)
+  // 📡 CENTRALIZACIÓN DE TIEMPO REAL (Protocolo de Resurrección PWA)
+  const subscriptionRef = useRef<(() => void) | null>(null);
+  
   useEffect(() => {
     if (!user?.$id) return;
 
-    const unsubscribe = client.subscribe([
-      `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents.${user.$id}`,
-      `databases.${DATABASE_ID}.collections.${COLLECTION_PAYMENTS}.documents`,
-      `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`,
-      `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
-      `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`,
-      `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS_READ}.documents`
-    ], (response: any) => {
-      const event = response.events[0];
-      const payload = response.payload as any;
-      const collectionId = payload.$collectionId;
+    const initSubscription = () => {
+      // 🛡️ Prevenimos doble suscripción si el evento se dispara muy rápido
+      if (subscriptionRef.current) return;
 
-      // ⚡️ Perfil (Cambios de rol, datos, etc.)
-      if (collectionId === COLLECTION_PROFILES && event.includes(".update")) {
-        setProfile((prev: any) => ({ ...prev, ...payload }));
-        setIsAdmin(payload.role === "admin");
-        return;
-      }
+      console.log("[AuthContext] Iniciando Suscripción Realtime (PWA Resilient)...");
+      const unsubscribe = client.subscribe([
+        `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents.${user.$id}`,
+        `databases.${DATABASE_ID}.collections.${COLLECTION_PAYMENTS}.documents`,
+        `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`,
+        `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
+        `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`,
+        `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS_READ}.documents`
+      ], (response: any) => {
+        const event = response.events[0];
+        const payload = response.payload as any;
+        const collectionId = payload.$collectionId;
 
-      // ⚡️ Pagos (Detección de estado de pago en el perfil)
-      if (collectionId === COLLECTION_PAYMENTS) {
-        if (payload.student_id === user.$id) {
-          const d = new Date();
-          const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-          if (payload.month === currentMonthStr) {
-            const hasPaid = !event.includes(".delete");
-            setProfile((prev: any) => prev ? { ...prev, is_paid: hasPaid } : null);
+        // ⚡️ Perfil (Cambios de rol, datos, etc.)
+        if (collectionId === COLLECTION_PROFILES && event.includes(".update")) {
+          setProfile((prev: any) => ({ ...prev, ...payload }));
+          setIsAdmin(payload.role === "admin");
+          return;
+        }
+
+        // ⚡️ Pagos (Detección de estado de pago en el perfil)
+        if (collectionId === COLLECTION_PAYMENTS) {
+          if (payload.student_id === user.$id) {
+            const d = new Date();
+            const currentMonthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (payload.month === currentMonthStr) {
+              const hasPaid = !event.includes(".delete");
+              setProfile((prev: any) => prev ? { ...prev, is_paid: hasPaid } : null);
+            }
+          }
+          return;
+        }
+
+        // ⚡️ Clases (Horarios globales y plazas en tiempo real)
+        if (collectionId === COLLECTION_CLASSES) {
+          if (event.includes(".create")) {
+            setAvailableClasses(prev => {
+              if (prev.some(c => c.$id === payload.$id)) return prev;
+              return [...prev, payload].sort((a, b) => a.date.localeCompare(b.date));
+            });
+            return;
+          }
+          if (event.includes(".update")) {
+            setAvailableClasses(prev => prev.map(c => c.$id === payload.$id ? { ...c, ...payload } : c));
+            return;
+          }
+          if (event.includes(".delete")) {
+            setAvailableClasses(prev => prev.filter(c => c.$id !== payload.$id));
+            return;
           }
         }
-        return;
-      }
 
-      // ⚡️ Clases (Horarios globales y plazas en tiempo real)
-      if (collectionId === COLLECTION_CLASSES) {
-        if (event.includes(".create")) {
-          setAvailableClasses(prev => {
-            if (prev.some(c => c.$id === payload.$id)) return prev;
-            return [...prev, payload].sort((a, b) => a.date.localeCompare(b.date));
-          });
-          return;
+        // ⚡️ Reservas (Actualiza tu propia lista de reservas)
+        if (collectionId === COLLECTION_BOOKINGS) {
+          if (payload.student_id === user.$id) {
+            if (event.includes(".create")) {
+              setUserBookings(prev => {
+                if (prev.some(b => b.$id === payload.$id)) return prev;
+                return [...prev, payload];
+              });
+              return;
+            }
+            if (event.includes(".delete")) {
+              setUserBookings(prev => prev.filter(b => b.$id !== payload.$id));
+              return;
+            }
+          }
         }
-        if (event.includes(".update")) {
-          setAvailableClasses(prev => prev.map(c => c.$id === payload.$id ? { ...c, ...payload } : c));
-          return;
-        }
-        if (event.includes(".delete")) {
-          setAvailableClasses(prev => prev.filter(c => c.$id !== payload.$id));
-          return;
-        }
-      }
 
-      // ⚡️ Reservas (Actualiza tu propia lista de reservas)
-      if (collectionId === COLLECTION_BOOKINGS) {
-        if (payload.student_id === user.$id) {
+        // ⚡️ Anuncios y Notificaciones (Campana)
+        if (collectionId === COLLECTION_NOTIFICATIONS) {
           if (event.includes(".create")) {
-            setUserBookings(prev => {
-              if (prev.some(b => b.$id === payload.$id)) return prev;
-              return [...prev, payload];
+            setAnnouncements(prev => {
+              if (prev.some(a => a.$id === payload.$id)) return prev;
+              return [payload, ...prev].slice(0, 50);
             });
             return;
           }
           if (event.includes(".delete")) {
-            setUserBookings(prev => prev.filter(b => b.$id !== payload.$id));
+            setAnnouncements(prev => prev.filter(a => a.$id !== payload.$id));
             return;
           }
         }
-      }
 
-      // ⚡️ Anuncios y Notificaciones (Campana)
-      if (collectionId === COLLECTION_NOTIFICATIONS) {
-        if (event.includes(".create")) {
-          setAnnouncements(prev => {
-            if (prev.some(a => a.$id === payload.$id)) return prev;
-            return [payload, ...prev].slice(0, 50);
+        if (collectionId === COLLECTION_NOTIFICATIONS_READ && event.includes(".create") && payload.user_id === user.$id) {
+          setReadNotifications(prev => {
+             if (prev.includes(payload.notifications_id)) return prev;
+             return [...prev, payload.notifications_id];
           });
           return;
         }
-        if (event.includes(".delete")) {
-          setAnnouncements(prev => prev.filter(a => a.$id !== payload.$id));
-          return;
-        }
-      }
+      });
 
-      if (collectionId === COLLECTION_NOTIFICATIONS_READ && event.includes(".create") && payload.user_id === user.$id) {
-        setReadNotifications(prev => {
-           if (prev.includes(payload.notifications_id)) return prev;
-           return [...prev, payload.notifications_id];
-        });
-        return;
+      subscriptionRef.current = unsubscribe;
+    };
+
+    const handleResurrection = () => {
+      if (document.visibilityState === "visible") {
+        console.log("[AuthContext] PWA detectada como VISIBLE. Reiniciando flujos...");
+        
+        // 1. Limpieza de socket antiguo (si existe) para liberar recursos
+        if (subscriptionRef.current) {
+          subscriptionRef.current();
+          subscriptionRef.current = null;
+        }
+
+        // 2. Nueva conexión de WebSocket limpia
+        initSubscription();
+
+        // 3. Catch-up Fetch (Ley de Deduplicación Zero-Fetch)
+        // Volvemos a pedir los datos globales por si algo cambió durante la suspensión
+        fetchUserAndProfile(true, true);
       }
-    });
+    };
+
+    const handleOnlineStatus = () => {
+      console.log("[AuthContext] Conexión recuperada (Online). Forzando resincronización...");
+      handleResurrection();
+    };
+
+    // Inicialización
+    initSubscription();
+
+    // Listeners de Resurrección para PWA
+    window.addEventListener("visibilitychange", handleResurrection);
+    window.addEventListener("online", handleOnlineStatus);
 
     return () => {
-      unsubscribe();
+      console.log("[AuthContext] Limpieza de listeners y suscripción...");
+      if (subscriptionRef.current) {
+        subscriptionRef.current();
+        subscriptionRef.current = null;
+      }
+      window.removeEventListener("visibilitychange", handleResurrection);
+      window.removeEventListener("online", handleOnlineStatus);
     };
-  }, [user?.$id]);
+  }, [user?.$id, fetchUserAndProfile]);
 
   const unreadNotificationsCount = announcements.filter(n => !readNotifications.includes(n.$id)).length;
 

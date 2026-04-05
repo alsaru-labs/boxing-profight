@@ -198,14 +198,10 @@ export async function getPlatformOmniData(userId: string, monthOverride?: string
         const now = new Date();
         const currentMonthStr = monthOverride || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-        // First, get the profile to know if it's admin
-        const profile = await databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, userId).catch(() => null);
-
-        if (!profile) return { success: false, error: "Perfil no encontrado (Inconsistencia de datos)." };
-        const isAdmin = profile.role === "admin";
-
-        // Build the parallel omni-fetch array
-        const promises: Promise<any>[] = [
+        // 🛡️ LEY 2: PARALELISMO TOTAL (Omni-Fetch v3)
+        // Lanzamos TODO, incluyendo el perfil, en el mismo Promise.all
+        const omniPromises: Promise<any>[] = [
+            databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, userId).catch(() => null),
             getAvailableClassesCached(),
             databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
                 sdk.Query.equal("student_id", userId),
@@ -226,48 +222,47 @@ export async function getPlatformOmniData(userId: string, monthOverride?: string
             ]).catch(() => ({ documents: [] }))
         ];
 
-        // If admin, attach the heavy analytics and history to the promise array
-        if (isAdmin) {
-            promises.push(getActiveProfilesCached());
-            promises.push(getMonthlyPaymentsCached(currentMonthStr));
-            promises.push(getMonthlyRevenueCached(currentMonthStr));
-            promises.push(databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [
-                sdk.Query.limit(100), sdk.Query.orderDesc("month")
-            ]).catch(() => ({ documents: [] })));
-        }
+        const firstBatch = await Promise.allSettled(omniPromises);
 
-        const results = await Promise.allSettled(promises);
+        const profile = firstBatch[0].status === "fulfilled" ? firstBatch[0].value : null;
+        if (!profile) return { success: false, error: "Perfil no encontrado." };
 
-        const classes = results[0].status === "fulfilled" ? results[0].value : [];
-        const bookings = results[1].status === "fulfilled" ? (results[1].value as any).documents : [];
-        const selfPayments = results[2].status === "fulfilled" ? results[2].value : { total: 0 };
-        const announcements = results[3].status === "fulfilled" ? results[3].value : [];
+        const isAdmin = profile.role === "admin";
         
-        console.log(`[OMNI-FETCH] Results: Classes=${classes.length}, Bookings=${bookings.length}, Payments=${selfPayments.total}, Announcements=${announcements.length}`);
-
-        // 🚨 SYNC: Recuperar notificaciones leídas (Total Reset)
-        const notificationsRes = results[4].status === "fulfilled" ? (results[4].value as any) : { documents: [] };
+        const classes = firstBatch[1].status === "fulfilled" ? firstBatch[1].value : [];
+        const bookings = firstBatch[2].status === "fulfilled" ? (firstBatch[2].value as any).documents : [];
+        const selfPayments = (firstBatch[3].status === "fulfilled" ? firstBatch[3].value : { total: 0 }) as any;
+        const announcements = firstBatch[4].status === "fulfilled" ? firstBatch[4].value : [];
+        const notificationsRes = (firstBatch[5].status === "fulfilled" ? firstBatch[5].value : { documents: [] }) as any;
         const readNotifications = notificationsRes.documents.map((r: any) => r.notifications_id);
-        
-        if (readNotifications.length === 0 && (notificationsRes.total || 0) > 0) {
-            console.warn(`[getPlatformOmniData] Mismatch in notifications_id persistence logic.`);
-        }
 
         let adminData = null;
 
+        // Si es Admin, lanzamos el segundo lote de hidratación pesada
         if (isAdmin) {
-            const allProfiles = results[5].status === "fulfilled" ? results[5].value : [];
-            const currentMonthPayments = results[6].status === "fulfilled" ? results[6].value : [];
-            const monthlyRevenueDoc = results[7].status === "fulfilled" ? results[7].value : null;
-            const fullRevenueHistory = results[8].status === "fulfilled" ? (results[8].value as any).documents : [];
+            const adminPromises = [
+                getActiveProfilesCached(),
+                getMonthlyPaymentsCached(currentMonthStr),
+                getMonthlyRevenueCached(currentMonthStr),
+                databases.listDocuments(DATABASE_ID, COLLECTION_REVENUE, [
+                    sdk.Query.limit(100), sdk.Query.orderDesc("month")
+                ]).catch(() => ({ documents: [] }))
+            ];
 
-            const totalRevenue = monthlyRevenueDoc ? (monthlyRevenueDoc.amount || 0) : 0;
+            const secondBatch = await Promise.allSettled(adminPromises);
             
+            const allProfiles = (secondBatch[0].status === "fulfilled" ? secondBatch[0].value : []) as any[];
+            const currentMonthPayments = (secondBatch[1].status === "fulfilled" ? secondBatch[1].value : []) as any[];
+            const monthlyRevenueDoc = (secondBatch[2].status === "fulfilled" ? secondBatch[2].value : null) as any;
+            const fullRevenueHistory = (secondBatch[3].status === "fulfilled" ? secondBatch[3].value : { documents: [] }) as any;
+
             // 🗺️ Diccionario de pagos del mes para hidratación O(1)
             const paymentsMap = new Map();
-            currentMonthPayments.forEach((p: any) => paymentsMap.set(p.student_id, p));
+            if (currentMonthPayments) {
+                currentMonthPayments.forEach((p: any) => paymentsMap.set(p.student_id, p));
+            }
 
-            const hydratedProfiles = allProfiles.map((p: any) => {
+            const hydratedProfiles = (allProfiles || []).map((p: any) => {
                 const payment = paymentsMap.get(p.$id);
                 return {
                     ...p,
@@ -278,29 +273,24 @@ export async function getPlatformOmniData(userId: string, monthOverride?: string
                 };
             });
 
-            const totalStudents = allProfiles.length;
-            const activePaidCount = hydratedProfiles.filter((p: any) => p.is_paid).length;
-            const unpaidCount = Math.max(0, totalStudents - activePaidCount);
-            const paidStudentIdsArray = Array.from(paymentsMap.keys());
-
             adminData = {
                 studentsList: hydratedProfiles,
                 classes,
                 announcements,
                 dashboard: {
-                    totalStudents,
-                    unpaidCount,
-                    totalRevenue,
-                    paidStudentIds: paidStudentIdsArray
+                    totalStudents: (allProfiles || []).length,
+                    unpaidCount: Math.max(0, (allProfiles || []).length - hydratedProfiles.filter((p: any) => p.is_paid).length),
+                    totalRevenue: monthlyRevenueDoc ? (monthlyRevenueDoc.amount || 0) : 0,
+                    paidStudentIds: Array.from(paymentsMap.keys())
                 },
-                revenueHistory: fullRevenueHistory
+                revenueHistory: fullRevenueHistory.documents || []
             };
         }
 
         return {
             success: true,
             data: JSON.parse(JSON.stringify({
-                profile: { ...profile, is_paid: selfPayments.total > 0 },
+                profile: { ...profile, is_paid: (selfPayments.total || 0) > 0 },
                 isAdmin,
                 classes,
                 userBookings: bookings,
@@ -324,25 +314,34 @@ export async function getClassAttendees(classId: string) {
                     sdk.Query.select(["$id", "student_id"])
                 ]);
 
+        if (bookings.total === 0) return { success: true, documents: [] };
+
+        // 🛡️ LEY 1: BATCH FETCH (Eliminar N+1)
+        const studentIds = Array.from(new Set(bookings.documents.map((b: any) => b.student_id)));
+        const profilesRes = await databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [
+            sdk.Query.equal("$id", studentIds),
+            sdk.Query.limit(100)
+        ]);
+
+        const profilesMap = new Map(profilesRes.documents.map((p: any) => [p.$id, p]));
+
         // Enriquecer con datos del perfil (incluso si están de baja)
-        const enrichedAttendees = await Promise.all(
-            bookings.documents.map(async (booking: any) => {
-                try {
-                    const profile = await databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, booking.student_id);
-                    return {
-                        ...JSON.parse(JSON.stringify(profile)),
-                        bookingId: booking.$id
-                    };
-                } catch (e) {
-                    return { 
-                        $id: booking.student_id, 
-                        name: "Alumno Desconectado", 
-                        is_active: false,
-                        status: "Baja"
-                    };
-                }
-            })
-        );
+        const enrichedAttendees = bookings.documents.map((booking: any) => {
+            const profile = profilesMap.get(booking.student_id);
+            if (profile) {
+                return {
+                    ...JSON.parse(JSON.stringify(profile)),
+                    bookingId: booking.$id
+                };
+            }
+            return { 
+                $id: booking.student_id, 
+                name: "Alumno Desconectado", 
+                is_active: false,
+                status: "Baja",
+                bookingId: booking.$id
+            };
+        });
 
         return { success: true, documents: enrichedAttendees };
     } catch (error: any) {
@@ -529,10 +528,9 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
     const { databases, users } = await createAdminClient();
 
     try {
-        // Desactivar cuenta de Auth
         try { await users.updateStatus(userId, false); } catch (e) { }
 
-        // 1. Gestionar Reservas (Lógica Robusta en Tiempo Real)
+        // 1. Gestionar Reservas (Lógica Batch Zero-Waste)
         const bookingsList = await databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
             sdk.Query.equal("student_id", profileId),
             sdk.Query.limit(100)
@@ -541,27 +539,31 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
         if (bookingsList.total > 0) {
             const now = new Date();
             
+            // 🛡️ LEY 1: BATCH FETCH de Clases
+            const classIds = Array.from(new Set(bookingsList.documents.map((b: any) => b.class_id)));
+            const classesRes = await databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [
+                sdk.Query.equal("$id", classIds),
+                sdk.Query.limit(100)
+            ]);
+            const classesMap = new Map(classesRes.documents.map((c: any) => [c.$id, c]));
+
+            const syncPromises: Promise<any>[] = [];
+
             for (const booking of bookingsList.documents) {
-                try {
-                    // Si la clase es FUTURA, liberamos la plaza y borramos reserva
-                    const classDoc = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, booking.class_id);
-                    if (!classDoc) continue;
+                const classDoc = classesMap.get(booking.class_id);
+                if (!classDoc) continue;
 
-                    const [year, month, day] = classDoc.date.substring(0, 10).split("-").map(Number);
-                    const [hours, minutes] = classDoc.time.split('-')[0].split(":").map(Number);
-                    const classDateTime = new Date(year, month - 1, day, hours, minutes);
+                const [year, month, day] = classDoc.date.substring(0, 10).split("-").map(Number);
+                const [hours, minutes] = classDoc.time.split('-')[0].split(":").map(Number);
+                const classDateTime = new Date(year, month - 1, day, hours, minutes);
 
-                    if (classDateTime > now) {
-                        console.log(`[BAJA] Liberando plaza en clase futura: ${classDoc.date} ${classDoc.time}`);
-                        // 1. Borrado físico del booking
-                        await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id);
-                        // 2. Sincronización robusta del contador
-                        await syncClassRegisteredCount(booking.class_id);
-                    }
-                    // Las pasadas se mantienen para auditoría en el listado de clase
-                } catch (e) { 
-                    console.error("[BAJA ERROR] Procesando reserva:", e);
+                if (classDateTime > now) {
+                    await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id);
+                    syncPromises.push(syncClassRegisteredCount(booking.class_id));
                 }
+            }
+            if (syncPromises.length > 0) {
+                await Promise.allSettled(syncPromises);
             }
         }
 
@@ -590,41 +592,42 @@ export async function permanentDeleteStudentAction(profileId: string, userId: st
     const { databases, users } = await createAdminClient();
 
     try {
-        // 1. Obtener todas las reservas para limpiar la huella (Incluso antes de borrar al usuario)
+        // 1. Obtener todas las reservas para limpiar la huella
         const bookingsRes = await databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
             sdk.Query.equal("student_id", profileId), 
             sdk.Query.limit(200)
         ]);
 
-        const cleanUpPromises: Promise<any>[] = [];
-        const now = new Date();
+        const affectedClassIds = new Set<string>();
+        const deleteBookingPromises = bookingsRes.documents.map(booking => {
+            affectedClassIds.add(booking.class_id);
+            return databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id).catch(() => null);
+        });
 
-        for (const booking of bookingsRes.documents) {
-            try {
-                // Borrar booking
-                await databases.deleteDocument(DATABASE_ID, COLLECTION_BOOKINGS, booking.$id);
-                // Sincronizar contador de la clase (si sigue existiendo)
-                await syncClassRegisteredCount(booking.class_id).catch(() => null);
-            } catch (e) { 
-                console.error("[PERMANENT DELETE] Error cleaning booking:", e);
-            }
-        }
+        // Borrar todos los bookings en paralelo
+        await Promise.allSettled(deleteBookingPromises);
 
-        // 2. Otros traceos (Pagos y Notificaciones Leídas)
+        // 2. Otros traceos (Pagos y Notificaciones Leídas) en paralelo
         const [paymentsRes, readNotifsRes, tokensRes] = await Promise.all([
             databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [sdk.Query.equal("student_id", profileId), sdk.Query.limit(100)]),
             databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, [sdk.Query.equal("user_id", userId), sdk.Query.limit(100)]),
             databases.listDocuments(DATABASE_ID, COLLECTION_INVITATION_TOKENS, [sdk.Query.equal("user_id", profileId), sdk.Query.limit(10)])
         ]);
 
+        const cleanUpPromises: Promise<any>[] = [];
         paymentsRes.documents.forEach(p => cleanUpPromises.push(databases.deleteDocument(DATABASE_ID, COLLECTION_PAYMENTS, p.$id)));
         readNotifsRes.documents.forEach(n => cleanUpPromises.push(databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, n.$id)));
         tokensRes.documents.forEach(t => cleanUpPromises.push(databases.deleteDocument(DATABASE_ID, COLLECTION_INVITATION_TOKENS, t.$id)));
 
+        // 3. Sincronizar contadores de clases afectadas (UNA VEZ por clase - Ley 1)
+        affectedClassIds.forEach(classId => {
+            cleanUpPromises.push(syncClassRegisteredCount(classId).catch(() => null));
+        });
+
         // Ejecutar toda la limpieza
         await Promise.allSettled(cleanUpPromises);
 
-        // 3. Borrar Auth y Perfil
+        // 4. Borrar Auth y Perfil
         try {
             await users.delete(userId);
         } catch (e: any) {
@@ -632,12 +635,10 @@ export async function permanentDeleteStudentAction(profileId: string, userId: st
         }
         await databases.deleteDocument(DATABASE_ID, COLLECTION_PROFILES, profileId);
 
-        // 4. Invalidación Total
+        // 5. Invalidación Total
         revalidateAdminDashboard();
         revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
-        revalidateTag(CACHE_TAGS.PAYMENTS, "max" as any);
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
-        revalidateTag(CACHE_TAGS.REVENUE, "max" as any);
 
         return { success: true };
     } catch (error: any) {
@@ -1058,19 +1059,44 @@ export async function autoGenerateNextWeekClasses() {
 export async function syncAllClassesAction() {
     const { databases } = await createAdminClient();
     try {
-        const classes = await databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [
+        // 1. Obtener todas las clases activas
+        const classesRes = await databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [
             sdk.Query.limit(100),
             sdk.Query.orderDesc("date")
         ]);
 
-        const results = [];
-        for (const cls of classes.documents) {
-            const sync = await syncClassRegisteredCount(cls.$id);
-            results.push({ id: cls.$id, ...sync });
+        // 2. Obtener TODAS las reservas de esas clases (Batch fetch - Ley 1)
+        const classIds = classesRes.documents.map(c => c.$id);
+        const allBookings = await databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
+            sdk.Query.equal("class_id", classIds),
+            sdk.Query.limit(5000), 
+            sdk.Query.select(["class_id"])
+        ]);
+
+        // 3. Contar en memoria (Zero-Waste)
+        const countMap = new Map<string, number>();
+        classIds.forEach(id => countMap.set(id, 0));
+        allBookings.documents.forEach((b: any) => {
+            countMap.set(b.class_id, (countMap.get(b.class_id) || 0) + 1);
+        });
+
+        // 4. Actualizar solo las clases que tengan discrepancia
+        const updatePromises: Promise<any>[] = [];
+        for (const cls of classesRes.documents) {
+            const realCount = countMap.get(cls.$id) || 0;
+            if (cls.registeredCount !== realCount) {
+                updatePromises.push(databases.updateDocument(DATABASE_ID, COLLECTION_CLASSES, cls.$id, {
+                    registeredCount: realCount
+                }));
+            }
+        }
+
+        if (updatePromises.length > 0) {
+            await Promise.allSettled(updatePromises);
         }
 
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
-        return { success: true, syncedCount: classes.total };
+        return { success: true, syncedCount: classesRes.total };
     } catch (error: any) {
         return { success: false, error: error.message };
     }

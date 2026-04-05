@@ -314,210 +314,208 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     ));
   }, []);
 
-  // Suscripción Realtime Singleton para el Administrador
+  // Suscripción Realtime Singleton para el Administrador (PWA Resilient)
   useEffect(() => {
     if (!isAdmin || !user?.$id) return;
     
-    // 🛡️ SINGLETON PATTERN: Evitar suscripciones dobles
-    if (subscriptionRef.current) {
-        console.log("[AdminContext] Realtime already active, skipping duplicate subscription.");
-        return;
-    }
+    const initAdminSubscription = () => {
+      // 🛡️ SINGLETON PATTERN: Evitar suscripciones dobles
+      if (subscriptionRef.current) return;
 
-    console.log("[AdminContext] Initializing SINGLETON Realtime Subscription...");
-    
-    const unsubscribe = client.subscribe([
-      `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents`,
-      `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
-      `databases.${DATABASE_ID}.collections.${COLLECTION_REVENUE}.documents`,
-      `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`,
-      `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`,
-      `databases.${DATABASE_ID}.collections.${COLLECTION_PAYMENTS}.documents`
-    ], (response) => {
-      const event = response.events[0];
-      const payload = response.payload as any;
-      const collectionId = payload.$collectionId;
-      const currentMonth = selectedMonthRef.current; // Usar REF para evitar stale closure
+      console.log("[AdminContext] Iniciando Suscripción Realtime ADMIN (PWA Resilient)...");
+      
+      const unsubscribe = client.subscribe([
+        `databases.${DATABASE_ID}.collections.${COLLECTION_PROFILES}.documents`,
+        `databases.${DATABASE_ID}.collections.${COLLECTION_CLASSES}.documents`,
+        `databases.${DATABASE_ID}.collections.${COLLECTION_REVENUE}.documents`,
+        `databases.${DATABASE_ID}.collections.${COLLECTION_NOTIFICATIONS}.documents`,
+        `databases.${DATABASE_ID}.collections.${COLLECTION_BOOKINGS}.documents`,
+        `databases.${DATABASE_ID}.collections.${COLLECTION_PAYMENTS}.documents`
+      ], (response) => {
+        const event = response.events[0];
+        const payload = response.payload as any;
+        const collectionId = payload.$collectionId;
+        const currentMonth = selectedMonthRef.current; // Usar REF para evitar stale closure
 
-      // 1. ⚡️ ACTUALIZACIÓN INCREMENTAL: Pagos (Source of Truth)
-      if (collectionId === COLLECTION_PAYMENTS) {
-        if (payload.month === currentMonth) {
-          if (event.includes(".create")) {
-             // 🛡️ ESCUDO: Si ya lo tenemos marcado como pagado (por acción manual), no duplicamos contadores
-             if (paidStudentIdsRef.current.has(payload.student_id)) return;
-
-             // Actualizamos el Set de IDs de pago
-             setPaidStudentIds(prev => {
-                const next = new Set([...prev, payload.student_id]);
-                paidStudentIdsRef.current = next;
-                return next;
-             });
-             
-             setStudentsList(prev => prev.map(s => 
-               s.$id === payload.student_id ? { ...s, payment_method: payload.method } : s
-             ));
-             
-             setUnpaidCount(u => Math.max(0, u - 1));
-             setMonthlyRevenue(r => r + (payload.amount || 0));
-             return;
-          }
-
-          if (event.includes(".delete")) {
-             // 🛡️ ESCUDO: Si ya NO lo tenemos marcado como pagado, ignoramos para no duplicar restas
-             if (!paidStudentIdsRef.current.has(payload.student_id)) return;
-
-             setPaidStudentIds(prev => {
-                const next = new Set(prev);
-                next.delete(payload.student_id);
-                paidStudentIdsRef.current = next;
-                return next;
-             });
-
-             setStudentsList(prev => prev.map(s => 
-               s.$id === payload.student_id ? { ...s, payment_method: null } : s
-             ));
-             
-             setUnpaidCount(u => u + 1);
-             setMonthlyRevenue(r => Math.max(0, r - (payload.amount || 0)));
-             return;
-          }
-        }
-      }
-
-      // 2. ⚡️ ACTUALIZACIÓN INCREMENTAL: Ingresos Totales (Contabilidad)
-      if (collectionId === COLLECTION_REVENUE) {
-        if (event.includes(".update") || event.includes(".create")) {
+        // 1. ⚡️ ACTUALIZACIÓN INCREMENTAL: Pagos (Source of Truth)
+        if (collectionId === COLLECTION_PAYMENTS) {
           if (payload.month === currentMonth) {
-            setMonthlyRevenue(payload.amount || 0);
-          }
-          setRevenueRecords(prev => {
-            const exists = prev.some(r => r.month === payload.month);
-            if (exists) {
-              return prev.map(r => r.month === payload.month ? payload : r);
+            if (event.includes(".create")) {
+               if (paidStudentIdsRef.current.has(payload.student_id)) return;
+               setPaidStudentIds(prev => {
+                  const next = new Set([...prev, payload.student_id]);
+                  paidStudentIdsRef.current = next;
+                  return next;
+               });
+               setStudentsList(prev => prev.map(s => s.$id === payload.student_id ? { ...s, payment_method: payload.method } : s));
+               setUnpaidCount(u => Math.max(0, u - 1));
+               setMonthlyRevenue(r => r + (payload.amount || 0));
+               return;
             }
-            return [payload, ...prev].sort((a,b) => b.month.localeCompare(a.month));
-          });
-          return;
+            if (event.includes(".delete")) {
+               if (!paidStudentIdsRef.current.has(payload.student_id)) return;
+               setPaidStudentIds(prev => {
+                  const next = new Set(prev);
+                  next.delete(payload.student_id);
+                  paidStudentIdsRef.current = next;
+                  return next;
+               });
+               setStudentsList(prev => prev.map(s => s.$id === payload.student_id ? { ...s, payment_method: null } : s));
+               setUnpaidCount(u => u + 1);
+               setMonthlyRevenue(r => Math.max(0, r - (payload.amount || 0)));
+               return;
+            }
+          }
         }
-      }
 
-      // 3. ⚡️ ACTUALIZACIÓN INCREMENTAL: Clases (Crear/Editar/Borrar)
-      if (collectionId === COLLECTION_CLASSES) {
-        if (event.includes(".create")) {
-          setClassesList(prev => {
-            if (prev.some(c => c.$id === payload.$id)) return prev;
-            return [...prev, payload].sort((a,b) => a.date.localeCompare(b.date));
-          });
-          return;
-        }
-        if (event.includes(".update")) {
-          setClassesList(prev => prev.map(c => c.$id === payload.$id ? payload : c));
-          return;
-        }
-        if (event.includes(".delete")) {
-          setClassesList(prev => prev.filter(c => c.$id !== payload.$id));
-          return;
-        }
-      }
-
-      // 4. ⚡️ ACTUALIZACIÓN INCREMENTAL: Anuncios (Tablón)
-      if (collectionId === COLLECTION_NOTIFICATIONS) {
-        if (event.includes(".create")) {
-          setAnnouncements(prev => {
-            if (prev.some(a => a.$id === payload.$id)) return prev;
-            return [payload, ...prev].slice(0, 50);
-          });
-          return;
-        }
-        if (event.includes(".delete")) {
-          setAnnouncements(prev => prev.filter(a => a.$id !== payload.$id));
-          return;
-        }
-      }
-
-      // 5. ⚡️ ACTUALIZACIÓN INCREMENTAL: Perfiles (Registro/Baja)
-      if (collectionId === COLLECTION_PROFILES) {
-         if (event.includes(".create")) {
-            if (payload.role !== "alumno" || payload.is_active === false || payload.status === "Baja") return;
-
-            setStudentsList(prev => {
-              if (prev.some(s => s.$id === payload.$id)) return prev;
-              if (!processedProfilesRef.current.has(payload.$id)) {
-                  processedProfilesRef.current.add(payload.$id);
-                  setTotalStudents(t => t + 1);
-                  if (!paidStudentIdsRef.current.has(payload.$id)) {
-                      setUnpaidCount(u => u + 1);
-                  }
-              }
-              return [payload, ...prev.filter(s => s.$id !== payload.$id)];
+        // 2. ⚡️ ACTUALIZACIÓN INCREMENTAL: Ingresos Totales
+        if (collectionId === COLLECTION_REVENUE) {
+          if (event.includes(".update") || event.includes(".create")) {
+            if (payload.month === currentMonth) setMonthlyRevenue(payload.amount || 0);
+            setRevenueRecords(prev => {
+              const exists = prev.some(r => r.month === payload.month);
+              if (exists) return prev.map(r => r.month === payload.month ? payload : r);
+              return [payload, ...prev].sort((a,b) => b.month.localeCompare(a.month));
             });
             return;
-         }
+          }
+        }
 
-        if (event.includes(".update")) {
-            setStudentsList(prev => {
-              const nowActive = payload.is_active === true && payload.status !== "Baja" && payload.role === "alumno";
-              const wasInList = prev.some(s => s.$id === payload.$id);
+        // 3. ⚡️ ACTUALIZACIÓN INCREMENTAL: Clases
+        if (collectionId === COLLECTION_CLASSES) {
+          if (event.includes(".create")) {
+            setClassesList(prev => {
+              if (prev.some(c => c.$id === payload.$id)) return prev;
+              return [...prev, payload].sort((a,b) => a.date.localeCompare(b.date));
+            });
+            return;
+          }
+          if (event.includes(".update")) {
+            setClassesList(prev => prev.map(c => c.$id === payload.$id ? payload : c));
+            return;
+          }
+          if (event.includes(".delete")) {
+            setClassesList(prev => prev.filter(c => c.$id !== payload.$id));
+            return;
+          }
+        }
 
-              // 🟢 Activación / Re-registro (No estaba en lista y ahora es activo)
-              if (nowActive && !wasInList) {
+        // 4. ⚡️ ACTUALIZACIÓN INCREMENTAL: Anuncios
+        if (collectionId === COLLECTION_NOTIFICATIONS) {
+          if (event.includes(".create")) {
+            setAnnouncements(prev => {
+              if (prev.some(a => a.$id === payload.$id)) return prev;
+              return [payload, ...prev].slice(0, 50);
+            });
+            return;
+          }
+          if (event.includes(".delete")) {
+            setAnnouncements(prev => prev.filter(a => a.$id !== payload.$id));
+            return;
+          }
+        }
+
+        // 5. ⚡️ ACTUALIZACIÓN INCREMENTAL: Perfiles (Registro/Baja)
+        if (collectionId === COLLECTION_PROFILES) {
+           if (event.includes(".create")) {
+              if (payload.role !== "alumno" || payload.is_active === false || payload.status === "Baja") return;
+              setStudentsList(prev => {
+                if (prev.some(s => s.$id === payload.$id)) return prev;
                 if (!processedProfilesRef.current.has(payload.$id)) {
                     processedProfilesRef.current.add(payload.$id);
                     setTotalStudents(t => t + 1);
-                    if (!paidStudentIdsRef.current.has(payload.$id)) {
-                        setUnpaidCount(u => u + 1);
-                    }
+                    if (!paidStudentIdsRef.current.has(payload.$id)) setUnpaidCount(u => u + 1);
                 }
-                return [payload, ...prev];
-              } 
-              // 🔴 Baja / Desactivación (Estaba en la lista y ya no es activo)
-              else if (!nowActive && wasInList) {
-                if (processedProfilesRef.current.has(payload.$id)) {
-                    processedProfilesRef.current.delete(payload.$id);
-                    setTotalStudents(t => Math.max(0, t - 1));
-                    const isPaid = paidStudentIdsRef.current.has(payload.$id);
-                    if (!isPaid) setUnpaidCount(u => Math.max(0, u - 1));
-                }
-                // REMOVE from list (not just gray out) for consistency with server view
-                return prev.filter(s => s.$id !== payload.$id);
-              }
-              // 🔵 Actualización normal de datos (Nombre, Tel, etc.)
-              else if (nowActive && wasInList) {
-                return prev.map(s => s.$id === payload.$id ? { ...s, ...payload } : s);
-              }
-              return prev;
-            });
-            return;
-         }
+                return [payload, ...prev.filter(s => s.$id !== payload.$id)];
+              });
+              return;
+           }
 
-         if (event.includes(".delete")) {
-            setStudentsList(prev => {
-              const exists = prev.find(s => s.$id === payload.$id);
-              if (exists || processedProfilesRef.current.has(payload.$id)) {
-                processedProfilesRef.current.delete(payload.$id);
-                setTotalStudents(t => Math.max(0, t - 1));
-                const isPaid = paidStudentIdsRef.current.has(payload.$id);
-                if (!isPaid) setUnpaidCount(u => Math.max(0, u - 1));
-                return prev.filter(s => s.$id !== payload.$id);
-              }
-              return prev;
-            });
-            return;
-         }
+          if (event.includes(".update")) {
+              setStudentsList(prev => {
+                const nowActive = payload.is_active === true && payload.status !== "Baja" && payload.role === "alumno";
+                const wasInList = prev.some(s => s.$id === payload.$id);
+                if (nowActive && !wasInList) {
+                  if (!processedProfilesRef.current.has(payload.$id)) {
+                      processedProfilesRef.current.add(payload.$id);
+                      setTotalStudents(t => t + 1);
+                      if (!paidStudentIdsRef.current.has(payload.$id)) setUnpaidCount(u => u + 1);
+                  }
+                  return [payload, ...prev];
+                } 
+                else if (!nowActive && wasInList) {
+                  if (processedProfilesRef.current.has(payload.$id)) {
+                      processedProfilesRef.current.delete(payload.$id);
+                      setTotalStudents(t => Math.max(0, t - 1));
+                      const isPaid = paidStudentIdsRef.current.has(payload.$id);
+                      if (!isPaid) setUnpaidCount(u => Math.max(0, u - 1));
+                  }
+                  return prev.filter(s => s.$id !== payload.$id);
+                }
+                else if (nowActive && wasInList) {
+                  return prev.map(s => s.$id === payload.$id ? { ...s, ...payload } : s);
+                }
+                return prev;
+              });
+              return;
+           }
+
+           if (event.includes(".delete")) {
+              setStudentsList(prev => {
+                const exists = prev.find(s => s.$id === payload.$id);
+                if (exists || processedProfilesRef.current.has(payload.$id)) {
+                  processedProfilesRef.current.delete(payload.$id);
+                  setTotalStudents(t => Math.max(0, t - 1));
+                  const isPaid = paidStudentIdsRef.current.has(payload.$id);
+                  if (!isPaid) setUnpaidCount(u => Math.max(0, u - 1));
+                  return prev.filter(s => s.$id !== payload.$id);
+                }
+                return prev;
+              });
+              return;
+           }
+        }
+      });
+
+      subscriptionRef.current = unsubscribe;
+    };
+
+    const handleAdminResurrection = () => {
+      if (document.visibilityState === "visible") {
+        console.log("[AdminContext] ADMIN PWA detectada como VISIBLE. Resincronizando...");
+        if (subscriptionRef.current) {
+          subscriptionRef.current();
+          subscriptionRef.current = null;
+        }
+        initAdminSubscription();
+        
+        // Catch-up Fetch de Admin (Silent)
+        loadDashboardData(true);
+        loadStudentsList(true);
       }
-    });
+    };
 
-    subscriptionRef.current = unsubscribe;
+    const handleAdminOnline = () => {
+      console.log("[AdminContext] ADMIN Conexión recuperada (Online). Resincronizando...");
+      handleAdminResurrection();
+    };
+
+    initAdminSubscription();
+
+    window.addEventListener("visibilitychange", handleAdminResurrection);
+    window.addEventListener("online", handleAdminOnline);
 
     return () => {
-      console.log("[AdminContext] Unsubscribing from Realtime Singleton...");
+      console.log("[AdminContext] Limpieza de listeners y suscripción ADMIN...");
       if (subscriptionRef.current) {
           subscriptionRef.current();
           subscriptionRef.current = null;
       }
+      window.removeEventListener("visibilitychange", handleAdminResurrection);
+      window.removeEventListener("online", handleAdminOnline);
     };
 
-  }, [isAdmin, user?.$id]);
+  }, [isAdmin, user?.$id, loadDashboardData, loadStudentsList]);
 
   const value = React.useMemo(() => ({
     studentsList,
