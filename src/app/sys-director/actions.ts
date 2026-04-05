@@ -745,16 +745,23 @@ export async function getAllRevenueRecords() {
 // 📣 SECCIÓN 5: COMUNICACIÓN Y ANUNCIOS
 // ==========================================
 
-export async function publishAnnouncementAction(data: { title: string, content: string, type: string }) {
+export async function publishAnnouncementAction(data: { title: string; content: string; type: string }) {
     if (!data.title || !data.content) return { success: false, error: "Título y contenido requeridos." };
     const { databases } = await createAdminClient();
     try {
-        const res = await databases.createDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, sdk.ID.unique(), {
-                    title: data.title, content: data.content, type: data.type, createdAt: new Date().toISOString()
-                });
-        
-        // 🔄 REVALIDACIÓN: Forzar limpieza de caché del servidor (Real-Time Integrity)
-        revalidateAdminDashboard();
+        const res = await databases.createDocument(
+            DATABASE_ID,
+            COLLECTION_NOTIFICATIONS,
+            sdk.ID.unique(),
+            {
+                title: data.title,
+                content: data.content,
+                type: data.type,
+                createdAt: new Date().toISOString()
+            }
+        );
+
+        // 🔄 ZERO-WASTE CACHE: Purga selectiva inmediata
         revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max" as any);
         revalidatePath("/sys-director");
         revalidatePath("/bookings");
@@ -765,6 +772,8 @@ export async function publishAnnouncementAction(data: { title: string, content: 
         return { success: false, error: error.message };
     }
 }
+
+
 
 export async function deleteAnnouncement(id: string) {
     const { databases } = await createAdminClient();

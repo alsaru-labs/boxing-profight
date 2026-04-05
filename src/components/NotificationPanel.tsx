@@ -199,49 +199,49 @@ export default function NotificationPanel() {
                                     ) : (
                                         visibleNotifications.map((n: any) => {
                                             const isRead = allReadIds.includes(n.$id);
+                                            const typeLabel = n.type === 'urgent' ? 'Importante' : (n.type || 'Información');
+                                            const typeColor = n.type === 'urgent' ? 'text-red-500' : 
+                                                             n.type === 'warning' ? 'text-amber-400' : 
+                                                             n.type === 'success' ? 'text-emerald-400' : 
+                                                             'text-blue-400';
+
                                             return (
                                                 <div
                                                     key={n.$id}
                                                     onClick={() => handleMarkAsRead(n.$id)}
                                                     className={`p-4 rounded-xl transition-all border group cursor-pointer ${isRead
-                                                        ? "bg-white/5 border-white/5 opacity-60 grayscale-[0.5]"
+                                                        ? "bg-white/5 border-white/5 opacity-40 grayscale"
                                                         : "bg-white/10 border-white/10 hover:bg-white/15 hover:scale-[1.01] shadow-lg"
                                                         }`}
                                                 >
-                                                    <div className="flex items-start gap-3">
-                                                        <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${isRead ? 'bg-transparent' : 'bg-red-500 animate-pulse'}`} />
+                                                    <div className="flex items-start gap-4">
                                                         <div className="flex-1 min-w-0">
-                                                            <div className="flex justify-between items-start mb-1">
-                                                                 <span className={`text-[10px] uppercase tracking-widest font-black ${
-                                                                    n.type === 'urgent' ? 'text-red-500' : 
-                                                                    n.type === 'warning' ? 'text-amber-400' : 
-                                                                    n.type === 'success' ? 'text-emerald-400' : 
-                                                                    'text-blue-400'
-                                                                    }`}>
-                                                                    {n.type === 'urgent' ? 'Importante' : (n.type || 'Información')}
-                                                                </span>
-                                                                <span className="text-[10px] text-white/30 whitespace-nowrap">
-                                                                    {new Date(n.createdAt || n.$createdAt || Date.now()).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
-                                                                </span>
-                                                            </div>
-                                                            <h4 className={`font-bold leading-tight mb-1 text-white ${isRead ? 'text-white/80' : 'text-white'}`}>
-                                                                {n.title}
-                                                            </h4>
-                                                            <p className="text-sm text-white/60 line-clamp-3 leading-relaxed">
-                                                                {n.content}
-                                                            </p>
-                                                            {!isRead && (
-                                                                <div className="mt-3 flex justify-end">
-                                                                    <span className="text-[10px] bg-white text-black px-2 py-0.5 rounded-full font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                        MARCAR COMO LEÍDO
+                                                            <div className="flex justify-between items-center mb-1.5">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className={`text-[9px] uppercase font-black tracking-tighter ${typeColor}`}>
+                                                                        {typeLabel}
+                                                                    </span>
+                                                                    <span className="text-[10px] text-white/20 whitespace-nowrap font-medium italic">
+                                                                        {new Date(n.createdAt || n.$createdAt || Date.now()).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}
                                                                     </span>
                                                                 </div>
-                                                            )}
+                                                                {!isRead && (
+                                                                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+                                                                )}
+                                                            </div>
+                                                            <h4 className={`font-bold leading-tight mb-1 text-white text-base ${isRead ? 'text-white/70' : 'text-white'}`}>
+                                                                {n.title}
+                                                            </h4>
+                                                            <p className="text-sm text-white/50 leading-relaxed font-light">
+                                                                {n.content}
+                                                            </p>
                                                         </div>
                                                     </div>
                                                 </div>
                                             );
                                         })
+
+
                                     )}
                                 </div>
 
