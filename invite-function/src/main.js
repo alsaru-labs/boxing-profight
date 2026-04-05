@@ -19,12 +19,39 @@ module.exports = async function (context) {
         return res.json({ success: false, message: 'Invalid JSON payload' }, 400);
     }
 
-    if (!payload || !payload.type) {
-        log("No payload type provided.");
-        return res.json({ success: false, message: 'Missing required field: type' }, 400);
+    // 1. Logging de Diagnóstico (Alpha-Debug)
+    log(`--- Appwrite Execution Start ---`);
+    log(`Headers: ${JSON.stringify(req.headers)}`);
+    log(`Payload: ${JSON.stringify(payload)}`);
+
+    // 1.5. Inferencia Ultra-Resiliente (Soporte para Eventos de Appwrite Cloud)
+    const appwriteEvent = req.headers['x-appwrite-event'] || '';
+    let emailType = payload.type;
+
+    if (!emailType) {
+        if (appwriteEvent) {
+            log(`Inference triggered by Appwrite Event: ${appwriteEvent}`);
+            // Si el evento es sobre colecciones y tiene email
+            if (appwriteEvent.includes('.collections.') && payload.email) {
+                emailType = 'welcome';
+                log("Inferred type: 'welcome' (via Appwrite Event Header)");
+            }
+        } 
+        // 🛡️ DESCUBRIMIENTO POR ESTRUCTURA (Resilient Fallback)
+        else if (payload.email && (payload.user_id || payload.student_id)) {
+            emailType = 'welcome';
+            log("Inferred type: 'welcome' (via Payload Discovery)");
+        }
     }
 
-    const emailType = payload.type; // "welcome" | "password_reset"
+    if (!emailType) {
+        log("CRITICAL: No emailType provided and couldn't infer from headers or payload.");
+        return res.json({ success: false, message: 'Missing type information' }, 400);
+    }
+
+    log(`Procesando email de tipo: ${emailType}`);
+
+    // 2. Load Config
 
     // 2. Load Config
     const projectID = process.env.APPWRITE_PROJECT_ID || process.env.APPWRITE_FUNCTION_PROJECT_ID;
@@ -66,7 +93,7 @@ module.exports = async function (context) {
         try {
             log(`Processing welcome invitation for: ${profile.name} <${profile.email}>`);
 
-            // Resolve or create Auth User
+            // Resolve or create Auth User (Resilient Flow)
             let authUser;
             try {
                 authUser = await users.get(profile.user_id);
@@ -75,19 +102,32 @@ module.exports = async function (context) {
                 log(`User ID not found, checking by email: ${profile.email}`);
                 try {
                     const usersList = await users.list([sdk.Query.equal("email", profile.email)]);
+                    
                     if (usersList.total > 0) {
                         authUser = usersList.users[0];
                         log(`Found existing user by Email: ${authUser.$id}`);
                     } else {
-                        log("Creating new Auth user...");
+                        log(`User not found by ID or Email. Creating new with ID [${profile.user_id}]...`);
                         const tempPassword = crypto.randomBytes(20).toString('hex');
-                        authUser = await users.create(
-                            profile.user_id,
-                            profile.email,
-                            null,
-                            tempPassword,
-                            profile.name
-                        );
+                        try {
+                            authUser = await users.create(
+                                profile.user_id,
+                                profile.email,
+                                null,
+                                tempPassword,
+                                profile.name
+                            );
+                            log("New Auth user created successfully.");
+                        } catch (createErr) {
+                            // 🛡️ REGLA DE ROBUSTEZ: Si el usuario ya existe (409), simplemente lo recuperamos por ID
+                            if (createErr.code === 409) {
+                                log("Auth user already exists (409 Conflict). Getting user data...");
+                                authUser = await users.get(profile.user_id);
+                            } else {
+                                error(`Error creating user: ${createErr.message}`);
+                                throw createErr;
+                            }
+                        }
                     }
                 } catch (emailError) {
                     error("Critical error resolving user: " + emailError.message);
