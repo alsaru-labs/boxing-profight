@@ -1,5 +1,5 @@
 import "server-only";
-import { Client, Account, Databases, Users, Query } from "node-appwrite";
+import { Client, Account, Databases, Users, Functions, Query } from "node-appwrite";
 import { cookies } from "next/headers";
 import { PROJECT_ID, ENDPOINT, DATABASE_ID, COLLECTION_PAYMENTS } from "@/lib/appwrite";
 
@@ -78,6 +78,9 @@ export async function createAdminClient() {
     },
     get users() {
       return new Users(client);
+    },
+    get functions() {
+      return new Functions(client);
     },
   };
 }

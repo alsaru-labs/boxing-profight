@@ -106,7 +106,9 @@ export async function setPasswordWithToken(token: string, password: string) {
  */
 export async function logout() {
   const cookieStore = await cookies();
-  cookieStore.delete("session");
-  // Appwrite tokens localstorage/session se limpian en el cliente
+  const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || "";
+  const sessionName = `a_session_${projectId.toLowerCase()}`;
+  cookieStore.delete(sessionName);
+  cookieStore.delete("session"); // legacy fallback
   return { success: true };
 }
