@@ -1,8 +1,10 @@
 // f:\Proyectos\boxing_profight\src\lib\push-notifications.ts
 import { databases, DATABASE_ID, COLLECTION_PROFILES } from "./appwrite";
 
-// Replace with your real VAPID public key from your push service or Firebase
-const VAPID_PUBLIC_KEY = "BDhiTpGxkbPcWwD0tSkbJ5y_AUcE8lVWv9p1Jr1-m0TtAWBVQn4StkrJneU3xlDEjCucV1gT5Fj2ypqShlvN_Y4";
+// VAPID public key — must match the key used by the Appwrite function to sign pushes
+const VAPID_PUBLIC_KEY =
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
+    "BF-jHL2MUUk35ZOLJzGJh2OKOmaSXhPQZZF8M4VfBfWy6W9VVdinnp4xzFOQ2q4aq9iN2wzy8p2UXx4YPgzDQSwE";
 
 export async function registerPushNotifications(userId: string) {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -11,21 +13,21 @@ export async function registerPushNotifications(userId: string) {
     }
 
     try {
+        // Ensure the SW is registered and ready
         const registration = await navigator.serviceWorker.register('/sw.js', {
             scope: '/'
         });
 
+        // Wait for the SW to be active before trying to subscribe
+        await navigator.serviceWorker.ready;
+
         const permission = await Notification.requestPermission();
         if (permission !== 'granted') return null;
 
+        // Get existing subscription or create a new one
         let subscription = await registration.pushManager.getSubscription();
 
-        // If no subscription, create one
         if (!subscription) {
-            if (VAPID_PUBLIC_KEY.includes("PLACEHOLDER")) {
-                console.error("VAPID KEY is placeholder, skipping subscription");
-                return null;
-            }
             subscription = await registration.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
@@ -48,6 +50,30 @@ export async function registerPushNotifications(userId: string) {
     } catch (error) {
         console.error('Error registering push:', error);
         return null;
+    }
+}
+
+export async function unregisterPushNotifications(userId: string) {
+    try {
+        const registration = await navigator.serviceWorker.getRegistration('/');
+        if (registration) {
+            const subscription = await registration.pushManager.getSubscription();
+            if (subscription) {
+                await subscription.unsubscribe();
+            }
+        }
+
+        // Clear the subscription from the user's profile
+        if (userId) {
+            await databases.updateDocument(
+                DATABASE_ID,
+                COLLECTION_PROFILES,
+                userId,
+                { push_subscription: null }
+            );
+        }
+    } catch (error) {
+        console.error('Error unregistering push:', error);
     }
 }
 
