@@ -44,7 +44,11 @@ export default function StudentProfile() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const hostname = window.location.hostname;
-      setIsProduction(hostname === "boxingprofight.com" || hostname === "www.boxingprofight.com");
+      setIsProduction(
+        hostname === "boxingprofight.com" || 
+        hostname === "www.boxingprofight.com" || 
+        hostname === "boxingprofight.netlify.app"
+      );
     }
   }, []);
 
