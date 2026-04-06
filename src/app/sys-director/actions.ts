@@ -120,6 +120,10 @@ function revalidateAdminDashboard() {
     revalidatePath("/sys-director");
 }
 
+export async function revalidateAllDataAction() {
+    revalidateAdminDashboard();
+}
+
 // ==========================================
 // 🚀 SECCIÓN 2: HIDRATACIÓN DE DATOS (MEGA-ACTIONS)
 // ==========================================

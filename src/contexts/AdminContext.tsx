@@ -11,7 +11,7 @@ import {
   COLLECTION_PAYMENTS,
   COLLECTION_PROFILES
 } from "@/lib/appwrite";
-import { getAdminDashboardData } from "@/app/sys-director/actions";
+import { getAdminDashboardData, revalidateAllDataAction } from "@/app/sys-director/actions";
 import { useAuth } from "./AuthContext";
 
 interface AdminContextType {
@@ -336,6 +336,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         const payload = response.payload as any;
         const collectionId = payload.$collectionId;
         const currentMonth = selectedMonthRef.current; // Usar REF para evitar stale closure
+
+        // 🔄 TRIGGER REVALIDATION: Asegura sincronización entre entornos
+        revalidateAllDataAction().catch(() => {});
 
         // 1. ⚡️ ACTUALIZACIÓN INCREMENTAL: Pagos (Source of Truth)
         if (collectionId === COLLECTION_PAYMENTS) {

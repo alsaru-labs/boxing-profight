@@ -13,7 +13,7 @@ import {
   COLLECTION_NOTIFICATIONS_READ,
   client
 } from "@/lib/appwrite";
-import { getPlatformOmniData } from "@/app/sys-director/actions";
+import { getPlatformOmniData, revalidateAllDataAction } from "@/app/sys-director/actions";
 import { Models, Query } from "appwrite";
 
 import { Loader2 } from "lucide-react";
@@ -179,6 +179,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const event = response.events[0];
         const payload = response.payload as any;
         const collectionId = payload.$collectionId;
+
+        // 🔄 TRIGGER REVALIDATION: Sincronización Real-Time de Verdad para F5
+        revalidateAllDataAction().catch(() => {});
 
         // ⚡️ Perfil (Cambios de rol, datos, etc.)
         if (collectionId === COLLECTION_PROFILES && event.includes(".update")) {
