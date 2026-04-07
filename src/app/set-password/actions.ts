@@ -5,6 +5,8 @@ import crypto from "crypto";
 import { DATABASE_ID, COLLECTION_INVITATION_TOKENS, COLLECTION_PROFILES } from "@/lib/appwrite";
 import { createAdminClient } from "@/lib/server/appwrite";
 import { cookies } from "next/headers";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { CACHE_TAGS } from "@/lib/cache-tags";
 
 /**
  * Server Action para establecer la contraseña inicial
@@ -110,5 +112,10 @@ export async function logout() {
   const sessionName = `a_session_${projectId.toLowerCase()}`;
   cookieStore.delete(sessionName);
   cookieStore.delete("session"); // legacy fallback
+
+  // 🔄 Invalida la caché para que el siguiente usuario no vea datos residuales
+  revalidatePath("/");
+  revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
+  
   return { success: true };
 }

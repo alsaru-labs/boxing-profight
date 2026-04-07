@@ -114,9 +114,10 @@ export async function bootstrapAdminAction(data: { name: string, lastName: strin
  * Asegura que tras cualquier mutación, un F5 muestre datos frescos.
  */
 function revalidateAdminDashboard() {
-    revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
-    revalidateTag(CACHE_TAGS.PAYMENTS, "max" as any);
-    revalidateTag(CACHE_TAGS.REVENUE, "max" as any);
+    revalidateTag(CACHE_TAGS.PROFILE, "max");
+    revalidateTag(CACHE_TAGS.PAYMENTS, "max");
+    revalidateTag(CACHE_TAGS.REVENUE, "max");
+    revalidatePath("/sys-director", "layout");
 }
 
 export async function revalidateAllDataAction() {
@@ -645,7 +646,7 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
 
         // 4. Invalidar cachés
         revalidateAdminDashboard();
-        revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
+        revalidateTag(CACHE_TAGS.CLASSES, "max");
 
         return { success: true };
     } catch (error: any) {
@@ -731,8 +732,8 @@ export async function permanentDeleteStudentAction(profileId: string, userId: st
 
         // 5. Invalidación total de cachés
         revalidateAdminDashboard();
-        revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
-        revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
+        revalidateTag(CACHE_TAGS.PROFILE, "max");
+        revalidateTag(CACHE_TAGS.CLASSES, "max");
 
         return { success: true };
     } catch (error: any) {
@@ -863,7 +864,7 @@ export async function publishAnnouncementAction(data: { title: string; content: 
         );
 
         // 🔄 ZERO-WASTE CACHE: Purga selectiva inmediata por TAG
-        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max" as any);
+        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max");
         revalidatePath("/", "layout" as any);
 
         return { success: true, data: JSON.parse(JSON.stringify(res)) };
@@ -897,7 +898,7 @@ export async function deleteAnnouncement(id: string) {
         await databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, id);
 
         // 🔄 REVALIDACIÓN GRANULAR: Evitamos revalidateAdminDashboard para no tocar perfiles/pagos
-        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max" as any);
+        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max");
         revalidatePath("/", "layout" as any);
 
         return { success: true };
@@ -921,7 +922,7 @@ export async function markNotificationAsReadAction(userId: string, notificationI
         );
         
         // 🔄 REVALIDACIÓN: Asegurar que el estado "Leído" se refleje tras un refresh
-        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max" as any);
+        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max");
         revalidatePath("/", "layout" as any);
         
         return { success: true };
@@ -948,7 +949,7 @@ export async function markAllNotificationsAsReadAction(userId: string, notificat
         await Promise.all(promises);
         
         // 🔄 REVALIDACIÓN: Asegurar que el estado "Leído" se refleje tras un refresh
-        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max" as any);
+        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max");
         revalidatePath("/", "layout" as any);
 
         return { success: true };
@@ -979,7 +980,7 @@ export async function createClassServer(newClass: any) {
             }
         );
         revalidateAdminDashboard();
-        revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
+        revalidateTag(CACHE_TAGS.CLASSES, "max");
         return { success: true, class: JSON.parse(JSON.stringify(created)) };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -998,8 +999,8 @@ export async function deleteClassAction(classId: string) {
         await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
         revalidateAdminDashboard();
         revalidatePath("/sys-director", "layout");
-        revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
-        revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
+        revalidateTag(CACHE_TAGS.CLASSES, "max");
+        revalidateTag(CACHE_TAGS.PROFILE, "max");
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -1127,7 +1128,7 @@ export async function bookClassAction(classId: string, userId: string) {
         // 3. ACTUALIZAR CONTADOR (Recuento real)
         await syncClassRegisteredCount(classId);
 
-        revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
+        revalidateTag(CACHE_TAGS.CLASSES, "max");
         return { success: true, booking: JSON.parse(JSON.stringify(booking)) };
     } catch (error: any) {
         console.error("[bookClassAction ERROR]", error);
@@ -1144,7 +1145,7 @@ export async function cancelBookingAction(classId: string, bookingId: string) {
         // 2. RECUENTO REAL PARA EVITAR "STALE DATA" (Zero Waste Consistency)
         await syncClassRegisteredCount(classId);
 
-        revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
+        revalidateTag(CACHE_TAGS.CLASSES, "max");
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -1207,7 +1208,7 @@ export async function autoGenerateNextWeekClasses() {
         }
 
         revalidatePath("/sys-director", "layout");
-        revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
+        revalidateTag(CACHE_TAGS.CLASSES, "max");
 
         return {
             success: true,
@@ -1264,7 +1265,7 @@ export async function syncAllClassesAction() {
             await Promise.allSettled(updatePromises);
         }
 
-        revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
+        revalidateTag(CACHE_TAGS.CLASSES, "max");
         return { success: true, syncedCount: classesRes.total };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -1390,4 +1391,31 @@ export const getMonthlyPaymentsCached = unstable_cache(
     ["monthly-payments"],
     { tags: [CACHE_TAGS.PAYMENTS] }
 );
+
+/**
+ * ⚖️ ACCIÓN: ACEPTAR TÉRMINOS LEGALES (Auditoría RGPD)
+ * Regla de Oro: Histórico inmutable. Una vez aceptado, legal_accepted_at
+ * queda grabado para el cumplimiento normativo.
+ */
+export async function acceptLegalTermsAction(profileId: string) {
+    if (!profileId) return { success: false, error: "ID de perfil requerido." };
+    const { databases } = await createAdminClient();
+
+    try {
+        await databases.updateDocument(
+            DATABASE_ID,
+            COLLECTION_PROFILES,
+            profileId,
+            {
+                legal_accepted: true,
+                legal_accepted_at: new Date().toISOString()
+            }
+        );
+
+        revalidateTag(CACHE_TAGS.PROFILE, "max");
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
 

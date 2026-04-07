@@ -1,3 +1,4 @@
+
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -28,6 +29,8 @@ export const metadata: Metadata = {
   },
 };
 
+import LegalOnboardingGate from "@/components/LegalOnboardingGate";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -37,8 +40,10 @@ export default function RootLayout({
     <html lang="es" className="scroll-smooth" suppressHydrationWarning>
       <body className={`${inter.className} bg-black text-white antialiased`}>
         <AuthProvider>
-          {children}
-          <Toaster 
+          <LegalOnboardingGate>
+            {children}
+          </LegalOnboardingGate>
+          <Toaster
             position="bottom-right"
             toastOptions={{
               className: "bg-zinc-900 border-white/10 text-white font-sans",

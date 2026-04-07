@@ -8,6 +8,7 @@ import {
     COLLECTION_INVITATION_TOKENS
 } from "@/lib/appwrite";
 import { createAdminClient } from "@/lib/server/appwrite";
+import { unstable_noStore as noStore } from "next/cache";
 
 /**
  * 🛡️ VALIDADOR DE ACCESO (SERVER-SIDE)
@@ -15,6 +16,7 @@ import { createAdminClient } from "@/lib/server/appwrite";
  * en su estado en la base de datos (Colección Profiles).
  */
 export async function validateLoginStatusAction(userId: string) {
+    noStore(); // ⚡️ Forzar datos frescos (Data Cache bypass)
     if (!userId) {
         return { success: false, error: "ID de usuario no proporcionado." };
     }
@@ -29,7 +31,7 @@ export async function validateLoginStatusAction(userId: string) {
             if (profile.status === "Baja" || profile.is_active === false) {
                 return { 
                     success: false, 
-                    error: "Tu cuenta ha sido dada de baja. Contacta con administración." 
+                    error: "Credenciales incorrectas." 
                 };
             }
 

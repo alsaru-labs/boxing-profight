@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
-import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
 import { User, ShieldCheck, CalendarDays, LogOut, Loader2, Wallet } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { LITERALS } from "@/constants/literals";
@@ -15,17 +14,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import NotificationPanel from "./NotificationPanel";
-import { logout } from "@/app/set-password/actions";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Navbar({ isHome = false }: { isHome?: boolean }) {
-  const router = useRouter();
-  const pathname = usePathname();
+  const { user, profile, isAdmin, logout: contextLogout, loading } = useAuth();
   const [scrolled, setScrolled] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [userId, setUserId] = useState("");
-  const [profileName, setProfileName] = useState("Usuario");
-  const [roleLoading, setRoleLoading] = useState(true);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -36,27 +29,6 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
       window.addEventListener("scroll", handleScroll);
     }
 
-    const checkUserRole = async () => {
-      try {
-        const currentUser = await account.get();
-        setIsLoggedIn(true);
-        setUserId(currentUser.$id);
-        const profile = await databases.getDocument(
-          DATABASE_ID,
-          COLLECTION_PROFILES,
-          currentUser.$id
-        );
-        setIsAdmin(profile.role === "admin");
-        setProfileName(profile.name || "Usuario");
-      } catch (error) {
-        setIsLoggedIn(false);
-        setIsAdmin(false);
-      } finally {
-        setRoleLoading(false);
-      }
-    };
-
-    checkUserRole();
     return () => {
       if (isHome) window.removeEventListener("scroll", handleScroll);
     };
@@ -64,12 +36,7 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
 
   const handleLogout = async () => {
     try {
-      // 1. Client-side Logout (Appwrite SDK)
-      await account.deleteSession("current");
-      // 2. Server-side Logout (Cookies)
-      await logout();
-      
-      router.push("/login");
+      await contextLogout();
     } catch (e) {
       console.error("Error logging out", e);
     }
@@ -79,6 +46,9 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
     if (!name) return "U";
     return name.split(" ").map(n => n[0]).join("").toUpperCase().substring(0, 2);
   };
+
+  const profileName = profile?.name || "Usuario";
+  const isLoggedIn = !!user;
 
   const styleClass = "px-5 py-3 md:px-12 backdrop-blur-xl bg-black/40 shadow-[0_10px_40px_rgba(0,0,0,0.3)]";
 
@@ -117,7 +87,7 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
 
         {/* Right Side */}
         <div className="flex w-1/3 items-center justify-end gap-2 md:gap-4">
-          {roleLoading ? (
+          {loading ? (
             <div className="w-10 h-10 rounded-full bg-white/10 animate-pulse"></div>
           ) : isLoggedIn ? (
             <div className="flex items-center gap-2 sm:gap-4">
