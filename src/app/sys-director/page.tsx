@@ -139,6 +139,7 @@ export default function AdminDashboard() {
 
   // Wrapped Actions for UI feedback
   const wrappedHandleDeleteClass = (classObj: any) => {
+    if (isPending) return;
     try {
       const startTime = classObj.time.split('-')[0].trim();
       const [year, month, day] = classObj.date.substring(0, 10).split("-").map(Number);
@@ -224,6 +225,7 @@ export default function AdminDashboard() {
   };
 
   const wrappedDeleteStudentAccount = async (profileId: string, userId: string, name: string) => {
+    if (isPending) return false;
     let success = false;
     await new Promise<void>((resolve) => {
       startTransition(async () => {
@@ -245,6 +247,7 @@ export default function AdminDashboard() {
   };
 
   const wrappedPermanentDeleteStudentUI = async (profileId: string, userId: string, name: string) => {
+    if (isPending) return false;
     let success = false;
     await new Promise<void>((resolve) => {
       startTransition(async () => {

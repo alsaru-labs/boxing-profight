@@ -49,7 +49,7 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
     (!phone || (phone.replace(/\s/g, "").length <= 12 && /^(\+?[0-9]{1,12})$/.test(phone.replace(/\s/g, ""))));
 
   const handleApply = async () => {
-    if (!isFormValid) return;
+    if (isUpdating || !isFormValid) return;
 
     const result = await onSave(student, name, lastName, email, phone, level);
     if (result?.success) {

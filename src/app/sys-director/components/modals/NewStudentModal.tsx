@@ -41,7 +41,7 @@ export function NewStudentModal({ isOpen, onOpenChange, isUpdating, onSave }: Ne
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isFormValid) return;
+    if (isUpdating || !isFormValid) return;
     
     const result = await onSave(form);
     if (result && result.success) {

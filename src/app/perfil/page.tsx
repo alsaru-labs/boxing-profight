@@ -7,7 +7,7 @@ import AuthTransition from "@/components/AuthTransition";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { account } from "@/lib/appwrite";
-import { cancelBookingAction, updateStudentProfileAction, bookClassAction } from "../sys-director/actions";
+import { cancelBookingAction, updateStudentProfileAction, bookClassAction, getStudentPastBookingsAction } from "../sys-director/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +38,11 @@ export default function StudentProfile() {
   const [isPending, startTransition] = useTransition();
   const [isUpdating, setIsUpdating] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // 📜 HISTORIAL LAZY (Regla 2 Zero-Waste): se carga bajo demanda al abrir la tab
+  const [pastClasses, setPastClasses] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   
   // 🛡️ DETECCIÓN DE ENTORNO (Prevención de Hydration Mismatch)
   const [isProduction, setIsProduction] = useState(false);
@@ -94,7 +99,7 @@ export default function StudentProfile() {
   };
 
   // 🌪️ PROCESAMIENTO DE DATOS GLOBAL (Sin peticiones extra)
-  const { validUpcomingClasses, attendedClasses } = useMemo(() => {
+  const { validUpcomingClasses } = useMemo(() => {
     const now = new Date();
     const msIn7Days = 7 * 24 * 60 * 60 * 1000;
 
@@ -108,17 +113,7 @@ export default function StudentProfile() {
       } catch { return false; }
     });
 
-    const attended = allPossibleClasses.filter((cls: any) => {
-      try {
-        const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
-        const startTime = cls.time.split('-')[0].trim();
-        const [hours, minutes] = startTime.split(":").map(Number);
-        const classDateTime = new Date(year, month - 1, day, hours, minutes);
-        return classDateTime < now && userBookings.some((b: any) => b.class_id === cls.$id);
-      } catch { return false; }
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    return { validUpcomingClasses: upcoming, attendedClasses: attended };
+    return { validUpcomingClasses: upcoming };
   }, [allPossibleClasses, userBookings]);
 
   useEffect(() => {
@@ -139,7 +134,26 @@ export default function StudentProfile() {
     return () => clearInterval(timer);
   }, []);
 
+  // 📜 HISTORIAL LAZY: Solo 10 últimas clases, cargado al abrir la tab "clases"
+  useEffect(() => {
+    if (activeTab !== "clases" || historyLoaded || historyLoading || !user) return;
+    const loadHistory = async () => {
+      setHistoryLoading(true);
+      try {
+        const result = await getStudentPastBookingsAction(user.$id);
+        if (result.success) {
+          setPastClasses(result.classes); // Ya viene limitado a 10 desde el servidor
+        }
+      } finally {
+        setHistoryLoading(false);
+        setHistoryLoaded(true);
+      }
+    };
+    loadHistory();
+  }, [activeTab, historyLoaded, historyLoading, user]);
+
   const handleCancelBooking = async (classObj: any) => {
+    if (isPending) return;
     if (!isCancellable(classObj.date, classObj.time, new Date())) {
         showAlert("Acción Prohibida", "Por política del club, solo se puede cancelar hasta 1 minuto antes del inicio de la clase.", "warning");
         return;
@@ -182,7 +196,7 @@ export default function StudentProfile() {
   };
 
   const handleBookClass = async (classObj: any) => {
-    if (!user) return;
+    if (isPending || !user) return;
     showConfirm(
         LITERALS.BOOKINGS.CONFIRM_RESERVATION_TITLE, 
         LITERALS.BOOKINGS.CONFIRM_RESERVATION_DESC(classObj.name, classObj.coach),
@@ -218,6 +232,7 @@ export default function StudentProfile() {
   };
 
   const handleUpdatePhone = async (newPhone: string) => {
+    if (isUpdating || isPending) return;
     try {
       setIsUpdating(true);
       const result = await updateStudentProfileAction(profileInfo.$id, {
@@ -236,6 +251,7 @@ export default function StudentProfile() {
   };
 
   const handleChangePassword = async (oldPass: string, newPass: string) => {
+    if (isUpdating || isPending) return;
     try {
       setIsUpdating(true);
       await account.updatePassword(newPass, oldPass);
@@ -283,16 +299,6 @@ export default function StudentProfile() {
                         </CardHeader>
                         <CardContent>
                           <div className="text-4xl font-black">{validUpcomingClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).length}</div>
-                        </CardContent>
-                      </Card>
-                      <Card className="bg-white/5 border-white/5 hover:border-white/10 transition-colors">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm font-black uppercase tracking-widest text-white/30 flex items-center gap-2">
-                            <HistoryIcon className="w-4 h-4 text-emerald-400" /> Total asistidas
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="text-4xl font-black">{attendedClasses.length}</div>
                         </CardContent>
                       </Card>
                     </div>
@@ -392,12 +398,18 @@ export default function StudentProfile() {
                     <h4 className="text-xl font-black uppercase tracking-widest text-white/40 flex items-center gap-3">
                       <span className="w-8 h-1 bg-white/10 rounded-full" /> Historial de Asistencia
                     </h4>
+                    {/* 📜 Regla 2 Zero-Waste: Historial lazy — cargado bajo demanda, paginado con limit(10) */}
                     <div className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden">
-                      {attendedClasses.length === 0 ? (
+                      {historyLoading && pastClasses.length === 0 ? (
+                        <div className="p-8 flex items-center justify-center gap-3 text-white/40">
+                          <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
+                          <span className="text-sm font-medium">Cargando historial...</span>
+                        </div>
+                      ) : pastClasses.length === 0 ? (
                         <div className="p-12 text-center text-white/20 italic">Aún no has asistido a ninguna clase.</div>
                       ) : (
                         <div className="divide-y divide-white/5">
-                          {attendedClasses.map(cls => (
+                          {pastClasses.map(cls => (
                             <div key={cls.$id} className="p-4 flex justify-between items-center hover:bg-white/5 transition-colors">
                               <div className="flex items-center gap-4">
                                 <CheckCircle2 className="w-4 h-4 text-emerald-500/40" />

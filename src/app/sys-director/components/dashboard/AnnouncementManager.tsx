@@ -30,7 +30,7 @@ export function AnnouncementManager({ announcements, setAnnouncements, showAlert
   const [newAnnouncement, setNewAnnouncement] = useState({ title: "", content: "", type: "info" });
 
   const handlePublish = () => {
-    if (!newAnnouncement.title || !newAnnouncement.content) return;
+    if (isPending || !newAnnouncement.title || !newAnnouncement.content) return;
     showConfirm(
       "Confirmar Publicación",
       "¿Estás seguro de que quieres publicar este anuncio?",
@@ -69,6 +69,7 @@ export function AnnouncementManager({ announcements, setAnnouncements, showAlert
   };
 
   const handleDelete = (id: string) => {
+    if (isPending) return;
     showConfirm(
       "Confirmar Eliminación",
       "¿Seguro que quieres borrar este anuncio?",

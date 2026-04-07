@@ -55,10 +55,19 @@ export default function NotificationPanel() {
 
     // Filter notifications from last 48 hours for the panel display
     const visibleNotifications = announcements.filter(n => {
-        const createdDate = new Date(n.$createdAt);
-        const fortyEightHoursAgo = new Date();
-        fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
-        return createdDate > fortyEightHoursAgo;
+        try {
+            const dateStr = n.$createdAt || n.createdAt;
+            if (!dateStr) return true; // Si no hay fecha, no ocultamos (nuevo RT)
+            
+            const createdDate = new Date(dateStr);
+            if (isNaN(createdDate.getTime())) return true; // Si es inválida, mostrar
+
+            const fortyEightHoursAgo = new Date();
+            fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
+            return createdDate > fortyEightHoursAgo;
+        } catch (e) {
+            return true; // En caso de duda, mostrar
+        }
     });
 
     const handleMarkAsRead = async (notifId: string) => {

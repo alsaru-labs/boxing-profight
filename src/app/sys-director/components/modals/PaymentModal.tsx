@@ -93,6 +93,7 @@ export function PaymentModal({ isOpen, onOpenChange, student, isUpdating, onConf
             <Button
               size="xl"
               onClick={async () => {
+                if (isUpdating) return;
                 const res = await onConfirm(student?.$id, true, method, amount);
                 if (res?.success) onOpenChange(false);
               }}

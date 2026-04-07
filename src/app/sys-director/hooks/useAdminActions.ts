@@ -8,7 +8,7 @@ import {
   recordPaymentAction,
   deletePaymentAction,
   deleteClassAction,
-  autoGenerateNextWeekClasses
+  permanentDeleteStudentAction
 } from "../actions";
 
 interface UseAdminActionsProps {
@@ -29,17 +29,11 @@ interface UseAdminActionsProps {
 }
 
 export function useAdminActions({
-  studentsList,
   setStudentsList,
-  classesList,
   setClassesList,
-  setMonthlyRevenue,
-  setUnpaidCount,
-  setTotalStudents,
   showAlert,
   showConfirm,
   selectedMonth,
-  paidStudentIds,
   registerProfileOptimistically,
   deactivateProfileOptimistically,
   updatePaymentOptimistically
@@ -48,6 +42,8 @@ export function useAdminActions({
 
   // Student Actions
   const handleConfirmPayment = async (studentId: string, newStatus: boolean, paymentMethod?: string, paymentAmount?: string) => {
+    if (isUpdating) return { success: false, error: "Operación en curso..." };
+    
     try {
       setIsUpdating(true);
       const pAmount = Number(paymentAmount) || 55;
@@ -72,6 +68,8 @@ export function useAdminActions({
   };
 
   const handleSaveProfile = async (selectedStudent: any, editName: string, editLastName: string, editEmail: string, editPhone: string, editLevel: string) => {
+    if (isUpdating) return { success: false, error: "Operación en curso..." };
+
     try {
       setIsUpdating(true);
       const result = await updateStudentProfileAction(selectedStudent.$id, {
@@ -83,7 +81,8 @@ export function useAdminActions({
       });
 
       if (result.success) {
-        setStudentsList(studentsList.map(s =>
+        // Prevención de Stale Closures usando el setter funcional
+        setStudentsList((prev: any[]) => prev.map(s =>
           s.$id === selectedStudent.$id ? { ...s, name: editName, last_name: editLastName, email: editEmail.toLowerCase(), phone: editPhone, level: editLevel } : s
         ));
       }
@@ -97,6 +96,8 @@ export function useAdminActions({
   };
 
   const handleCreateStudent = async (form: any) => {
+    if (isUpdating) return { success: false, error: "Operación en curso..." };
+
     try {
       setIsUpdating(true);
       const result = await handleCreateOrReactivateStudent(form);
@@ -115,6 +116,8 @@ export function useAdminActions({
 
   // Class Actions
   const handleCreateClass = async (newClass: any) => {
+    if (isUpdating) return { success: false, error: "Operación en curso..." };
+
     try {
       setIsUpdating(true);
       const result = await createClassServer(newClass);
@@ -128,11 +131,14 @@ export function useAdminActions({
   };
 
   const handleDeleteClass = async (classObjId: string) => {
+    if (isUpdating) return { success: false, error: "Operación en curso..." };
+
     try {
       setIsUpdating(true);
       const result = await deleteClassAction(classObjId);
       if (result.success) {
-        setClassesList(classesList.filter(c => c.$id !== classObjId));
+        // Prevención de Stale Closures usando el setter funcional
+        setClassesList((prev: any[]) => prev.filter(c => c.$id !== classObjId));
       }
       return result;
     } catch (error: any) {
@@ -144,13 +150,13 @@ export function useAdminActions({
   };
 
   const handlePermanentDeleteStudent = async (profileId: string, userId: string) => {
+    if (isUpdating) return { success: false, error: "Operación en curso..." };
+
     try {
       setIsUpdating(true);
-      const { permanentDeleteStudentAction } = await import("../actions");
       const result = await permanentDeleteStudentAction(profileId, userId);
 
       if (result.success) {
-        // Usar el ayudante atómico para evitar doble-conteo con el Realtime (.delete)
         deactivateProfileOptimistically(profileId);
       }
       return result;
@@ -173,3 +179,4 @@ export function useAdminActions({
     handlePermanentDeleteStudent
   };
 }
+

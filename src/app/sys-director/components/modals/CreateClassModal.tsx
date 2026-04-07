@@ -67,6 +67,7 @@ export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, cla
   const isPastTime = newClass.date === localTodayISO && selectedStartHour <= currentHour;
 
   const handleSubmit = async () => {
+    if (isUpdating) return;
     const res = await onSave(newClass);
     if (res?.success) {
       setIsSuccess(true);

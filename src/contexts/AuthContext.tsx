@@ -102,8 +102,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Cooldown absoluto (5 segundos)
-    if (!force && (now - globalAuthFetchTime < 5000)) return;
+    // Cooldown absoluto (1 segundo) para permitir refrescos rápidos tras acciones de UI
+    if (!force && (now - globalAuthFetchTime < 1000)) return;
     if (silent && !force && (now - globalAuthFetchTime < 300000)) return;
 
     globalAuthFetchTime = now;
@@ -180,8 +180,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const payload = response.payload as any;
         const collectionId = payload.$collectionId;
 
-        // 🔄 TRIGGER REVALIDATION: Sincronización Real-Time de Verdad para F5
-        revalidateAllDataAction().catch(() => {});
+        // 🔄 Sincronización Real-Time de Verdad (Solo Estado Local para ahorrar recursos)
+        // Eliminamos revalidateAllDataAction() para evitar saturar el servidor con cada evento
+
 
         // ⚡️ Perfil (Cambios de rol, datos, etc.)
         if (collectionId === COLLECTION_PROFILES && event.includes(".update")) {
@@ -241,6 +242,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // ⚡️ Anuncios y Notificaciones (Campana)
         if (collectionId === COLLECTION_NOTIFICATIONS) {
+          console.log("🔔 [Realtime] Cambio en Notificaciones:", event, payload);
           if (event.includes(".create")) {
             setAnnouncements(prev => {
               if (prev.some(a => a.$id === payload.$id)) return prev;
@@ -255,6 +257,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (collectionId === COLLECTION_NOTIFICATIONS_READ && event.includes(".create") && payload.user_id === user.$id) {
+          console.log("🔔 [Realtime] Notificación Marcada como Leída:", payload.notifications_id);
           setReadNotifications(prev => {
              if (prev.includes(payload.notifications_id)) return prev;
              return [...prev, payload.notifications_id];
