@@ -140,7 +140,7 @@ export default function Home() {
                 <iframe
                   width="100%"
                   height="100%"
-                  src="https://www.youtube.com/embed/luOWGnr_SBU?autoplay=1&mute=1&loop=1&playlist=luOWGnr_SBU"
+                  src="https://www.youtube.com/embed/luOWGnr_SBU?autoplay=1&mute=1&loop=1&playlist=luOWGnr_SBU&start=115"
                   title="Álex Pintor en acción"
                   frameBorder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
