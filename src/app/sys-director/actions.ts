@@ -114,9 +114,9 @@ export async function bootstrapAdminAction(data: { name: string, lastName: strin
  * Asegura que tras cualquier mutación, un F5 muestre datos frescos.
  */
 function revalidateAdminDashboard() {
-    revalidateTag(CACHE_TAGS.PROFILE);
-    revalidateTag(CACHE_TAGS.PAYMENTS);
-    revalidateTag(CACHE_TAGS.REVENUE);
+    revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
+    revalidateTag(CACHE_TAGS.PAYMENTS, "max" as any);
+    revalidateTag(CACHE_TAGS.REVENUE, "max" as any);
 }
 
 export async function revalidateAllDataAction() {
@@ -863,8 +863,8 @@ export async function publishAnnouncementAction(data: { title: string; content: 
         );
 
         // 🔄 ZERO-WASTE CACHE: Purga selectiva inmediata por TAG
-        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS);
-        revalidatePath("/");
+        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max" as any);
+        revalidatePath("/", "layout" as any);
 
         return { success: true, data: JSON.parse(JSON.stringify(res)) };
     } catch (error: any) {
@@ -897,8 +897,8 @@ export async function deleteAnnouncement(id: string) {
         await databases.deleteDocument(DATABASE_ID, COLLECTION_NOTIFICATIONS, id);
 
         // 🔄 REVALIDACIÓN GRANULAR: Evitamos revalidateAdminDashboard para no tocar perfiles/pagos
-        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS);
-        revalidatePath("/");
+        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max" as any);
+        revalidatePath("/", "layout" as any);
 
         return { success: true };
     } catch (error: any) {
@@ -921,8 +921,8 @@ export async function markNotificationAsReadAction(userId: string, notificationI
         );
         
         // 🔄 REVALIDACIÓN: Asegurar que el estado "Leído" se refleje tras un refresh
-        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS);
-        revalidatePath("/");
+        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max" as any);
+        revalidatePath("/", "layout" as any);
         
         return { success: true };
     } catch (error: any) {
@@ -948,8 +948,8 @@ export async function markAllNotificationsAsReadAction(userId: string, notificat
         await Promise.all(promises);
         
         // 🔄 REVALIDACIÓN: Asegurar que el estado "Leído" se refleje tras un refresh
-        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS);
-        revalidatePath("/");
+        revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max" as any);
+        revalidatePath("/", "layout" as any);
 
         return { success: true };
     } catch (error: any) {
