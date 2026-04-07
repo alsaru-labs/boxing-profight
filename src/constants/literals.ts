@@ -21,7 +21,6 @@ export const LITERALS = {
         MY_PROFILE: "Mi Perfil",
         BOOKINGS: "Reservas",
         CONTROL_PANEL: "Panel de Control",
-        ACCOUNTING: "Contabilidad",
         RESERVE_BUTTON: "Reservar",
         USER_DEFAULT: "Usuario",
     },
@@ -71,18 +70,6 @@ export const LITERALS = {
             SCHEDULE_BUTTON: "+ Programar Clase",
             HISTORY_TITLE: "Historial Reciente",
             HISTORY_DESCRIPTION: "Clases que han ocurrido en las últimas 48 horas.",
-        },
-        ACCOUNTING: {
-            TITLE: "Historial de Ingresos",
-            SUBTITLE: "Consulta lo ganado en meses anteriores.",
-            TABS: {
-                MONTHLY: "Registro Mensual",
-            },
-            SELECT_YEAR: "Año",
-            SELECT_MONTH: "Mes",
-            TOTAL_REVENUE: "Ingresos Totales",
-            NO_DATA: "No hay registros para la fecha seleccionada.",
-            GO_BACK: "Volver al Panel",
         }
     },
     BOOKINGS: {

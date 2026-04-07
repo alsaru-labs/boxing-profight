@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
-import { User, ShieldCheck, CalendarDays, LogOut, Wallet } from "lucide-react";
+import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
+import { User, ShieldCheck, CalendarDays, LogOut, Loader2 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { LITERALS } from "@/constants/literals";
 import {
@@ -14,12 +15,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import NotificationPanel from "./NotificationPanel";
-import { useAuth } from "@/contexts/AuthContext";
+import { logout } from "@/app/set-password/actions";
 
 export default function Navbar({ isHome = false }: { isHome?: boolean }) {
   const router = useRouter();
-  const { user, profile, isAdmin, loading: roleLoading, logout: authLogout } = useAuth();
+  const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [userId, setUserId] = useState("");
+  const [profileName, setProfileName] = useState("Usuario");
+  const [roleLoading, setRoleLoading] = useState(true);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -30,18 +36,40 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
       window.addEventListener("scroll", handleScroll);
     }
 
+    const checkUserRole = async () => {
+      try {
+        const currentUser = await account.get();
+        setIsLoggedIn(true);
+        setUserId(currentUser.$id);
+        const profile = await databases.getDocument(
+          DATABASE_ID,
+          COLLECTION_PROFILES,
+          currentUser.$id
+        );
+        setIsAdmin(profile.role === "admin");
+        setProfileName(profile.name || "Usuario");
+      } catch (error) {
+        setIsLoggedIn(false);
+        setIsAdmin(false);
+      } finally {
+        setRoleLoading(false);
+      }
+    };
+
+    checkUserRole();
     return () => {
       if (isHome) window.removeEventListener("scroll", handleScroll);
     };
   }, [isHome]);
 
-  const isLoggedIn = !!user;
-  const profileName = profile?.name || "Usuario";
-  const userId = user?.$id || "";
-
   const handleLogout = async () => {
     try {
-      await authLogout();
+      // 1. Client-side Logout (Appwrite SDK)
+      await account.deleteSession("current");
+      // 2. Server-side Logout (Cookies)
+      await logout();
+      
+      router.push("/login");
     } catch (e) {
       console.error("Error logging out", e);
     }
@@ -90,15 +118,12 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
         {/* Right Side */}
         <div className="flex w-1/3 items-center justify-end gap-2 md:gap-4">
           {roleLoading ? (
-            <div className="flex items-center gap-3 pr-2 animate-pulse">
-              <div className="h-4 w-20 bg-white/10 rounded hidden sm:block"></div>
-              <div className="h-10 w-10 bg-white/10 rounded-full"></div>
-            </div>
+            <div className="w-10 h-10 rounded-full bg-white/10 animate-pulse"></div>
           ) : isLoggedIn ? (
             <div className="flex items-center gap-2 sm:gap-4">
               {/* Notificaciones Reales */}
               {!isAdmin && (
-                <NotificationPanel />
+                <NotificationPanel userId={userId} isLoggedIn={isLoggedIn} />
               )}
 
               <DropdownMenu>
@@ -117,31 +142,23 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
                   </div>
 
                   {isAdmin ? (
-                    <>
-                      <Link href="/sys-director">
-                        <DropdownMenuItem className="cursor-pointer focus:bg-white/10 rounded-lg focus:text-white transition-colors py-2.5">
-                          <ShieldCheck className="mr-3 h-4 w-4 text-amber-400" />
-                          <span className="font-medium">{LITERALS.NAVBAR.CONTROL_PANEL}</span>
-                        </DropdownMenuItem>
-                      </Link>
-                      <Link href="/sys-director/contabilidad">
-                        <DropdownMenuItem className="cursor-pointer focus:bg-white/10 rounded-lg focus:text-white transition-colors py-2.5">
-                          <Wallet className="mr-3 h-4 w-4 text-emerald-400" />
-                          <span className="font-medium">{LITERALS.NAVBAR.ACCOUNTING}</span>
-                        </DropdownMenuItem>
-                      </Link>
-                    </>
+                    <Link href="/sys-director">
+                      <DropdownMenuItem className="cursor-pointer focus:bg-white/10 rounded-lg focus:text-white transition-colors py-2.5">
+                        <ShieldCheck className="mr-3 h-4 w-4 text-white/40" />
+                        <span className="font-medium">{LITERALS.NAVBAR.CONTROL_PANEL}</span>
+                      </DropdownMenuItem>
+                    </Link>
                   ) : (
                     <>
                       <Link href="/perfil">
                         <DropdownMenuItem className="cursor-pointer focus:bg-white/10 rounded-lg focus:text-white transition-colors py-2.5">
-                          <User className="mr-3 h-4 w-4 text-emerald-400" />
+                          <User className="mr-3 h-4 w-4 text-white/40" />
                           <span className="font-medium">{LITERALS.NAVBAR.MY_PROFILE}</span>
                         </DropdownMenuItem>
                       </Link>
                       <Link href="/bookings">
                         <DropdownMenuItem className="cursor-pointer focus:bg-white/10 rounded-lg focus:text-white transition-colors py-2.5">
-                          <CalendarDays className="mr-3 h-4 w-4 text-blue-400" />
+                          <CalendarDays className="mr-3 h-4 w-4 text-white/40" />
                           <span className="font-medium">{LITERALS.NAVBAR.BOOKINGS}</span>
                         </DropdownMenuItem>
                       </Link>
@@ -158,14 +175,7 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-          ) : (
-            <Link
-              href="/login?redirect=/bookings"
-              className={`inline-flex items-center justify-center bg-white text-black hover:bg-neutral-200 border border-transparent rounded-full font-bold shadow-[0_0_15px_rgba(255,255,255,0.3)] transition-all hover:scale-105 h-10 md:h-12 px-6 md:px-10 text-sm md:text-base`}
-            >
-              {LITERALS.NAVBAR.RESERVE_BUTTON}
-            </Link>
-          )}
+          ) : null}
         </div>
       </div>
     </nav>
