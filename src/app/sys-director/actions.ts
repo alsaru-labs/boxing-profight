@@ -418,7 +418,7 @@ export async function handleCreateOrReactivateStudent(form: any) {
                 payment_amount: payment.total > 0 ? (payment.documents[0] as any).amount : null
             };
 
-            revalidatePath("/sys-director");
+            revalidatePath("/sys-director", "layout");
             revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
 
             return { success: true, profile: JSON.parse(JSON.stringify(enriched)), reactivated: true };
@@ -564,7 +564,7 @@ export async function updateStudentProfileAction(profileId: string, data: any) {
         );
 
         revalidateAdminDashboard();
-        revalidatePath("/perfil");
+        revalidatePath("/perfil", "page");
         return { success: true, data: JSON.parse(JSON.stringify(updated)) };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -997,7 +997,7 @@ export async function deleteClassAction(classId: string) {
         }
         await databases.deleteDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
         revalidateAdminDashboard();
-        revalidatePath("/sys-director");
+        revalidatePath("/sys-director", "layout");
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
         revalidateTag(CACHE_TAGS.PROFILE, "max" as any);
         return { success: true };
@@ -1206,7 +1206,7 @@ export async function autoGenerateNextWeekClasses() {
             }
         }
 
-        revalidatePath("/sys-director");
+        revalidatePath("/sys-director", "layout");
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
 
         return {

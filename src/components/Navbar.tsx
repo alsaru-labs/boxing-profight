@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { account, databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
-import { User, ShieldCheck, CalendarDays, LogOut, Loader2 } from "lucide-react";
+import { User, ShieldCheck, CalendarDays, LogOut, Loader2, Wallet } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { LITERALS } from "@/constants/literals";
 import {
@@ -123,7 +123,7 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
             <div className="flex items-center gap-2 sm:gap-4">
               {/* Notificaciones Reales */}
               {!isAdmin && (
-                <NotificationPanel userId={userId} isLoggedIn={isLoggedIn} />
+                <NotificationPanel />
               )}
 
               <DropdownMenu>
@@ -142,12 +142,20 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
                   </div>
 
                   {isAdmin ? (
-                    <Link href="/sys-director">
-                      <DropdownMenuItem className="cursor-pointer focus:bg-white/10 rounded-lg focus:text-white transition-colors py-2.5">
-                        <ShieldCheck className="mr-3 h-4 w-4 text-white/40" />
-                        <span className="font-medium">{LITERALS.NAVBAR.CONTROL_PANEL}</span>
-                      </DropdownMenuItem>
-                    </Link>
+                    <>
+                      <Link href="/sys-director">
+                        <DropdownMenuItem className="cursor-pointer focus:bg-white/10 rounded-lg focus:text-white transition-colors py-2.5">
+                          <ShieldCheck className="mr-3 h-4 w-4 text-white/40" />
+                          <span className="font-medium">{LITERALS.NAVBAR.CONTROL_PANEL}</span>
+                        </DropdownMenuItem>
+                      </Link>
+                      <Link href="/sys-director/contabilidad">
+                        <DropdownMenuItem className="cursor-pointer focus:bg-white/10 rounded-lg focus:text-white transition-colors py-2.5">
+                          <Wallet className="mr-3 h-4 w-4 text-white/40" />
+                          <span className="font-medium">{LITERALS.NAVBAR.ACCOUNTING}</span>
+                        </DropdownMenuItem>
+                      </Link>
+                    </>
                   ) : (
                     <>
                       <Link href="/perfil">
