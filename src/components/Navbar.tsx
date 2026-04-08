@@ -50,13 +50,13 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
   const profileName = profile?.name || "Usuario";
   const isLoggedIn = !!user;
 
-  const styleClass = "px-5 py-3 md:px-12 backdrop-blur-xl bg-black/40 shadow-[0_10px_40px_rgba(0,0,0,0.3)]";
+  const styleClass = "px-5 py-2 md:px-12 backdrop-blur-xl bg-black/40 shadow-[0_10px_40px_rgba(0,0,0,0.3)]";
 
   const positionClass = isHome
     ? "absolute md:fixed top-0 left-0 right-0 z-50 transition-all duration-300"
-    : "relative w-full z-50 mb-6 md:mb-12";
+    : "relative w-full z-50 mb-0";
 
-  const sizeClass = "h-20 md:h-24";
+  const sizeClass = "h-16 md:h-20";
 
   return (
     <nav className={`${positionClass} ${styleClass}`}>
@@ -64,11 +64,6 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
 
         {/* Left Side Links */}
         <div className="flex w-1/3 items-center">
-          {!isHome && (
-            <Link href="/" className="text-white/60 hover:text-white text-sm md:text-lg font-medium tracking-tight transition-colors">
-              &lt; Atrás
-            </Link>
-          )}
         </div>
 
         {/* Center Logo */}

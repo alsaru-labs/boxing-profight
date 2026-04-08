@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo, useOptimistic, startTransition, useTransition } from "react";
-import { Loader2 } from "lucide-react";
+import { useState, useEffect, useMemo, useOptimistic, useTransition } from "react";
+import { Loader2, Calendar, Clock, CheckCircle2, History as HistoryIcon, ArrowLeft, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import AuthTransition from "@/components/AuthTransition";
-import { bookClassAction, cancelBookingAction } from "@/app/sys-director/actions";
+import { bookClassAction, cancelBookingAction, getStudentPastBookingsAction } from "@/app/sys-director/actions";
 import Navbar from "@/components/Navbar";
 import ConfirmedClasses from "@/components/ConfirmedClasses";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
@@ -13,6 +13,8 @@ import { isCancellable } from "@/lib/bookingUtils";
 import { LITERALS } from "@/constants/literals";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { motion } from "framer-motion";
 
 export default function BookingsPage() {
     const router = useRouter();
@@ -26,6 +28,25 @@ export default function BookingsPage() {
     
     const [isPending, startTransition] = useTransition();
     const [currentTime, setCurrentTime] = useState(new Date());
+    const [simulatedDay, setSimulatedDay] = useState<number | undefined>(undefined);
+
+    // 📜 HISTORIAL LAZY (Zero-Waste)
+    const [pastClasses, setPastClasses] = useState<any[]>([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyLoaded, setHistoryLoaded] = useState(false);
+
+    // 🛡️ DETECCIÓN DE ENTORNO
+    const [isProduction, setIsProduction] = useState(false);
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            const hostname = window.location.hostname;
+            setIsProduction(
+                hostname === "boxingprofight.com" || 
+                hostname === "www.boxingprofight.com" || 
+                hostname === "boxingprofight.netlify.app"
+            );
+        }
+    }, []);
 
     const [optimisticBookings, setOptimisticBookings] = useOptimistic(
         userBookings,
@@ -47,8 +68,8 @@ export default function BookingsPage() {
         }
     );
 
-    // 🌪️ PROCESAMIENTO DE DATOS GLOBAL (Sin peticiones extra)
-    const availableClasses = useMemo(() => {
+    // 🌪️ PROCESAMIENTO DE DATOS GLOBAL
+    const processedAvailableClasses = useMemo(() => {
         const now = new Date();
         return optimisticClasses.filter((cls: any) => {
             try {
@@ -65,6 +86,24 @@ export default function BookingsPage() {
             return a.time.localeCompare(b.time);
         });
     }, [optimisticClasses]);
+
+    // 📜 Carga de Historial
+    useEffect(() => {
+        if (historyLoaded || historyLoading || !user) return;
+        const loadHistory = async () => {
+            setHistoryLoading(true);
+            try {
+                const result = await getStudentPastBookingsAction(user.$id);
+                if (result.success) {
+                    setPastClasses(result.classes);
+                }
+            } finally {
+                setHistoryLoading(false);
+                setHistoryLoaded(true);
+            }
+        };
+        loadHistory();
+    }, [user, historyLoaded, historyLoading]);
 
     // Custom Modal State
     const [modalConfig, setModalConfig] = useState<{
@@ -83,7 +122,6 @@ export default function BookingsPage() {
         onConfirm: () => { },
     });
 
-    // Toasts replacement for showAlert
     const showConfirm = (title: string, description: string, onConfirm: () => Promise<boolean>, variant: "info" | "success" | "warning" | "danger" = "warning") => {
         setModalConfig({
             isOpen: true,
@@ -91,7 +129,6 @@ export default function BookingsPage() {
             description,
             variant,
             onConfirm: async () => {
-                // Not using startTransition here directly because we need to await the result to decide if we close the modal
                 const success = await onConfirm();
                 if (success) {
                     setModalConfig(prev => ({ ...prev, isOpen: false }));
@@ -125,7 +162,6 @@ export default function BookingsPage() {
             LITERALS.BOOKINGS.CONFIRM_RESERVATION_DESC(classObj.name, classObj.coach),
             async () => {
                 let success = false;
-                // Wrapping the server action in startTransition for mutation blocking
                 await new Promise<void>((resolve) => {
                     startTransition(async () => {
                         setOptimisticBookings({ action: "add", booking: { $id: `opt-${Date.now()}`, class_id: classObj.$id, student_id: user.$id } });
@@ -223,7 +259,6 @@ export default function BookingsPage() {
         return <AuthTransition message="Verificando acceso..." subMessage="Preparando tatami" />;
     }
 
-
     return (
         <div className="dark min-h-screen bg-black text-white font-sans flex flex-col relative text-center md:text-left">
             <div className="absolute inset-0 z-0 opacity-80 mix-blend-screen pointer-events-none overflow-hidden">
@@ -232,23 +267,117 @@ export default function BookingsPage() {
 
             <Navbar isHome={false} />
 
-            <main className="flex-1 max-w-7xl mx-auto w-full p-4 md:p-12 z-10 space-y-12">
-                <div>
-                    <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter mb-4 uppercase">{LITERALS.BOOKINGS.TITLE}</h1>
-                    <p className="text-white/40 text-lg font-medium">{LITERALS.BOOKINGS.SUBTITLE}</p>
+            <main className="flex-1 max-w-7xl mx-auto w-full px-6 pt-1 md:pt-2 pb-12 md:px-12 z-10 space-y-12">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div>
+                        <Link href="/perfil" className="flex items-center gap-2 text-white/40 hover:text-emerald-500 transition-colors mb-4 group">
+                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                            <span className="text-[10px] font-black uppercase tracking-widest">Volver al Perfil</span>
+                        </Link>
+                    </div>
+
+                    {/* Modo de Prueba (Oculto en Producción) */}
+                    {!isProduction && (
+                        <div className="flex items-center gap-4 bg-zinc-900/50 p-3 rounded-2xl border border-white/10">
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black text-white/30 uppercase italic leading-none mb-1">Simulador Temporal</span>
+                                <span className="text-xs font-bold text-emerald-500">Día {simulatedDay || new Date().getDate()}</span>
+                            </div>
+                            <input 
+                                type="range" 
+                                min="1" 
+                                max="31" 
+                                value={simulatedDay || new Date().getDate()}
+                                onChange={(e) => setSimulatedDay(parseInt(e.target.value))}
+                                className="w-32 accent-emerald-500 cursor-pointer"
+                            />
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => setSimulatedDay(undefined)}
+                                className="h-8 text-[9px] font-black uppercase text-white/40 hover:text-white border border-white/5"
+                            >
+                                Reset
+                            </Button>
+                        </div>
+                    )}
                 </div>
 
+                <div className="grid grid-cols-1 gap-16">
+                    {/* 1. CLASES DISPONIBLES (Grid Principal) */}
+                    <section className="space-y-6">
+                        <div className="flex items-center gap-4">
+                            <h4 className="text-xl font-black uppercase tracking-widest text-white/90 flex items-center gap-3">
+                                <Sparkles className="w-5 h-5 text-emerald-500" /> Clases Disponibles
+                            </h4>
+                            <div className="h-px flex-1 bg-white/5" />
+                        </div>
+                        <div className="bg-zinc-900/20 p-2 md:p-6 rounded-[2.5rem] border border-white/5 relative overflow-hidden">
+                            <ClassGrid
+                                classes={processedAvailableClasses}
+                                userBookings={optimisticBookings}
+                                profileInfo={profileInfo}
+                                isProcessingBooking={isPending ? "ALL" : null}
+                                onBookClass={handleBookClass}
+                                simulatedDay={simulatedDay}
+                            />
+                        </div>
+                    </section>
 
-                <div className="space-y-12">
+                    {/* 2. MIS RESERVAS CONFIRMADAS */}
                     <ConfirmedClasses
-                        availableClasses={availableClasses}
+                        availableClasses={processedAvailableClasses}
                         userBookings={optimisticBookings}
                         isProcessingBooking={isPending ? "ALL" : null}
                         handleCancelBooking={handleCancelBooking}
                         currentTime={currentTime}
                     />
+
+                    {/* 3. HISTORIAL DE ASISTENCIA */}
+                    <section className="space-y-6 pt-16 border-t border-white/10">
+                        <div className="flex items-center gap-4">
+                            <h4 className="text-xl font-black uppercase tracking-widest text-white/90 flex items-center gap-3">
+                                <HistoryIcon className="w-5 h-5 text-emerald-500" /> Historial de Asistencia
+                            </h4>
+                            <div className="h-px flex-1 bg-white/5" />
+                        </div>
+                        
+                        <div className="bg-white/[0.02] border border-white/5 rounded-3xl overflow-hidden max-w-4xl">
+                            {historyLoading && pastClasses.length === 0 ? (
+                                <div className="p-12 flex items-center justify-center gap-3 text-white/40">
+                                    <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
+                                    <span className="text-sm font-medium">Sincronizando historial...</span>
+                                </div>
+                            ) : pastClasses.length === 0 ? (
+                                <div className="p-16 text-center text-white/20 italic">Aún no has asistido a ninguna clase registrada.</div>
+                            ) : (
+                                <div className="divide-y divide-white/5">
+                                    {pastClasses.map(cls => (
+                                        <div key={cls.$id} className="p-5 flex justify-between items-center hover:bg-white/[0.03] transition-colors group">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 group-hover:bg-emerald-500 group-hover:text-black transition-all">
+                                                    <CheckCircle2 className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <span className="text-base font-bold block text-white/90">{cls.coach}</span>
+                                                    <span className="text-[10px] text-white/30 uppercase font-black tracking-widest">{cls.name}</span>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-xs text-white/40 font-bold block">
+                                                    {new Date(cls.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase()}
+                                                </span>
+                                                <span className="text-[10px] text-emerald-500/50 font-black uppercase tracking-tighter">ASISTENCIA CONFIRMADA</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </section>
                 </div>
             </main>
+
             <ConfirmModal
                 isOpen={modalConfig.isOpen}
                 onOpenChange={(open) => !isPending && setModalConfig(prev => ({ ...prev, isOpen: open }))}

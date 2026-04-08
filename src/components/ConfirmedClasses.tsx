@@ -53,7 +53,7 @@ export default function ConfirmedClasses({
 
     return (
         <div className="space-y-8 pt-16 border-t border-white/10">
-            <h3 className="text-xl font-black uppercase tracking-widest text-white/40 flex items-center gap-3">
+            <h3 className="text-xl font-black uppercase tracking-widest text-white/90 flex items-center gap-3">
                 <CheckCircle2 className="w-5 h-5" /> Mis Reservas Confirmadas
             </h3>
 
@@ -86,13 +86,14 @@ export default function ConfirmedClasses({
                                                 <Badge className="bg-emerald-500 text-black font-black text-[8px] md:text-[10px] tracking-widest mb-1.5 md:mb-2 border-0 rounded-sm">
                                                     {cls.name.toUpperCase()} • CONFIRMADA
                                                 </Badge>
-                                                <p className="text-white font-black text-lg md:text-xl tracking-tight leading-tight">
+                                                <p className="text-emerald-400 font-black text-xl md:text-2xl tracking-tighter leading-none mb-1">
+                                                    {cls.time}
+                                                </p>
+                                                <p className="text-white font-bold text-sm md:text-base tracking-tight opacity-90">
                                                     {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
                                                 </p>
-                                                <div className="flex items-center gap-2 text-white/50 text-[13px] md:text-sm font-medium">
-                                                    <span>{cls.time}</span>
-                                                    <span className="w-1 h-1 bg-white/20 rounded-full" />
-                                                    <span>Prof. {cls.coach}</span>
+                                                <div className="flex items-center gap-2 text-white/40 text-[11px] md:text-xs font-medium pt-2">
+                                                    <span className="bg-white/5 px-2 py-0.5 rounded-full border border-white/5 italic">Prof. {cls.coach}</span>
                                                 </div>
                                             </div>
                                             {isCancellable(cls.date, cls.time, currentTime) && (

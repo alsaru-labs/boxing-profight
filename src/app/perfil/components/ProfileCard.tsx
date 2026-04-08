@@ -56,7 +56,7 @@ export function ProfileCard({ user, profileInfo, initials }: ProfileCardProps) {
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-4 p-3 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/5 transition-colors group">
             <div className="bg-white/5 p-2 rounded-lg group-hover:bg-emerald-500/10 transition-colors"><Phone className="w-5 h-5 text-emerald-400" /></div>
-            <div className="flex flex-col">
+            <div className="flex flex-col text-left">
               <span className="text-[10px] text-white/30 uppercase font-black tracking-widest">Teléfono</span>
               <span className="text-sm font-bold">{profileInfo?.phone || "No registrado"}</span>
             </div>
@@ -66,7 +66,7 @@ export function ProfileCard({ user, profileInfo, initials }: ProfileCardProps) {
             <div className="bg-white/5 p-2 rounded-lg group-hover:bg-emerald-500/10 transition-colors">
               <div className="w-5 h-5 flex items-center justify-center font-black text-[8px] text-emerald-400 border border-emerald-500/30 rounded-full">@</div>
             </div>
-            <div className="flex flex-col min-w-0 flex-1">
+            <div className="flex flex-col min-w-0 flex-1 text-left">
               <span className="text-[10px] text-white/30 uppercase font-black tracking-widest">Email Principal</span>
               <span className="text-sm font-bold truncate" title={user?.email}>{user?.email}</span>
             </div>

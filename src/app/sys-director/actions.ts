@@ -965,6 +965,21 @@ export async function markAllNotificationsAsReadAction(userId: string, notificat
 export async function createClassServer(newClass: any) {
     const { databases } = await createAdminClient();
     try {
+        // 🛡️ PREVENCIÓN DE DUPLICADOS: Comprobar si ya existe una clase en este horario
+        // Regla: Solo una clase por franja horaria para evitar solapamientos accidentales.
+        const existing = await databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [
+            sdk.Query.equal("date", newClass.date),
+            sdk.Query.equal("time", newClass.time),
+            sdk.Query.limit(1)
+        ]);
+
+        if (existing.total > 0) {
+            return { 
+                success: false, 
+                error: `Ya existe una clase programada para el día ${newClass.date} a las ${newClass.time}.` 
+            };
+        }
+
         const created = await databases.createDocument(
             DATABASE_ID,
             COLLECTION_CLASSES,
@@ -1101,11 +1116,23 @@ export async function getStudentPastBookingsAction(userId: string) {
 export async function bookClassAction(classId: string, userId: string) {
     const { databases } = await createAdminClient();
     try {
-        // 1. FRESH LOAD: Clase actual
+        // 1. FRESH LOAD: Clase actual (para saber la capacidad máxima)
         const freshClass = await databases.getDocument(DATABASE_ID, COLLECTION_CLASSES, classId);
-        if (freshClass.registeredCount >= freshClass.capacity) return { success: false, error: "Clase Llena", code: "FULL" };
 
-        // 🛡️ BLINDAJE DUPLICADOS: Comprobar si ya existe reserva
+        // 🛡️ RECUENTO REAL ATÓMICO: No confiamos en el contador 'registeredCount' de la clase
+        // Realizamos un recuento directo de documentos en COLLECTION_BOOKINGS para esta clase.
+        const actualBookings = await databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
+            sdk.Query.equal("class_id", classId),
+            sdk.Query.limit(1) // Suficiente para obtener el 'total' de Appwrite
+        ]);
+
+        if (actualBookings.total >= freshClass.capacity) {
+            // Auto-healing: Si detectamos discrepancia, arreglamos el contador visual
+            if (freshClass.registeredCount !== actualBookings.total) { await syncClassRegisteredCount(classId); }
+            return { success: false, error: "Clase Llena", code: "FULL" };
+        }
+
+        // 🛡️ BLINDAJE DUPLICADOS: Comprobar si este usuario ya tiene reserva
         const existing = await databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
             sdk.Query.equal("class_id", classId),
             sdk.Query.equal("student_id", userId),
@@ -1113,22 +1140,25 @@ export async function bookClassAction(classId: string, userId: string) {
         ]);
 
         if (existing.total > 0) {
-            console.warn(`[DOUBLE BOOKING PREVENTION] User ${userId} tried to double book class ${classId}`);
-            // Reparar contador de paso si hay discrepancia (Auto-healing)
-            if (freshClass.registeredCount < existing.total) { await syncClassRegisteredCount(classId); }
+            console.warn(`[BOOKING] User ${userId} already has a spot in class ${classId}`);
+            if (freshClass.registeredCount < actualBookings.total) { await syncClassRegisteredCount(classId); }
             return { success: true, message: "Ya tenías una reserva confirmada." };
         }
 
-        // 2. CREAR RESERVA
+        // 2. CREAR RESERVA (Momento crítico)
         const booking = await databases.createDocument(DATABASE_ID, COLLECTION_BOOKINGS, sdk.ID.unique(), {
             student_id: userId,
             class_id: classId
         });
 
-        // 3. ACTUALIZAR CONTADOR (Recuento real)
+        // 3. SINCRONIZACIÓN INMEDIATA: Forzar recuento real en el documento de la clase
         await syncClassRegisteredCount(classId);
 
-        revalidateTag(CACHE_TAGS.CLASSES, "max");
+        // 🔄 PURGA TOTAL DE CACHÉ (Zero-Waste Absolute)
+        // revalidateTag limpia la caché de datos. revalidatePath("/") limpia la caché de página/layout.
+        revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
+        revalidatePath("/", "layout");
+        
         return { success: true, booking: JSON.parse(JSON.stringify(booking)) };
     } catch (error: any) {
         console.error("[bookClassAction ERROR]", error);
@@ -1145,7 +1175,10 @@ export async function cancelBookingAction(classId: string, bookingId: string) {
         // 2. RECUENTO REAL PARA EVITAR "STALE DATA" (Zero Waste Consistency)
         await syncClassRegisteredCount(classId);
 
-        revalidateTag(CACHE_TAGS.CLASSES, "max");
+        // 🔄 PURGA TOTAL DE CACHÉ
+        revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
+        revalidatePath("/", "layout");
+        
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -1184,12 +1217,25 @@ export async function autoGenerateNextWeekClasses() {
             const dStr = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().split('T')[0];
 
             for (const time of slots) {
-                // BUG FIX: Compare only the first 10 characters (YYYY-MM-DD) to match the database's ISO format
-                const alreadyExists = existingClassesResponse.documents.some((c: any) =>
+                // 🛡️ DOBLE COMPROBACIÓN: Validar contra el bloque inicial Y realizar consulta rápida si es necesario
+                // para prevenir race conditions entre entornos (Local vs Develop).
+                const alreadyExistsInMemory = existingClassesResponse.documents.some((c: any) =>
                     (c.date.substring(0, 10) === dStr) && (c.time === time)
                 );
 
-                if (!alreadyExists) {
+                if (alreadyExistsInMemory) {
+                    console.log(`[GENERATION] Skipping ${dStr} ${time} (Found in initial scan)`);
+                    continue;
+                }
+
+                // Verificación final atómica
+                const finalCheck = await databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [
+                    sdk.Query.equal("date", dStr),
+                    sdk.Query.equal("time", time),
+                    sdk.Query.limit(1)
+                ]);
+
+                if (finalCheck.total === 0) {
                     const newClass = await databases.createDocument(DATABASE_ID, COLLECTION_CLASSES, sdk.ID.unique(), {
                         name: date.getDay() === 3 ? "Sparring" : "Boxeo y K1",
                         date: dStr,
@@ -1200,9 +1246,9 @@ export async function autoGenerateNextWeekClasses() {
                         status: "Activa"
                     });
                     generatedClasses.push(newClass);
-                    console.log(`[GENERATION DIAGNOSTIC] Created class for ${dStr} ${time}`);
+                    console.log(`[GENERATION] Created class: ${dStr} ${time}`);
                 } else {
-                    console.log(`[GENERATION DIAGNOSTIC] Skipping ${dStr} ${time} (Already exists)`);
+                    console.log(`[GENERATION] Skipping ${dStr} ${time} (Audit conflict detected)`);
                 }
             }
         }

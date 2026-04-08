@@ -79,13 +79,6 @@ export function ClassGrid({
 
     return (
         <div className="space-y-8 md:space-y-12">
-            {!isAdmin && (
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <h3 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
-                        <CalendarClock className="w-7 h-7 text-emerald-500" /> {LITERALS.CLASS_GRID.TITLE}
-                    </h3>
-                </div>
-            )}
 
             {displayClasses.length === 0 ? (
                 <motion.div
@@ -123,52 +116,97 @@ export function ClassGrid({
                                     <div className="h-px flex-1 bg-gradient-to-r from-emerald-500/20 to-transparent" />
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+                                <div className="space-y-4">
                                     {groupedByDate[dateKey]
                                         .sort((a, b) => a.time.localeCompare(b.time))
                                         .map((cls) => {
-                                        const isFull = cls.registeredCount >= cls.capacity;
+                                            const isFull = cls.registeredCount >= cls.capacity;
+                                            let isPastClass = false;
+                                            try {
+                                                const startTime = cls.time.split('-')[0].trim();
+                                                const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
+                                                const [hours, minutes] = startTime.split(":").map(Number);
+                                                const classDateTime = new Date(year, month - 1, day, hours, minutes);
+                                                isPastClass = classDateTime < new Date();
+                                            } catch (e) { }
 
-                                        // Determine if class has passed (for admin grayscale)
-                                        let isPastClass = false;
-                                        try {
-                                            const startTime = cls.time.split('-')[0].trim();
-                                            const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
-                                            const [hours, minutes] = startTime.split(":").map(Number);
-                                            const classDateTime = new Date(year, month - 1, day, hours, minutes);
-                                            isPastClass = classDateTime < new Date();
-                                        } catch (e) { }
+                                            const today = new Date();
+                                            const dayOfMonth = simulatedDay || today.getDate();
+                                            const isGracePeriod = dayOfMonth >= 1 && dayOfMonth <= 10;
+                                            const canBook = isGracePeriod || profileInfo?.is_paid;
 
-                                        return (
-                                            <Card
-                                                key={cls.$id}
-                                                className={`bg-white/5 border-white/10 backdrop-blur-lg overflow-hidden group transition-all duration-500 hover:shadow-[0_0_40px_rgba(16,185,129,0.08)] py-1 md:py-4 gap-0.5 md:gap-4 ${isAdmin ? 'hover:border-white/20' : 'hover:border-emerald-500/30'} ${isAdmin && isPastClass ? 'opacity-60 grayscale-[0.3]' : ''}`}
-                                            >
-                                                <CardHeader className="p-2.5 md:p-4 border-b border-white/5 relative">
-                                                    {!isAdmin && (
-                                                        <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <div className="w-12 h-12 bg-emerald-500/10 rounded-full blur-xl animate-pulse" />
-                                                        </div>
+                                            return (
+                                                <div 
+                                                    key={cls.$id} 
+                                                    className={`
+                                                        bg-white/5 hover:bg-white/[0.07] transition-all border border-white/10 
+                                                        ${isAdmin ? 'hover:border-white/20' : 'hover:border-emerald-500/20'} 
+                                                        rounded-2xl p-3 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 md:gap-6 group relative overflow-hidden
+                                                        ${isAdmin && isPastClass ? 'opacity-60 grayscale-[0.3]' : ''}
+                                                    `}
+                                                >
+                                                    {/* Glow effect on hover for students */}
+                                                    {!isAdmin && !isFull && canBook && (
+                                                        <div className="absolute -inset-1 bg-emerald-500/5 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
                                                     )}
-                                                    <div className="flex justify-between items-start relative z-10">
-                                                        <div>
-                                                            <Badge className={`mb-1 md:mb-3 font-black text-[8px] md:text-[10px] tracking-widest px-2 py-0.5 border-0 rounded-sm ${cls.name === 'Boxeo' ? 'bg-amber-500/20 text-amber-500' : 'bg-red-500/20 text-red-500'}`}>
-                                                                {cls.name.toUpperCase()}
-                                                            </Badge>
-                                                            <CardTitle className="text-sm md:text-2xl font-black text-white tracking-tight">{cls.coach}</CardTitle>
+
+                                                    <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-8 flex-1 relative z-10 w-full">
+                                                        <div className="space-y-0.5 md:space-y-1 min-w-[140px]">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <Badge className={`font-black text-[8px] md:text-[9px] tracking-widest px-2 py-0 border-0 rounded-sm ${cls.name === 'Boxeo' ? 'bg-amber-500/20 text-amber-500' : 'bg-red-500/20 text-red-500'}`}>
+                                                                    {cls.name.toUpperCase()}
+                                                                </Badge>
+                                                                {isFull && (
+                                                                    <Badge className="bg-rose-500/10 text-rose-500 font-black text-[8px] md:text-[9px] border-0 rounded-sm animate-pulse">COMPLETO</Badge>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-emerald-400 font-black text-xl md:text-3xl tracking-tighter leading-none">
+                                                                {cls.time.split('-')[0].trim()}
+                                                            </p>
+                                                            <p className="text-white/40 font-bold text-[9px] md:text-xs uppercase tracking-widest leading-none">
+                                                                {LITERALS.CLASS_CARD.START_TIME}
+                                                            </p>
                                                         </div>
-                                                        <div className="flex items-center gap-2">
-                                                            {!isAdmin && (
-                                                                <div className="text-right">
-                                                                    <span className="block text-[13px] md:text-lg font-black text-white leading-none">
-                                                                        {cls.time.split('-')[0].trim()}
-                                                                    </span>
-                                                                    <span className="text-[7px] md:text-[10px] text-white/30 font-bold uppercase tracking-tighter">{LITERALS.CLASS_CARD.START_TIME}</span>
+
+                                                        <div className="flex-1 space-y-2 md:space-y-3">
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-white font-black text-sm md:text-lg tracking-tight leading-tight">Prof. {cls.coach}</span>
+                                                                    <span className="text-white/30 text-[9px] md:text-[10px] uppercase font-black tracking-widest">Coach Titular</span>
                                                                 </div>
-                                                            )}
-                                                            {isAdmin && (
+                                                                <div className="text-right">
+                                                                    <span className={`text-[9px] md:text-xs font-black uppercase tracking-widest ${isFull ? 'text-rose-500' : 'text-emerald-500/60'}`}>
+                                                                        {isFull ? LITERALS.CLASS_CARD.FULL : LITERALS.CLASS_CARD.FREE_SPACES(cls.capacity - cls.registeredCount)}
+                                                                    </span>
+                                                                    <div className="text-[9px] text-white/10 font-bold">{LITERALS.CLASS_CARD.TOTAL_CAPACITY(cls.capacity)}</div>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            {/* Compact Progress Bar */}
+                                                            <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                                                                <motion.div
+                                                                    initial={{ width: 0 }}
+                                                                    animate={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }}
+                                                                    className={`h-full rounded-full ${isFull 
+                                                                        ? 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.3)]' 
+                                                                        : 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]'}`}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="w-full sm:w-auto flex items-center gap-3 relative z-10">
+                                                        {isAdmin ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <Button
+                                                                    onClick={() => onViewAttendees?.(cls)}
+                                                                    variant="outline"
+                                                                    className="bg-white/5 border-white/10 text-white hover:bg-white/10 font-bold h-10 px-4 rounded-xl text-[10px] uppercase tracking-widest transition-all"
+                                                                >
+                                                                    {LITERALS.CLASS_CARD.VIEW_ATTENDEES}
+                                                                </Button>
                                                                 <DropdownMenu>
-                                                                    <DropdownMenuTrigger className="h-10 w-10 flex justify-center items-center text-white/40 hover:text-white hover:bg-white/10 rounded-xl transition-all outline-none">
+                                                                    <DropdownMenuTrigger className="h-10 w-10 flex justify-center items-center text-white/40 hover:text-white hover:bg-white/10 rounded-xl transition-all outline-none border border-white/5">
                                                                         <MoreVertical className="h-5 w-5" />
                                                                     </DropdownMenuTrigger>
                                                                     <DropdownMenuContent align="end" className="bg-zinc-900/95 backdrop-blur-xl border-white/10 text-white min-w-[160px] rounded-xl shadow-2xl p-1.5">
@@ -185,88 +223,32 @@ export function ClassGrid({
                                                                         )}
                                                                     </DropdownMenuContent>
                                                                 </DropdownMenu>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </CardHeader>
-                                                <CardContent className="p-2.5 pt-0 md:p-6 relative z-10">
-                                                    <div>
-                                                        {isAdmin && (
-                                                            <div className="space-y-1.5 md:space-y-4 mb-2 md:mb-6">
-                                                                <div className="flex items-center gap-2 text-[10px] md:text-sm">
-                                                                    <CalendarDays className="w-3 h-3 md:w-3.5 md:h-3.5 text-white/40" />
-                                                                    <span className="text-white/70 font-medium">
-                                                                        {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                                                                    </span>
-                                                                </div>
-                                                                <div className="flex items-center gap-2 text-[10px] md:text-sm">
-                                                                    <ShieldCheck className="w-3 h-3 md:w-3.5 md:h-3.5 text-white/40" />
-                                                                    <span className="text-white/70 font-medium">{cls.time}</span>
-                                                                </div>
                                                             </div>
-                                                        )}
-
-                                                        <div className="flex justify-between text-[10px] md:text-sm mb-1.5 md:mb-3 font-black uppercase tracking-[0.15em]">
-                                                            <span className={isFull ? 'text-rose-500 animate-pulse' : 'text-emerald-400'}>
-                                                                {isFull ? LITERALS.CLASS_CARD.FULL : LITERALS.CLASS_CARD.FREE_SPACES(cls.capacity - cls.registeredCount)}
-                                                            </span>
-                                                            <span className="text-white/10">{LITERALS.CLASS_CARD.TOTAL_CAPACITY(cls.capacity)}</span>
-                                                        </div>
-                                                        <div className="h-1.5 w-full md:h-2 bg-zinc-950 rounded-full overflow-hidden border border-white/5 mb-3 md:mb-8 p-[1px]">
-                                                            <motion.div
-                                                                initial={{ width: 0 }}
-                                                                animate={{ width: `${Math.min(100, (cls.registeredCount / cls.capacity) * 100)}%` }}
-                                                                transition={{ duration: 1.2, ease: [0.34, 1.56, 0.64, 1] }}
-                                                                className={`h-full rounded-full shadow-[0_0_15px_rgba(16,185,129,0.2)] ${isFull 
-                                                                    ? 'bg-gradient-to-r from-rose-600 to-rose-400 shadow-rose-500/20' 
-                                                                    : (cls.registeredCount / cls.capacity) > 0.8
-                                                                        ? 'bg-gradient-to-r from-amber-600 to-amber-400 shadow-amber-500/20'
-                                                                        : 'bg-gradient-to-r from-emerald-600 via-emerald-500 to-emerald-400 shadow-emerald-500/20'}`}
-                                                            />
-                                                        </div>
-
-                                                        {!isAdmin && (
-                                                            (() => {
-                                                                const today = new Date();
-                                                                const dayOfMonth = simulatedDay || today.getDate();
-                                                                const isGracePeriod = dayOfMonth >= 1 && dayOfMonth <= 10;
-                                                                const canBook = isGracePeriod || profileInfo?.is_paid;
-                                                                
-                                                                return (
-                                                                    <Button
-                                                                        onClick={() => onBookClass?.(cls)}
-                                                                        disabled={isFull || !!isProcessingBooking || !canBook}
-                                                                        className={`w-full font-black h-9 md:h-16 text-[10px] md:text-sm uppercase tracking-[0.2em] rounded-xl md:rounded-2xl transition-all duration-500 ${isFull
-                                                                            ? 'bg-zinc-900 text-zinc-600 border border-white/5 cursor-not-allowed shadow-none'
-                                                                            : !canBook
-                                                                                ? 'bg-amber-500/5 text-amber-500/40 border border-amber-500/10 cursor-not-allowed shadow-none'
-                                                                                : 'bg-white text-black hover:bg-emerald-500 hover:text-white hover:scale-[1.03] hover:shadow-[0_20px_40px_rgba(16,185,129,0.25)] active:scale-95 border-b-4 border-zinc-200 hover:border-emerald-700'
-                                                                            }`}
-                                                                    >
-                                                                        {!!isProcessingBooking && (isProcessingBooking === "ALL" || isProcessingBooking === cls.$id) ? (
-                                                                            <Loader2 className="w-6 h-6 animate-spin" />
-                                                                        ) : (
-                                                                            !canBook ? LITERALS.CLASS_CARD.PENDING_PAYMENT : isFull ? LITERALS.CLASS_CARD.NO_SPACES : LITERALS.CLASS_CARD.RESERVE_BUTTON
-                                                                        )}
-                                                                    </Button>
-                                                                );
-                                                            })()
-                                                        )}
-
-                                                        {isAdmin && (
+                                                        ) : (
                                                             <Button
-                                                                onClick={() => onViewAttendees?.(cls)}
-                                                                variant="outline"
-                                                                className="w-full bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-white/20 font-black h-8 md:h-12 uppercase tracking-widest text-[9px] rounded-xl transition-all"
+                                                                onClick={() => onBookClass?.(cls)}
+                                                                disabled={isFull || !!isProcessingBooking || !canBook}
+                                                                className={`
+                                                                    w-full sm:w-auto font-black h-10 md:h-14 px-8 text-[10px] md:text-xs uppercase tracking-[0.2em] rounded-xl transition-all duration-300
+                                                                    ${isFull
+                                                                        ? 'bg-zinc-900 text-zinc-600 border border-white/5 cursor-not-allowed'
+                                                                        : !canBook
+                                                                            ? 'bg-amber-500/5 text-amber-500/40 border border-amber-500/10 cursor-not-allowed'
+                                                                            : 'bg-white text-black hover:bg-emerald-500 hover:text-white hover:scale-[1.03] shadow-lg hover:shadow-emerald-500/20 border-b-4 border-zinc-200 hover:border-emerald-700'
+                                                                    }
+                                                                `}
                                                             >
-                                                                {LITERALS.CLASS_CARD.VIEW_ATTENDEES}
+                                                                {!!isProcessingBooking && (isProcessingBooking === "ALL" || isProcessingBooking === cls.$id) ? (
+                                                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                                                ) : (
+                                                                    !canBook ? LITERALS.CLASS_CARD.PENDING_PAYMENT : isFull ? LITERALS.CLASS_CARD.NO_SPACES : LITERALS.CLASS_CARD.RESERVE_BUTTON
+                                                                )}
                                                             </Button>
                                                         )}
                                                     </div>
-                                                </CardContent>
-                                            </Card>
-                                        );
-                                    })}
+                                                </div>
+                                            );
+                                        })}
                                 </div>
                             </motion.div>
                         ))}
