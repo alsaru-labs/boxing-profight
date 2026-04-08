@@ -13,6 +13,7 @@ import { isCancellable } from "@/lib/bookingUtils";
 import { LITERALS } from "@/constants/literals";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { motion } from "framer-motion";
 
@@ -352,20 +353,22 @@ export default function BookingsPage() {
                                 <div className="divide-y divide-white/5">
                                     {pastClasses.map(cls => (
                                         <div key={cls.$id} className="p-5 flex justify-between items-center hover:bg-white/[0.03] transition-colors group">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 group-hover:bg-emerald-500 group-hover:text-black transition-all">
-                                                    <CheckCircle2 className="w-5 h-5" />
+                                            <div className="flex items-center gap-6">
+                                                <div className="flex flex-col items-start">
+                                                    <span className="text-lg font-black text-white leading-none">
+                                                        {new Date(cls.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).toUpperCase()}
+                                                    </span>
+                                                    <span className="text-xs font-black text-emerald-500 uppercase mt-1">{cls.time.split(':')[0]}h</span>
                                                 </div>
-                                                <div>
-                                                    <span className="text-base font-bold block text-white/90">{cls.coach}</span>
-                                                    <span className="text-[10px] text-white/30 uppercase font-black tracking-widest">{cls.name}</span>
+                                                <div className="flex flex-col items-start border-l border-white/10 pl-6 py-1">
+                                                    <span className="text-[10px] text-white/40 font-bold block">{cls.coach}</span>
+                                                    <span className="text-[9px] text-white/20 uppercase font-black tracking-widest leading-none mt-0.5">{cls.name}</span>
                                                 </div>
                                             </div>
-                                            <div className="text-right">
-                                                <span className="text-xs text-white/40 font-bold block">
-                                                    {new Date(cls.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase()}
-                                                </span>
-                                                <span className="text-[10px] text-emerald-500/50 font-black uppercase tracking-tighter">ASISTENCIA CONFIRMADA</span>
+                                            <div className="flex flex-col items-end">
+                                                <Badge className="bg-emerald-500/10 text-emerald-500 border-none text-[8px] font-black tracking-tighter uppercase px-2 py-0.5">
+                                                    ASISTIDO
+                                                </Badge>
                                             </div>
                                         </div>
                                     ))}

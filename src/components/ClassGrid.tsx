@@ -259,10 +259,24 @@ export function ClassGrid({
                             <Button
                                 onClick={() => setDaysToView(prev => prev + 1)}
                                 variant="outline"
-                                className="w-full sm:w-auto bg-white/[0.03] border-white/10 text-white hover:bg-emerald-500 hover:border-emerald-500 hover:text-white px-6 md:px-10 h-12 md:h-14 rounded-xl md:rounded-2xl font-black uppercase tracking-widest transition-all duration-300 group text-[11px] md:text-xs shadow-lg hover:shadow-emerald-500/20"
+                                className={`
+                                    w-full sm:w-auto bg-white/[0.03] border-white/10 text-white hover:bg-emerald-500 hover:border-emerald-500 hover:text-white px-6 md:px-10 h-12 md:h-14 rounded-xl md:rounded-2xl font-black uppercase tracking-widest transition-all duration-300 group text-[11px] md:text-xs shadow-lg hover:shadow-emerald-500/20
+                                    ${isAdmin ? 'flex items-center gap-3 border-emerald-500/30 ring-1 ring-emerald-500/10' : ''}
+                                `}
                             >
-                                {isHistory ? LITERALS.CLASS_CARD.LOAD_MORE_HISTORY(formatDate(sortedDates[daysToView])) : LITERALS.CLASS_CARD.LOAD_MORE(formatDate(sortedDates[daysToView]))}
-                                <ChevronDown className="ml-2 w-4 h-4 md:w-5 md:h-5 group-hover:translate-y-1 transition-transform shrink-0" />
+                                {isAdmin ? (
+                                    <>
+                                        VER SIGUIENTE DÍA ({formatDate(sortedDates[daysToView])})
+                                        <motion.div animate={{ x: [0, 5, 0] }} transition={{ repeat: Infinity, duration: 1.5 }}>
+                                            <CalendarDays className="w-5 h-5 text-emerald-400" />
+                                        </motion.div>
+                                    </>
+                                ) : (
+                                    <>
+                                        {isHistory ? LITERALS.CLASS_CARD.LOAD_MORE_HISTORY(formatDate(sortedDates[daysToView])) : LITERALS.CLASS_CARD.LOAD_MORE(formatDate(sortedDates[daysToView]))}
+                                        <ChevronDown className="ml-2 w-4 h-4 md:w-5 md:h-5 group-hover:translate-y-1 transition-transform shrink-0" />
+                                    </>
+                                )}
                             </Button>
                         </div>
                     )}

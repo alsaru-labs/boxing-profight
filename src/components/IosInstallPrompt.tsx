@@ -1,13 +1,23 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { Share, PlusSquare, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function IosInstallPrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
+    // 0. Only show on specific routes
+    const allowedRoutes = ["/perfil", "/bookings"];
+    const isAllowedRoute = allowedRoutes.some(route => pathname.startsWith(route));
+    if (!isAllowedRoute) {
+      setShowPrompt(false);
+      return;
+    }
+
     // 1. Detect if it's iOS
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
                   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -26,7 +36,7 @@ export default function IosInstallPrompt() {
     if (isIOS && isSafari && !isStandalone && !isHidden) {
       setShowPrompt(true);
     }
-  }, []);
+  }, [pathname]);
 
   const handleClose = () => {
     // Hide for 15 days (15 * 24 * 60 * 60 * 1000 ms)
