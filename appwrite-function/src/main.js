@@ -44,9 +44,16 @@ module.exports = async function (context) {
 
         log(`Enviando a ${profiles.documents.length} dispositivos suscritos...`);
 
-        // 5. Enviar notificaciones en paralelo
-        const notifications = profiles.documents.map(profile => {
-            const subscription = JSON.parse(profile.push_subscription);
+        // 5. Enviar notificaciones en paralelo (Soporte Multi-dispositivo)
+        const notifications = profiles.documents.flatMap(profile => {
+            let subscriptions = [];
+            try {
+                const parsed = JSON.parse(profile.push_subscription);
+                subscriptions = Array.isArray(parsed) ? parsed : [parsed];
+            } catch (e) {
+                error(`Error parseando suscripción de ${profile.$id}: ${e.message}`);
+                return [];
+            }
 
             const payload = JSON.stringify({
                 title: announcement.title,
@@ -54,11 +61,13 @@ module.exports = async function (context) {
                 url: '/perfil'
             });
 
-            return webpush.sendNotification(subscription, payload)
-                .catch(err => {
-                    error(`Error enviando a usuario ${profile.$id}: ${err.message}`);
-                    return null;
-                });
+            return subscriptions.map(subscription => 
+                webpush.sendNotification(subscription, payload)
+                    .catch(err => {
+                        error(`Error enviando a usuario ${profile.$id} (dispositivo: ${subscription.endpoint}): ${err.message}`);
+                        return null;
+                    })
+            );
         });
 
         await Promise.all(notifications);

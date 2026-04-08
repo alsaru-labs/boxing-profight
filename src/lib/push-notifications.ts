@@ -48,13 +48,18 @@ export async function registerPushNotifications(userId: string) {
 export async function unregisterPushNotifications(userId: string) {
     try {
         const registration = await navigator.serviceWorker.getRegistration('/');
+        let endpoint: string | undefined;
+
         if (registration) {
             const subscription = await registration.pushManager.getSubscription();
-            if (subscription) await subscription.unsubscribe();
+            if (subscription) {
+                endpoint = subscription.endpoint;
+                await subscription.unsubscribe();
+            }
         }
 
-        if (userId) {
-            await clearPushSubscriptionAction(userId);
+        if (userId && endpoint) {
+            await clearPushSubscriptionAction(userId, endpoint);
         }
     } catch (error) {
         console.error('[Push] Error en unregisterPushNotifications:', error);

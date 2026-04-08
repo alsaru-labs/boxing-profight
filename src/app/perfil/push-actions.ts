@@ -5,7 +5,7 @@ import { DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
 
 /**
  * Guarda la push subscription del usuario en su perfil de Appwrite.
- * Usa el Admin client para evitar dependencias de sesión en Server Actions.
+ * Soporta múltiples dispositivos gestionando un array de suscripciones.
  */
 export async function savePushSubscriptionAction(userId: string, subscriptionJson: string) {
     if (!userId || !subscriptionJson) {
@@ -14,12 +14,42 @@ export async function savePushSubscriptionAction(userId: string, subscriptionJso
 
     try {
         const { databases } = await createAdminClient();
+        const newSub = JSON.parse(subscriptionJson);
 
+        // 1. Obtener el perfil actual para ver las suscripciones existentes
+        const profile = await databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, userId);
+        let subscriptions: any[] = [];
+
+        if (profile.push_subscription) {
+            try {
+                const parsed = JSON.parse(profile.push_subscription);
+                subscriptions = Array.isArray(parsed) ? parsed : [parsed];
+            } catch {
+                // Si falla el parseo, asumimos que no hay nada válido o era basura
+                subscriptions = [];
+            }
+        }
+
+        // 2. Añadir la nueva si el endpoint no existe ya
+        const exists = subscriptions.some(s => s.endpoint === newSub.endpoint);
+        if (!exists) {
+            subscriptions.push(newSub);
+        } else {
+            // Si ya existe, actualizamos la entrada (por si han cambiado las keys)
+            subscriptions = subscriptions.map(s => s.endpoint === newSub.endpoint ? newSub : s);
+        }
+
+        // 3. Limitar a los 5 dispositivos más recientes (Zero-Waste)
+        if (subscriptions.length > 5) {
+            subscriptions = subscriptions.slice(-5);
+        }
+
+        // 4. Guardar de nuevo en el perfil
         await databases.updateDocument(
             DATABASE_ID,
             COLLECTION_PROFILES,
             userId,
-            { push_subscription: subscriptionJson }
+            { push_subscription: JSON.stringify(subscriptions) }
         );
 
         return { success: true };
@@ -30,9 +60,10 @@ export async function savePushSubscriptionAction(userId: string, subscriptionJso
 }
 
 /**
- * Elimina la push subscription del perfil del usuario.
+ * Elimina una push subscription específica del perfil (por endpoint) 
+ * o todas si no se especifica endpoint.
  */
-export async function clearPushSubscriptionAction(userId: string) {
+export async function clearPushSubscriptionAction(userId: string, endpoint?: string) {
     if (!userId) {
         return { success: false, error: "Falta userId" };
     }
@@ -40,12 +71,31 @@ export async function clearPushSubscriptionAction(userId: string) {
     try {
         const { databases } = await createAdminClient();
 
-        await databases.updateDocument(
-            DATABASE_ID,
-            COLLECTION_PROFILES,
-            userId,
-            { push_subscription: null }
-        );
+        if (!endpoint) {
+            // Comportamiento antiguo: Limpiar todo
+            await databases.updateDocument(
+                DATABASE_ID,
+                COLLECTION_PROFILES,
+                userId,
+                { push_subscription: null }
+            );
+        } else {
+            // Comportamiento nuevo: Limpiar solo este endpoint
+            const profile = await databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, userId);
+            if (profile.push_subscription) {
+                const parsed = JSON.parse(profile.push_subscription);
+                let subscriptions = Array.isArray(parsed) ? parsed : [parsed];
+                
+                subscriptions = subscriptions.filter(s => s.endpoint !== endpoint);
+                
+                await databases.updateDocument(
+                    DATABASE_ID,
+                    COLLECTION_PROFILES,
+                    userId,
+                    { push_subscription: subscriptions.length > 0 ? JSON.stringify(subscriptions) : null }
+                );
+            }
+        }
 
         return { success: true };
     } catch (error: any) {

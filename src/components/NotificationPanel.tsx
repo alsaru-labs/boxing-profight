@@ -34,14 +34,22 @@ export default function NotificationPanel() {
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [localReadIds, setLocalReadIds] = useState<string[]>([]); // Optimistic UI
 
-    // Detect if already subscribed on mount or profile change
+    // Detect if already subscribed on mount or session change
     useEffect(() => {
-        if (profile?.push_subscription) {
-            setIsSubscribed(true);
-        } else if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-            setIsSubscribed(true);
-        }
-    }, [profile]);
+        const checkLocalSubscription = async () => {
+            if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+                try {
+                    const registration = await navigator.serviceWorker.ready;
+                    const subscription = await registration.pushManager.getSubscription();
+                    setIsSubscribed(!!subscription);
+                } catch (e) {
+                    console.error("[Push] Error checking local subscription:", e);
+                }
+            }
+        };
+
+        checkLocalSubscription();
+    }, [userId]);
 
     // Combined read IDs for display (Global + Local Optimistic)
     const allReadIds = useMemo(() => {
