@@ -312,16 +312,14 @@ export default function BookingsPage() {
                             </h4>
                             <div className="h-px flex-1 bg-white/5" />
                         </div>
-                        <div className="bg-zinc-900/20 p-2 md:p-6 rounded-[2.5rem] border border-white/5 relative overflow-hidden">
-                            <ClassGrid
-                                classes={processedAvailableClasses}
-                                userBookings={optimisticBookings}
-                                profileInfo={profileInfo}
-                                isProcessingBooking={isPending ? "ALL" : null}
-                                onBookClass={handleBookClass}
-                                simulatedDay={simulatedDay}
-                            />
-                        </div>
+                        <ClassGrid
+                            classes={processedAvailableClasses}
+                            userBookings={optimisticBookings}
+                            profileInfo={profileInfo}
+                            isProcessingBooking={isPending ? "ALL" : null}
+                            onBookClass={handleBookClass}
+                            simulatedDay={simulatedDay}
+                        />
                     </section>
 
                     {/* 2. MIS RESERVAS CONFIRMADAS */}
