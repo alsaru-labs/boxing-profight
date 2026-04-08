@@ -6,7 +6,7 @@ export default function Footer() {
 
   return (
     <footer className="w-full border-t border-white/5 bg-black pt-24 pb-12 px-6 md:px-12 lg:px-24 overflow-hidden relative">
-      
+
       {/* Decorative Large Background Typography */}
       <div className="absolute -bottom-10 -right-20 pointer-events-none select-none opacity-[0.01]">
         <span className="text-[25vw] font-black leading-none uppercase tracking-tighter italic">PROFIGHT</span>
@@ -14,7 +14,7 @@ export default function Footer() {
 
       <div className="max-w-7xl mx-auto relative z-10">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16 md:gap-12 items-start">
-          
+
           {/* Logo & Headline */}
           <div className="flex flex-col gap-6 lg:col-span-2">
             <h2 className="text-4xl font-black uppercase tracking-tighter leading-none italic">
@@ -29,9 +29,9 @@ export default function Footer() {
           <div className="flex flex-col gap-8">
             <div className="space-y-4">
               <div className="text-[10px] font-black uppercase tracking-[0.5em] text-white/20">Ubicación</div>
-              <Link 
-                href="https://maps.google.com/?q=Calle+Zarza+26,Alcorcón" 
-                target="_blank" 
+              <Link
+                href="https://maps.google.com/?q=Calle+Zarza+26,Alcorcón"
+                target="_blank"
                 className="flex items-center gap-3 text-white/50 hover:text-white text-xs font-bold transition-colors group"
               >
                 <MapPinIcon className="w-4 h-4 opacity-30 group-hover:opacity-100 transition-opacity" />
@@ -42,7 +42,7 @@ export default function Footer() {
               <div className="text-[10px] font-black uppercase tracking-[0.5em] text-white/20">Contacto</div>
               <div className="flex items-center gap-3 text-white/50 text-xs font-bold whitespace-nowrap">
                 <MailIcon className="w-4 h-4 opacity-30" />
-                <span>info@boxingprofight.com</span>
+                <span>boxingprofight@gmail.com</span>
               </div>
             </div>
           </div>
@@ -67,11 +67,11 @@ export default function Footer() {
           <div className="text-[10px] font-black uppercase tracking-[0.5em] text-white/10 italic">
             &copy; {currentYear} Boxing Profight — No pain no gain
           </div>
-          
+
           <div className="flex items-center gap-8">
-            <Link 
-              href="https://www.instagram.com/boxing_profight__/" 
-              target="_blank" 
+            <Link
+              href="https://www.instagram.com/boxing_profight__/"
+              target="_blank"
               className="text-white/20 hover:text-white transition-colors"
               aria-label="Instagram"
             >

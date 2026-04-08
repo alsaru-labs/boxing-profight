@@ -6,14 +6,14 @@ export default function PrivacidadPage() {
   return (
     <div className="min-h-screen bg-black text-white selection:bg-white selection:text-black">
       <div className="max-w-4xl mx-auto px-6 py-20">
-        <Link 
-          href="/" 
+        <Link
+          href="/"
           className="inline-flex items-center gap-2 text-white/40 hover:text-white transition-colors mb-12 group"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
           Volver al inicio
         </Link>
-        
+
         <div className="flex items-center gap-4 mb-4">
           <ShieldCheck className="w-12 h-12 text-white" strokeWidth={1} />
           <h1 className="text-5xl font-black uppercase tracking-tighter italic">Privacidad</h1>
@@ -31,7 +31,7 @@ export default function PrivacidadPage() {
           <section>
             <h2 className="text-xl font-bold text-white uppercase mb-4 tracking-tight">2. FINALIDAD Y SERVICIOS</h2>
             <p>
-              Sus datos se tratarán para gestionar su alta como alumno, reservas de clases, pagos y comunicaciones informativas relacionadas con la actividad del gimnasio. 
+              Sus datos se tratarán para gestionar su alta como alumno, reservas de clases, pagos y comunicaciones informativas relacionadas con la actividad del gimnasio.
               Para ello utilizamos las siguientes plataformas de terceros:
             </p>
             <ul className="mt-4 space-y-4">
@@ -56,8 +56,8 @@ export default function PrivacidadPage() {
           <section>
             <h2 className="text-xl font-bold text-white uppercase mb-4 tracking-tight">4. DERECHOS ARCO</h2>
             <p>
-              Usted tiene derecho a acceder, rectificar y suprimir los datos, así como otros derechos adicionales, escribiendo a 
-              <span className="text-white italic"> info@boxingprofight.com</span>.
+              Usted tiene derecho a acceder, rectificar y suprimir los datos, así como otros derechos adicionales, escribiendo a
+              <span className="text-white italic"> boxingprofight@gmail.com</span>.
             </p>
           </section>
         </div>

@@ -36,7 +36,7 @@ module.exports = async function (context) {
                 emailType = 'welcome';
                 log("Inferred type: 'welcome' (via Appwrite Event Header)");
             }
-        } 
+        }
         // 🛡️ DESCUBRIMIENTO POR ESTRUCTURA (Resilient Fallback)
         else if (payload.email && (payload.user_id || payload.student_id)) {
             emailType = 'welcome';
@@ -102,7 +102,7 @@ module.exports = async function (context) {
                 log(`User ID not found, checking by email: ${profile.email}`);
                 try {
                     const usersList = await users.list([sdk.Query.equal("email", profile.email)]);
-                    
+
                     if (usersList.total > 0) {
                         authUser = usersList.users[0];
                         log(`Found existing user by Email: ${authUser.$id}`);
@@ -155,7 +155,7 @@ module.exports = async function (context) {
             const html = buildWelcomeEmail(profile.name, actionUrl, publicDomain);
 
             await resend.emails.send({
-                from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+                from: process.env.RESEND_FROM_EMAIL || 'no-reply@boxingprofight.com',
                 to: [profile.email],
                 subject: '🧤 ¡Bienvenido a Boxing Profight! Configura tu cuenta',
                 html,
@@ -188,7 +188,7 @@ module.exports = async function (context) {
             const html = buildPasswordResetEmail(name || 'Alumno', tokenUrl, publicDomain);
 
             await resend.emails.send({
-                from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+                from: process.env.RESEND_FROM_EMAIL || 'no-reply@boxingprofight.com',
                 to: [email],
                 subject: '🔑 Restablece tu contraseña - Boxing Profight',
                 html,
