@@ -30,6 +30,7 @@ export const metadata: Metadata = {
 };
 
 import LegalOnboardingGate from "@/components/LegalOnboardingGate";
+import IosInstallPrompt from "@/components/IosInstallPrompt";
 
 export default function RootLayout({
   children,
@@ -43,6 +44,7 @@ export default function RootLayout({
           <LegalOnboardingGate>
             {children}
           </LegalOnboardingGate>
+          <IosInstallPrompt />
           <Toaster
             position="bottom-right"
             toastOptions={{

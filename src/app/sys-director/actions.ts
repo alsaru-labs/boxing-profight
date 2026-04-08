@@ -131,7 +131,7 @@ export async function revalidateAllDataAction() {
 export async function getAdminDashboardData(month?: string) {
     try {
         const now = new Date();
-        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
         const thirtyDaysAhead = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
         const currentMonthStr = month || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
@@ -148,7 +148,7 @@ export async function getAdminDashboardData(month?: string) {
         const paidStudentIds = Array.from(new Set(currentMonthPayments.map((p: any) => p.student_id)));
         const unpaidCount = Math.max(0, totalStudents - paidStudentIds.length);
 
-        const filteredClasses = availableClasses.filter((c: any) => c.date >= thirtyDaysAgo.substring(0, 10) && c.date <= thirtyDaysAhead.substring(0, 10));
+        const filteredClasses = availableClasses.filter((c: any) => c.date >= sevenDaysAgo.substring(0, 10) && c.date <= thirtyDaysAhead.substring(0, 10));
 
         return {
             success: true,
@@ -1325,15 +1325,15 @@ export async function syncAllClassesAction() {
 export const getAvailableClassesCached = unstable_cache(
     async () => {
         const { databases } = await createAdminClient();
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-        console.log(`[QUERY] Fetching classes >= ${thirtyDaysAgo.substring(0, 10)}`);
+        console.log(`[QUERY] Fetching classes >= ${sevenDaysAgo.substring(0, 10)}`);
 
         const res = await databases.listDocuments(
             DATABASE_ID,
             COLLECTION_CLASSES,
             [
-                sdk.Query.greaterThanEqual("date", thirtyDaysAgo.substring(0, 10)),
+                sdk.Query.greaterThanEqual("date", sevenDaysAgo.substring(0, 10)),
                 sdk.Query.limit(25),      // 🛡️ Zero-Waste Extremo
                 sdk.Query.orderAsc("date")
             ]

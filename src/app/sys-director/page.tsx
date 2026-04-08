@@ -342,7 +342,7 @@ export default function AdminDashboard() {
       const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
       const [hours, minutes] = startTime.split(":").map(Number);
       const classDateTime = new Date(year, month - 1, day, hours, minutes);
-      return classDateTime < now && classDateTime.getTime() >= now.getTime() - (30 * 24 * 60 * 60 * 1000);
+      return classDateTime < now && classDateTime.getTime() >= now.getTime() - (7 * 24 * 60 * 60 * 1000);
     } catch { return false; }
   }).sort((a, b) => {
     const dateComp = new Date(b.date).getTime() - new Date(a.date).getTime();
