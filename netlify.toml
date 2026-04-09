@@ -9,8 +9,5 @@
 [functions]
   node_bundler = "esbuild"
 
-[functions."api/cron/generate-classes"]
-  schedule = "0 0 * * 6" # Todos los sábados a medianoche (00:00)
-
 [[plugins]]
   package = "@netlify/plugin-nextjs"
