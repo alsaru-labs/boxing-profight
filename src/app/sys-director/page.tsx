@@ -34,9 +34,10 @@ export default function AdminDashboard() {
     if (typeof window !== "undefined") {
       const hostname = window.location.hostname;
       setIsProduction(
-        hostname === "boxingprofight.com" || 
-        hostname === "www.boxingprofight.com" || 
-        hostname === "boxingprofight.netlify.app"
+        hostname === "boxingprofight.es" || 
+        hostname === "www.boxingprofight.es" || 
+        hostname === "boxing-profight.vercel.app" ||
+        hostname === "boxingprofight.com"
       );
     }
   }, []);
