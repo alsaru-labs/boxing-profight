@@ -1,0 +1,282 @@
+"use client";
+
+import { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
+import { Bell, X, Info, AlertTriangle, CheckCircle2, Loader2, Signal } from "lucide-react";
+import { markNotificationAsReadAction, markAllNotificationsAsReadAction } from "@/app/sys-director/actions";
+import { motion, AnimatePresence } from "framer-motion";
+import { registerPushNotifications } from "@/lib/push-notifications";
+import { LITERALS } from "@/constants/literals";
+import { useAuth } from "@/contexts/AuthContext";
+
+interface Notification {
+    $id: string;
+    title: string;
+    content: string;
+    type: "info" | "warning" | "success";
+    createdAt: string;
+}
+
+export default function NotificationPanel() {
+    const { 
+        user, 
+        profile,
+        loading: authLoading, 
+        announcements, 
+        readNotifications,
+        unreadNotificationsCount: unreadCount,
+        refreshGlobalData
+    } = useAuth();
+    const userId = user?.$id || "";
+    const isLoggedIn = !!user;
+
+    const [isOpen, setIsOpen] = useState(false);
+    const [isMarking, setIsMarking] = useState<string | null>(null);
+    const [isSubscribed, setIsSubscribed] = useState(false);
+    const [localReadIds, setLocalReadIds] = useState<string[]>([]); // Optimistic UI
+
+    // Detect if already subscribed on mount or session change
+    useEffect(() => {
+        const checkLocalSubscription = async () => {
+            if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+                try {
+                    const registration = await navigator.serviceWorker.ready;
+                    const subscription = await registration.pushManager.getSubscription();
+                    setIsSubscribed(!!subscription);
+                } catch (e) {
+                    console.error("[Push] Error checking local subscription:", e);
+                }
+            }
+        };
+
+        checkLocalSubscription();
+    }, [userId]);
+
+    // Combined read IDs for display (Global + Local Optimistic)
+    const allReadIds = useMemo(() => {
+        return Array.from(new Set([...readNotifications, ...localReadIds]));
+    }, [readNotifications, localReadIds]);
+
+    // Optimistic unread count
+    const optimisticUnreadCount = useMemo(() => {
+        return announcements.filter(n => !allReadIds.includes(n.$id)).length;
+    }, [announcements, allReadIds]);
+
+    // Filter notifications from last 48 hours for the panel display
+    const visibleNotifications = announcements.filter(n => {
+        try {
+            const dateStr = n.$createdAt || n.createdAt;
+            if (!dateStr) return true; // Si no hay fecha, no ocultamos (nuevo RT)
+            
+            const createdDate = new Date(dateStr);
+            if (isNaN(createdDate.getTime())) return true; // Si es inválida, mostrar
+
+            const fortyEightHoursAgo = new Date();
+            fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
+            return createdDate > fortyEightHoursAgo;
+        } catch (e) {
+            return true; // En caso de duda, mostrar
+        }
+    });
+
+    const handleMarkAsRead = async (notifId: string) => {
+        if (allReadIds.includes(notifId) || isMarking) return;
+
+        setIsMarking(notifId);
+        setLocalReadIds(prev => [...prev, notifId]); // Optimistic update
+        try {
+            await markNotificationAsReadAction(userId, notifId);
+            // The Realtime in AuthContext will detect the change and update readNotifications.
+        } catch (e) {
+            console.error("Error marking as read:", e);
+        } finally {
+            setIsMarking(null);
+        }
+    };
+
+    const handleMarkAllAsRead = async () => {
+        const unreadNotifs = announcements.filter((n: any) => !allReadIds.includes(n.$id));
+        if (unreadNotifs.length === 0 || isMarking) return;
+
+        setIsMarking("all");
+        const unreadIds = unreadNotifs.map((n: any) => n.$id);
+        setLocalReadIds(prev => [...prev, ...unreadIds]); // Optimistic update
+        try {
+            await markAllNotificationsAsReadAction(userId, unreadIds);
+        } catch (e) {
+            console.error("Error marking all as read:", e);
+        } finally {
+            setIsMarking(null);
+        }
+    };
+
+    if (!isLoggedIn) return null;
+
+    return (
+        <div
+            className="relative"
+            onMouseLeave={() => setIsOpen(false)}
+        >
+            {/* Bell Icon */}
+            <button
+                onClick={() => {
+                    const newOpen = !isOpen;
+                    setIsOpen(newOpen);
+                    if (newOpen) refreshGlobalData(true); // Explicitly silent refresh on open
+
+                }}
+                className="relative p-2.5 rounded-full hover:bg-white/10 transition-colors flex items-center justify-center text-white/80 hover:text-white"
+            >
+                <Bell className="w-6 h-6 md:w-5 md:h-5" />
+                {optimisticUnreadCount > 0 && (
+                    <span className="absolute top-1.5 right-2 flex h-5 w-5 pointer-events-none">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-5 w-5 bg-red-600 text-[10px] items-center justify-center font-bold text-white border-2 border-black/50">
+                            {optimisticUnreadCount}
+                        </span>
+                    </span>
+                )}
+            </button>
+            {/* Modal / Panel - Rendered via Portal to escape Navbar containment */}
+            {typeof document !== 'undefined' && createPortal(
+                <AnimatePresence>
+                    {isOpen && (
+                        <>
+                            {/* Overlay to close on click outside */}
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xl"
+                                onClick={() => setIsOpen(false)}
+                            />
+
+                            <motion.div
+                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                className="fixed md:absolute inset-x-4 md:inset-x-auto md:right-4 top-24 md:top-20 w-auto md:w-[400px] z-[101] overflow-hidden"
+                            >
+                                <div className="bg-zinc-950 border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)]">
+                                    <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
+                                        <div className="flex flex-col">
+                                            <h3 className="font-bold text-lg text-white">{LITERALS.DASHBOARD.ANNOUNCEMENTS.PANEL_TITLE}</h3>
+                                            {optimisticUnreadCount > 0 && (
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleMarkAllAsRead();
+                                                    }}
+                                                    disabled={!!isMarking}
+                                                    className="text-[10px] text-emerald-400 hover:text-emerald-300 font-black uppercase tracking-widest flex items-center gap-1.5 transition-colors mt-0.5"
+                                                >
+                                                    {isMarking === "all" ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                                                    {LITERALS.DASHBOARD.ANNOUNCEMENTS.MARK_ALL_READ}
+                                                </button>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={() => setIsOpen(false)}
+                                            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                                        >
+                                            <X className="w-5 h-5 text-white/60" />
+                                        </button>
+                                    </div>
+
+                                    <div className="max-h-[70vh] overflow-y-auto p-2 space-y-2 custom-scrollbar">
+                                        {/* Push Permission Button - Only shown if not subscribed */}
+                                        {!isSubscribed && (
+                                            <div className="mb-2 p-3 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between gap-3 group hover:bg-white/10 transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-emerald-500/10 rounded-full">
+                                                        <Signal className="w-4 h-4 text-emerald-400" />
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-xs font-bold text-white">Notificaciones Móviles</span>
+                                                        <span className="text-[10px] text-white/40">Recibe avisos push en tiempo real</span>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={async () => {
+                                                        const sub = await registerPushNotifications(userId);
+                                                        if (sub) setIsSubscribed(true);
+                                                    }}
+                                                    className="px-3 py-1.5 bg-white text-black text-[10px] font-black uppercase rounded-full hover:scale-105 active:scale-95 transition-all shadow-lg"
+                                                >
+                                                    Activar
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {authLoading && announcements.length === 0 ? (
+                                            <div className="py-12 flex flex-col items-center justify-center text-white/40 italic">
+                                                <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                                                Cargando anuncios...
+                                            </div>
+                                        ) : visibleNotifications.length === 0 ? (
+                                            <div className="py-12 text-center text-white/40 italic">
+                                                {LITERALS.DASHBOARD.ANNOUNCEMENTS.EMPTY_STATE}
+                                            </div>
+                                        ) : (
+                                            visibleNotifications.map((n: any) => {
+                                                const isRead = allReadIds.includes(n.$id);
+                                                const typeLabel = n.type === 'urgent' ? 'Importante' : (n.type || 'Información');
+                                                const typeColor = n.type === 'urgent' ? 'text-red-500' : 
+                                                                n.type === 'warning' ? 'text-amber-400' : 
+                                                                n.type === 'success' ? 'text-emerald-400' : 
+                                                                'text-blue-400';
+
+                                                return (
+                                                    <div
+                                                        key={n.$id}
+                                                        onClick={() => handleMarkAsRead(n.$id)}
+                                                        className={`p-4 rounded-xl transition-all border group cursor-pointer ${isRead
+                                                            ? "bg-white/5 border-white/5 opacity-40 grayscale"
+                                                            : "bg-white/10 border-white/10 hover:bg-white/15 hover:scale-[1.01] shadow-lg"
+                                                            }`}
+                                                    >
+                                                        <div className="flex items-start gap-4">
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex justify-between items-center mb-1.5">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className={`text-[9px] uppercase font-black tracking-tighter ${typeColor}`}>
+                                                                            {typeLabel}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-white/20 whitespace-nowrap font-medium italic">
+                                                                            {new Date(n.createdAt || n.$createdAt || Date.now()).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}
+                                                                        </span>
+                                                                    </div>
+                                                                    {!isRead && (
+                                                                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+                                                                    )}
+                                                                </div>
+                                                                <h4 className={`font-bold leading-tight mb-1 text-white text-base ${isRead ? 'text-white/70' : 'text-white'}`}>
+                                                                    {n.title}
+                                                                </h4>
+                                                                <p className="text-sm text-white/50 leading-relaxed font-light">
+                                                                    {n.content}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+
+
+                                        )}
+                                    </div>
+
+                                    <div className="p-3 bg-white/5 text-center">
+                                        <p className="text-[10px] text-white/20 uppercase tracking-tighter">
+                                            Mostrando anuncios del tablón oficial • Boxeo ProFight
+                                        </p>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        </>
+                    )}
+                </AnimatePresence>
+            , document.body)}
+        </div>
+    );
+}
