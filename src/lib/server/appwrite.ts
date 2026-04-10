@@ -48,11 +48,11 @@ export async function createSessionClient() {
 }
 
 export async function createAdminClient() {
-  // 🥊 Buscamos primero la clave que Netlify prefiere, luego la estándar
+  // 🥊 Buscamos primero la clave con el prefijo del proyecto, luego la estándar
   const rawKey = process.env.NEXT_BOXING_AWR_KEY || process.env.APPWRITE_API_KEY;
 
   if (!rawKey) {
-    throw new Error("CRÍTICO: No se han encontrado claves SECRETAS en el servidor (Falta NEXT_BOXING_AWR_KEY o APPWRITE_API_KEY). Revisa la configuración en Netlify.");
+    throw new Error("CRÍTICO: No se han encontrado claves SECRETAS en el servidor (Falta NEXT_BOXING_AWR_KEY o APPWRITE_API_KEY). Revisa la configuración en Vercel.");
   }
 
   // 🛡️ LIMPIEZA DE CLAVE: Eliminar comillas accidentales, espacios alrededor y saltos de línea

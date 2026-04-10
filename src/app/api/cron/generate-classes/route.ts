@@ -3,7 +3,7 @@ import { autoGenerateNextWeekClasses } from "@/app/sys-director/actions";
 
 /**
  * API Route for Automated Class Generation
- * Designed to be triggered by a Cron Job (e.g. Netlify Scheduled Functions)
+ * Designed to be triggered by a Cron Job (e.g. Vercel Cron Jobs)
  * Every Saturday at 00:00.
  */
 export async function GET(request: Request) {
