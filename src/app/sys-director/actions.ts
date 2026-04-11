@@ -1203,13 +1203,13 @@ export async function autoGenerateNextWeekClasses() {
         const existingClassesResponse = await databases.listDocuments(DATABASE_ID, COLLECTION_CLASSES, [
             sdk.Query.greaterThanEqual("date", dStart),
             sdk.Query.lessThanEqual("date", dEnd),
-            sdk.Query.limit(25)
+            sdk.Query.limit(50)
         ]);
 
         console.log(`[GENERATION DIAGNOSTIC] Found ${existingClassesResponse.total} existing classes in this range.`);
 
         const generatedClasses = [];
-        const slots = ["10:00 - 11:00", "18:00 - 19:00", "19:00 - 20:00", "20:00 - 21:00", "21:00 - 22:00"];
+        const slots = ["10:00 - 11:00", "17:00 - 18:00", "18:00 - 19:00", "19:00 - 20:00", "20:00 - 21:00", "21:00 - 22:00"];
 
         for (let i = 0; i < 5; i++) {
             const date = new Date(nextMonday);

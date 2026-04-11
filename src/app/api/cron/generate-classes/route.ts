@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { autoGenerateNextWeekClasses } from "@/app/sys-director/actions";
 
+export const dynamic = 'force-dynamic';
+
 /**
  * API Route for Automated Class Generation
  * Designed to be triggered by a Cron Job (e.g. Vercel Cron Jobs)
