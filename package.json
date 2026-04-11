@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
-    "@netlify/functions": "^5.1.5",
     "@stripe/stripe-js": "^8.9.0",
     "@types/web-push": "^3.6.4",
     "appwrite": "^23.0.0",
