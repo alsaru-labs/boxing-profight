@@ -235,7 +235,7 @@ function buildWelcomeEmail(name, actionUrl, publicDomain) {
                     <tr>
                         <td align="center" style="padding: 0 48px 48px 48px;">
                             <h1 style="color: #ffffff; font-size: 32px; font-weight: 800; margin: 0 0 20px 0; letter-spacing: -1px; text-transform: uppercase;">
-                                ¡Bienvenido, ${name}!
+                                ¡Bienvenid@, ${name}!
                             </h1>
                             <p style="color: #a1a1aa; font-size: 16px; line-height: 1.6; margin: 0 0 32px 0;">
                                 Tu plaza en el ring está lista. Solo falta que configures tu acceso personal a la plataforma para empezar a reservar tus sesiones.

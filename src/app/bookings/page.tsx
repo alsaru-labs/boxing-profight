@@ -19,14 +19,14 @@ import { motion } from "framer-motion";
 
 export default function BookingsPage() {
     const router = useRouter();
-    const { 
-        user, 
-        profile: profileInfo, 
+    const {
+        user,
+        profile: profileInfo,
         loading: authLoading,
         userBookings,
-        availableClasses: allPossibleClasses 
+        availableClasses: allPossibleClasses
     } = useAuth();
-    
+
     const [isPending, startTransition] = useTransition();
     const [currentTime, setCurrentTime] = useState(new Date());
     const [simulatedDay, setSimulatedDay] = useState<number | undefined>(undefined);
@@ -42,10 +42,10 @@ export default function BookingsPage() {
         if (typeof window !== "undefined") {
             const hostname = window.location.hostname;
             setIsProduction(
-                hostname === "boxingprofight.es" || 
-                hostname === "www.boxingprofight.es" || 
+                hostname === "boxingprofight.es" ||
+                hostname === "www.boxingprofight.es" ||
                 hostname === "boxing-profight.vercel.app" ||
-                hostname === "boxingprofight.com"
+                hostname === "boxingprofight.es"
             );
         }
     }, []);
@@ -160,7 +160,7 @@ export default function BookingsPage() {
     const handleBookClass = async (classObj: any) => {
         if (!user) return;
         showConfirm(
-            LITERALS.BOOKINGS.CONFIRM_RESERVATION_TITLE, 
+            LITERALS.BOOKINGS.CONFIRM_RESERVATION_TITLE,
             LITERALS.BOOKINGS.CONFIRM_RESERVATION_DESC(classObj.name, classObj.coach),
             async () => {
                 let success = false;
@@ -214,7 +214,7 @@ export default function BookingsPage() {
         }
 
         showConfirm(
-            LITERALS.BOOKINGS.CANCEL_RESERVATION_TITLE, 
+            LITERALS.BOOKINGS.CANCEL_RESERVATION_TITLE,
             LITERALS.BOOKINGS.CANCEL_RESERVATION_DESC,
             async () => {
                 let success = false;
@@ -285,17 +285,17 @@ export default function BookingsPage() {
                                 <span className="text-[10px] font-black text-white/30 uppercase italic leading-none mb-1">Simulador Temporal</span>
                                 <span className="text-xs font-bold text-emerald-500">Día {simulatedDay || new Date().getDate()}</span>
                             </div>
-                            <input 
-                                type="range" 
-                                min="1" 
-                                max="31" 
+                            <input
+                                type="range"
+                                min="1"
+                                max="31"
                                 value={simulatedDay || new Date().getDate()}
                                 onChange={(e) => setSimulatedDay(parseInt(e.target.value))}
                                 className="w-32 accent-emerald-500 cursor-pointer"
                             />
-                            <Button 
-                                variant="ghost" 
-                                size="sm" 
+                            <Button
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => setSimulatedDay(undefined)}
                                 className="h-8 text-[9px] font-black uppercase text-white/40 hover:text-white border border-white/5"
                             >
@@ -341,7 +341,7 @@ export default function BookingsPage() {
                             </h4>
                             <div className="h-px flex-1 bg-white/5" />
                         </div>
-                        
+
                         <div className="bg-white/[0.02] border border-white/5 rounded-3xl overflow-hidden max-w-4xl">
                             {historyLoading && pastClasses.length === 0 ? (
                                 <div className="p-12 flex items-center justify-center gap-3 text-white/40">

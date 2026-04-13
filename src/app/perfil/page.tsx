@@ -23,15 +23,15 @@ import { LITERALS } from "@/constants/literals";
 
 export default function StudentProfile() {
   const router = useRouter();
-  const { 
-    user, 
-    profile: profileInfo, 
+  const {
+    user,
+    profile: profileInfo,
     loading: authLoading,
     userBookings,
     availableClasses: allPossibleClasses,
     refreshGlobalData
   } = useAuth();
-  
+
   const [activeTab, setActiveTab] = useState("resumen");
   const [isPending, startTransition] = useTransition();
   const [isUpdating, setIsUpdating] = useState(false);
@@ -43,17 +43,17 @@ export default function StudentProfile() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
   const [overriddenProfile, setOverriddenProfile] = useState<any | null>(null);
-  
+
   // 🛡️ DETECCIÓN DE ENTORNO (Prevención de Hydration Mismatch)
   const [isProduction, setIsProduction] = useState(false);
   useEffect(() => {
     if (typeof window !== "undefined") {
       const hostname = window.location.hostname;
       setIsProduction(
-        hostname === "boxingprofight.es" || 
-        hostname === "www.boxingprofight.es" || 
+        hostname === "boxingprofight.es" ||
+        hostname === "www.boxingprofight.es" ||
         hostname === "boxing-profight.vercel.app" ||
-        hostname === "boxingprofight.com"
+        hostname === "boxingprofight.es"
       );
     }
   }, []);
@@ -72,7 +72,7 @@ export default function StudentProfile() {
     title: "",
     description: "",
     variant: "info",
-    onConfirm: () => {},
+    onConfirm: () => { },
   });
 
   const showAlert = (title: string, description: string, variant: "info" | "success" | "warning" | "danger" = "info") => {
@@ -84,18 +84,18 @@ export default function StudentProfile() {
 
   const showConfirm = (title: string, description: string, onConfirm: () => Promise<boolean>, variant: "info" | "success" | "warning" | "danger" = "warning") => {
     setModalConfig({
-        isOpen: true,
-        title,
-        description,
-        variant,
-        onConfirm: async () => {
-            const success = await onConfirm();
-            if (success) {
-                setModalConfig(prev => ({ ...prev, isOpen: false }));
-            }
-        },
-        showCancel: true,
-        confirmText: "Confirmar"
+      isOpen: true,
+      title,
+      description,
+      variant,
+      onConfirm: async () => {
+        const success = await onConfirm();
+        if (success) {
+          setModalConfig(prev => ({ ...prev, isOpen: false }));
+        }
+      },
+      showCancel: true,
+      confirmText: "Confirmar"
     });
   };
 
@@ -130,7 +130,7 @@ export default function StudentProfile() {
   // Timer para límites de cancelación
   useEffect(() => {
     const timer = setInterval(() => {
-        setCurrentTime(new Date());
+      setCurrentTime(new Date());
     }, 10000);
     return () => clearInterval(timer);
   }, []);
@@ -138,7 +138,7 @@ export default function StudentProfile() {
   // 📅 CARGA DE DATOS POR MES (Gestión Auditoría)
   useEffect(() => {
     const currentActualMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-    
+
     // Si volvemos al mes actual, limpiamos el override para usar los datos vivos de AuthContext
     if (selectedMonth === currentActualMonth) {
       setOverriddenProfile(null);
@@ -202,7 +202,7 @@ export default function StudentProfile() {
     return <AuthTransition message="Calculando área de acceso..." subMessage="Sincronizando seguridad" />;
   }
 
-  const initials = profileInfo?.name 
+  const initials = profileInfo?.name
     ? `${profileInfo.name.charAt(0)}${profileInfo.last_name?.charAt(0) || profileInfo.name.charAt(1) || ""}`.toUpperCase()
     : user?.name ? user.name.substring(0, 2).toUpperCase() : "US";
 
@@ -217,7 +217,7 @@ export default function StudentProfile() {
 
             <AnimatePresence mode="wait">
               <TabsContent key="resumen" value="resumen" className="focus-visible:outline-none focus:outline-none outline-none">
-                
+
                 {/* 📅 Selector de Periodo de Gestión (Solo visible en entornos NO-Producción) */}
                 {!isProduction && (
                   <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 bg-zinc-900/40 p-6 rounded-2xl border border-white/5 animate-in fade-in slide-in-from-top-4 duration-700">
@@ -229,7 +229,7 @@ export default function StudentProfile() {
                       <p className="text-white/40 text-[10px] uppercase font-bold tracking-tight">Auditoría: Consulta y valida pagos de cualquier mes.</p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <select 
+                      <select
                         value={selectedMonth}
                         onChange={(e) => setSelectedMonth(e.target.value)}
                         className="bg-black/60 border border-white/10 text-white font-black uppercase tracking-widest p-3 rounded-xl outline-none focus:border-emerald-500/50 transition-all cursor-pointer min-w-[220px] text-xs"
@@ -271,7 +271,7 @@ export default function StudentProfile() {
                       {validUpcomingClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id)).length > 0 ? (
                         <div className="bg-gradient-to-r from-emerald-500/20 to-emerald-500/5 border border-emerald-500/20 rounded-2xl p-6 relative overflow-hidden group">
                           <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-700">
-                             <BicepsFlexed className="w-40 h-40 text-emerald-400" />
+                            <BicepsFlexed className="w-40 h-40 text-emerald-400" />
                           </div>
                           <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
                             <div>
@@ -303,7 +303,7 @@ export default function StudentProfile() {
                           <p className="text-white/40 font-medium mb-6">No tienes ninguna clase reservada para esta semana.</p>
                           <Link href="/bookings">
                             <Button className="bg-emerald-500 text-black hover:bg-emerald-400 font-black px-8 py-6 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center gap-2 h-14">
-                                RESERVAR AHORA <Calendar className="w-5 h-5" />
+                              RESERVAR AHORA <Calendar className="w-5 h-5" />
                             </Button>
                           </Link>
                         </Card>
@@ -316,8 +316,8 @@ export default function StudentProfile() {
 
 
               <TabsContent key="ajustes" value="ajustes" className="focus-visible:outline-none">
-                <ProfileSettings 
-                  profileInfo={profileInfo} 
+                <ProfileSettings
+                  profileInfo={profileInfo}
                   onUpdatePhone={handleUpdatePhone}
                   onChangePassword={handleChangePassword}
                   isUpdating={isPending || isUpdating}
@@ -327,7 +327,7 @@ export default function StudentProfile() {
           </div>
         </Tabs>
       </main>
-      <ConfirmModal 
+      <ConfirmModal
         isOpen={modalConfig.isOpen}
         onOpenChange={(open) => !isPending && setModalConfig(prev => ({ ...prev, isOpen: open }))}
         title={modalConfig.title}
