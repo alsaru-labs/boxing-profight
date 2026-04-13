@@ -155,7 +155,7 @@ module.exports = async function (context) {
             const html = buildWelcomeEmail(profile.name, actionUrl, publicDomain);
 
             await resend.emails.send({
-                from: 'Bienvenida - Boxing ProFight <hola@boxingprofight.es>',
+                from: 'Registro - Boxing ProFight <hola@boxingprofight.es>',
                 to: [profile.email],
                 subject: '🥊 ¡Bienvenid@ a Boxing Profight! Configura tu cuenta',
                 html,
