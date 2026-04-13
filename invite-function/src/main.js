@@ -155,9 +155,9 @@ module.exports = async function (context) {
             const html = buildWelcomeEmail(profile.name, actionUrl, publicDomain);
 
             await resend.emails.send({
-                from: process.env.RESEND_FROM_EMAIL || 'no-reply@boxingprofight.com',
+                from: 'Bienvenida - Boxing ProFight <hola@boxingprofight.es>',
                 to: [profile.email],
-                subject: '🧤 ¡Bienvenido a Boxing Profight! Configura tu cuenta',
+                subject: '🥊 ¡Bienvenid@ a Boxing Profight! Configura tu cuenta',
                 html,
             });
 
@@ -188,7 +188,7 @@ module.exports = async function (context) {
             const html = buildPasswordResetEmail(name || 'Alumno', tokenUrl, publicDomain);
 
             await resend.emails.send({
-                from: process.env.RESEND_FROM_EMAIL || 'no-reply@boxingprofight.com',
+                from: 'Seguridad - Boxing ProFight <hola@boxingprofight.es>',
                 to: [email],
                 subject: '🔑 Restablece tu contraseña - Boxing Profight',
                 html,
