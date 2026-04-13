@@ -44,5 +44,5 @@ La aplicación se encuentra desplegada en **Vercel** y está disponible en produ
 
 ### Pagos e Infraestructura Logística
 - **Hosting y CI/CD:** [Vercel](https://vercel.com) como entorno principal de despliegue y detección base de domains para multientornos de staging y producción.
-- **Correos Electrónicos:** Motor automatizado centralizado transaccional a través del remitente de verificación `no-reply@boxingprofight.com`.
+- **Correos Electrónicos:** Motor automatizado centralizado transaccional a través del remitente de verificación `no-reply@boxingprofight.es`.
 - **Notificaciones Push:** Suscripción, cifrado y envíos garantizados por un sólido uso del protocolo Web Push (`web-push`).
