@@ -25,10 +25,11 @@ export default function AvisoLegalPage() {
               de Servicios de la Sociedad de la Información y del Comercio Electrónico (LSSI-CE), se reflejan los siguientes datos:
             </p>
             <ul className="mt-4 space-y-2 list-disc list-inside">
-              <li><span className="text-white font-medium italic">Titular:</span> [NOMBRE_FISICO_O_EMPRESA]</li>
-              <li><span className="text-white font-medium italic">CIF/NIF:</span> [NIF_PROVISIONAL]</li>
-              <li><span className="text-white font-medium italic">Domicilio:</span> [DIRECCION_GIMNASIO]</li>
-              <li><span className="text-white font-medium italic">Correo electrónico:</span> boxingprofight@gmail.com</li>
+              <li><span className="text-white font-medium italic">Titular:</span> CLUB DE BOXEO BOXING PROFIGHT S.L.</li>
+              <li><span className="text-white font-medium italic">CIF/NIF:</span> B26932855</li>
+              <li><span className="text-white font-medium italic">Domicilio:</span> C/ZARZA 26 LOCAL - 28921 ALCORCÓN</li>
+              <li><span className="text-white font-medium italic">Correo electrónico:</span> alexpintor@hotmail.es</li>
+              <li><span className="text-white font-medium italic">Datos registrales:</span> Inscrita en el Registro Mercantil de Madrid.</li>
             </ul>
           </section>
 
@@ -55,6 +56,20 @@ export default function AvisoLegalPage() {
               página web, así como de los elementos contenidos en la misma (a título enunciativo, imágenes, sonido, audio, vídeo,
               software o textos; marcas o logotipos, combinaciones de colores, estructura y diseño, selección de materiales usados,
               programas de ordenador necesarios para su funcionamiento, acceso y uso, etc.).
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-white uppercase mb-4 tracking-tight">5. EXCLUSIÓN DE GARANTÍAS Y RESPONSABILIDAD</h2>
+            <p>
+              Boxing Profight no se hace responsable, en ningún caso, de los daños y perjuicios de cualquier naturaleza que pudieran ocasionar, a título enunciativo: errores u omisiones en los contenidos, falta de disponibilidad del portal o la transmisión de virus o programas maliciosos en los contenidos, a pesar de haber adoptado todas las medidas tecnológicas necesarias para evitarlo.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-white uppercase mb-4 tracking-tight">6. LEGISLACIÓN APLICABLE Y JURISDICCIÓN</h2>
+            <p>
+              La relación entre Boxing Profight y el USUARIO se regirá por la normativa española vigente y cualquier controversia se someterá a los Juzgados y Tribunales de la ciudad de Madrid, salvo que la ley aplicable disponga otra cosa.
             </p>
           </section>
         </div>
