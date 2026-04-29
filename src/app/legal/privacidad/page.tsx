@@ -29,19 +29,24 @@ export default function PrivacidadPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-bold text-white uppercase mb-4 tracking-tight">2. FINALIDAD Y SERVICIOS</h2>
+            <h2 className="text-xl font-bold text-white uppercase mb-4 tracking-tight">2. FINALIDAD Y DATOS RECOGIDOS</h2>
             <p>
-              Sus datos se tratarán para gestionar su alta como alumno, reservas de clases, pagos y comunicaciones informativas relacionadas con la actividad del gimnasio.
-              Para ello utilizamos las siguientes plataformas de terceros:
+              En Boxing Profight recogemos única y exclusivamente los datos necesarios para la gestión del club: <strong className="text-white">nombre, apellidos, correo electrónico y número de teléfono</strong>.
+            </p>
+            <p className="mt-4">
+              Estos datos se utilizan estrictamente para su registro en la plataforma y para el envío de notificaciones importantes sobre el servicio. <strong className="text-white">No enviamos newsletters ni utilizamos sus datos para fines promocionales.</strong>
+            </p>
+            <p className="mt-4">
+              Para prestar el servicio, utilizamos las siguientes infraestructuras tecnológicas:
             </p>
             <ul className="mt-4 space-y-4">
               <li className="p-4 border border-white/10 bg-white/5">
                 <span className="text-white font-bold block mb-1 uppercase text-xs tracking-widest italic">Appwrite</span>
-                Gestión de base de datos segura y autenticación de usuarios. Sus datos se almacenan en servidores con altos estándares de seguridad.
+                Gestión de base de datos segura y autenticación de usuarios.
               </li>
               <li className="p-4 border border-white/10 bg-white/5">
-                <span className="text-white font-bold block mb-1 uppercase text-xs tracking-widest italic">Resend</span>
-                Servicio de envío de correos electrónicos transaccionales (confirmaciones de reserva, avisos de pago, etc.).
+                <span className="text-white font-bold block mb-1 uppercase text-xs tracking-widest italic">Vercel</span>
+                Alojamiento y despliegue de la aplicación web, garantizando alta disponibilidad y seguridad perimetral.
               </li>
             </ul>
           </section>
@@ -56,8 +61,8 @@ export default function PrivacidadPage() {
           <section>
             <h2 className="text-xl font-bold text-white uppercase mb-4 tracking-tight">4. DERECHOS ARCO</h2>
             <p>
-              Usted tiene derecho a acceder, rectificar y suprimir los datos, así como otros derechos adicionales, escribiendo a
-              <span className="text-white italic"> boxingprofight@gmail.com</span>.
+              Usted tiene derecho a acceder, rectificar y suprimir los datos, así como otros derechos adicionales (limitación y portabilidad), escribiendo a
+              <span className="text-white italic"> alexpintor@hotmail.es</span>.
             </p>
           </section>
         </div>
