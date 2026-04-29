@@ -89,7 +89,7 @@ export function StudentFilters({
               <SelectTrigger className="w-full h-10">
                 <SelectValue placeholder={LITERALS.DASHBOARD.FILTER_ALL_PAYMENTS} />
               </SelectTrigger>
-              <SelectContent onCloseAutoFocus={(e) => e.preventDefault()}>
+              <SelectContent>
                 <SelectItem value="Todos">{LITERALS.DASHBOARD.FILTER_ALL_PAYMENTS}</SelectItem>
                 <SelectItem value="pagado">{LITERALS.DASHBOARD.FILTER_PAID}</SelectItem>
                 <SelectItem value="pendiente">{LITERALS.DASHBOARD.FILTER_PENDING}</SelectItem>
@@ -104,7 +104,7 @@ export function StudentFilters({
               <SelectTrigger className="w-full h-10">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
-              <SelectContent onCloseAutoFocus={(e) => e.preventDefault()}>
+              <SelectContent>
                 <SelectItem value="Todos">Todos</SelectItem>
                 <SelectItem value="Efectivo">Efectivo</SelectItem>
                 <SelectItem value="Bizum">Bizum</SelectItem>
@@ -120,7 +120,7 @@ export function StudentFilters({
               <SelectTrigger className="w-full h-10">
                 <SelectValue placeholder="Todos los Niveles" />
               </SelectTrigger>
-              <SelectContent onCloseAutoFocus={(e) => e.preventDefault()}>
+              <SelectContent>
                 <SelectItem value="Todos">Todos los Niveles</SelectItem>
                 <SelectItem value="Iniciación">Iniciación</SelectItem>
                 <SelectItem value="Media">Media</SelectItem>
