@@ -511,24 +511,88 @@ export async function updateStudentProfileAction(profileId: string, data: any) {
         // 3. Email (Lógica Crítica de Sincronización Auth-Perfil)
         if (data.email !== undefined) {
             const emailLower = data.email.toLowerCase().trim();
+            const currentEmailLower = (currentProfile.email || "").toLowerCase().trim();
 
-            if (emailLower !== currentProfile.email) {
-                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLower)) return { success: false, error: "Formato de email no válido." };
+            if (emailLower !== currentEmailLower || data.forceResend) {
+                if (emailLower !== currentEmailLower) {
+                    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLower)) return { success: false, error: "Formato de email no válido." };
 
-                // 🛡️ UNICIDAD (DB): Comprobar si el email está siendo usado por OTRO alumno
-                const collisionCheck = await databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [
-                    sdk.Query.equal("email", emailLower),
-                    sdk.Query.notEqual("$id", profileId),
-                    sdk.Query.limit(1)
-                ]);
-                if (collisionCheck.total > 0) {
-                    return { success: false, error: "Este email ya pertenece a otro perfil (aunque esté de baja)." };
+                    // 🛡️ UNICIDAD (DB): Comprobar si el email está siendo usado por OTRO alumno
+                    const collisionCheck = await databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [
+                        sdk.Query.equal("email", emailLower),
+                        sdk.Query.notEqual("$id", profileId),
+                        sdk.Query.limit(1)
+                    ]);
+                    if (collisionCheck.total > 0) {
+                        return { success: false, error: "Este email ya pertenece a otro perfil (aunque esté de baja)." };
+                    }
                 }
 
                 // 🔐 SINCRONIZACIÓN AUTH (Appwrite Users):
-                // Si el email es diferente, intentamos actualizar la cuenta de Auth primero
+                // Si el email es diferente o forzamos el reenvío, intentamos actualizar la cuenta de Auth primero
                 try {
-                    await users.updateEmail(currentProfile.user_id || profileId, emailLower);
+                    const authUserId = currentProfile.user_id || profileId;
+                    let isUnverified = false;
+
+                    try {
+                        const authUser = await users.get(authUserId);
+                        console.log(`[updateStudentProfileAction] User ${authUserId} emailVerification:`, authUser.emailVerification);
+                        isUnverified = !authUser.emailVerification;
+                        if (emailLower !== currentEmailLower) {
+                            await users.updateEmail(authUserId, emailLower);
+                        }
+                    } catch (e: any) {
+                        if (e.code === 404) {
+                            // El usuario aún no se ha registrado en Auth (solo existe el perfil)
+                            isUnverified = true;
+                        } else {
+                            throw e;
+                        }
+                    }
+
+                    // 📨 RE-ENVÍO DE INVITACIÓN SI NO ESTABA VERIFICADO
+                    if (isUnverified || data.forceResend) {
+                        console.log(`[updateStudentProfileAction] Usuario no verificado o sin Auth. Regenerando tokens para: ${emailLower}`);
+                        // Limpiar tokens antiguos
+                        try {
+                            const oldTokens = await databases.listDocuments(DATABASE_ID, COLLECTION_INVITATION_TOKENS, [
+                                sdk.Query.equal("user_id", authUserId),
+                                sdk.Query.limit(10)
+                            ]);
+                            for (const oldDoc of oldTokens.documents) {
+                                await databases.deleteDocument(DATABASE_ID, COLLECTION_INVITATION_TOKENS, oldDoc.$id);
+                            }
+                        } catch (e) { /* silent */ }
+
+                        // DISPARAR LA FUNCIÓN APPWRITE DIRECTAMENTE
+                        try {
+                            const { functions } = await createAdminClient();
+                            const inviteFunctionId = process.env.INVITE_FUNCTION_ID;
+
+                            if (!inviteFunctionId) {
+                                console.error("[updateStudentProfileAction] CRÍTICO: No se encontró INVITE_FUNCTION_ID en .env");
+                            } else {
+                                const functionPayload = {
+                                    type: "welcome",
+                                    email: emailLower,
+                                    name: data.name || currentProfile.name,
+                                    user_id: authUserId,
+                                    role: "alumno"
+                                };
+
+                                console.log(`[updateStudentProfileAction] Ejecutando Invite Function para ${emailLower}...`);
+                                await functions.createExecution(
+                                    inviteFunctionId,
+                                    JSON.stringify(functionPayload),
+                                    false // isAsync (false = background)
+                                );
+                                console.log(`[updateStudentProfileAction] Invite Function ejecutada en segundo plano.`);
+                            }
+                        } catch (fnErr) {
+                            console.error(`[updateStudentProfileAction] Error disparando la Invite Function:`, fnErr);
+                        }
+                    }
+
                 } catch (authError: any) {
                     console.error("[Auth Sync Error]", authError);
                     if (authError.code === 409) {
@@ -537,7 +601,9 @@ export async function updateStudentProfileAction(profileId: string, data: any) {
                     return { success: false, error: "No se ha podido sincronizar el email con tu cuenta de acceso." };
                 }
 
-                payload.email = emailLower;
+                if (emailLower !== currentEmailLower) {
+                    payload.email = emailLower;
+                }
             }
         }
 
@@ -1466,3 +1532,25 @@ export async function acceptLegalTermsAction(profileId: string) {
     }
 }
 
+/**
+ * Verifica si el estudiante aún está pendiente de registro (no verificado).
+ * Diseñado para Zero-Waste: Se llama solo bajo demanda al abrir el modal.
+ */
+export async function checkStudentVerifiedStatus(profileId: string, userId: string) {
+    if (!profileId) return { success: false };
+    try {
+        const { users } = await createAdminClient();
+        try {
+            const authUser = await users.get(userId || profileId);
+            return { success: true, isUnverified: !authUser.emailVerification };
+        } catch (e: any) {
+            if (e.code === 404) {
+                // Usuario no existe en Auth todavía
+                return { success: true, isUnverified: true };
+            }
+            return { success: false };
+        }
+    } catch (err) {
+        return { success: false };
+    }
+}

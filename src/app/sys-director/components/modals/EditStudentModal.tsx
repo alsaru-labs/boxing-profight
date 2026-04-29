@@ -1,6 +1,6 @@
 "use client";
 
-import { X, UserCog, Loader2 } from "lucide-react";
+import { X, UserCog, Loader2, Mail, AlertCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -9,12 +9,14 @@ import { useState, useEffect } from "react";
 import { databases, DATABASE_ID, COLLECTION_PROFILES } from "@/lib/appwrite";
 import { Query } from "appwrite";
 
+import { checkStudentVerifiedStatus } from "../../actions";
+
 interface EditStudentModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   student: any;
   isUpdating: boolean;
-  onSave: (student: any, name: string, lastName: string, email: string, phone: string, level: string) => Promise<any>;
+  onSave: (student: any, name: string, lastName: string, email: string, phone: string, level: string, forceResend?: boolean) => Promise<any>;
 }
 
 export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, onSave }: EditStudentModalProps) {
@@ -24,6 +26,9 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
   const [phone, setPhone] = useState("");
   const [level, setLevel] = useState("Iniciación");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  const [isUnverified, setIsUnverified] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(false);
 
   useEffect(() => {
     if (student && isOpen) {
@@ -33,6 +38,16 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
       setPhone(student.phone || "");
       setLevel(student.level || "Iniciación");
       setErrors({});
+      
+      // Zero-waste on-demand fetch of Auth verification status
+      setIsUnverified(false);
+      setCheckingStatus(true);
+      checkStudentVerifiedStatus(student.$id, student.user_id).then(res => {
+        if (res.success) {
+            setIsUnverified(res.isUnverified || false);
+        }
+        setCheckingStatus(false);
+      });
     }
   }, [student, isOpen]);
 
@@ -48,10 +63,10 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
     isEmailValid(email) &&
     (!phone || (phone.replace(/\s/g, "").length <= 12 && /^(\+?[0-9]{1,12})$/.test(phone.replace(/\s/g, ""))));
 
-  const handleApply = async () => {
+  const handleApply = async (forceResend: boolean = false) => {
     if (isUpdating || !isFormValid) return;
 
-    const result = await onSave(student, name, lastName, email, phone, level);
+    const result = await onSave(student, name, lastName, email, phone, level, forceResend);
     if (result?.success) {
       onOpenChange(false);
     } else {
@@ -85,6 +100,12 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
 
         <div className="p-8 space-y-6 relative z-10 overflow-y-auto flex-1 custom-scrollbar">
           <div className="space-y-4">
+            {errors.server && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-400" />
+                    <p className="text-red-400 text-[9px] font-black uppercase tracking-tighter">{errors.server}</p>
+                </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className={`text-[10px] font-black uppercase tracking-widest ${name.length > 15 || /[0-9]/.test(name) ? 'text-red-400' : 'text-white/40'}`}>Nombre</Label>
@@ -122,16 +143,30 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
 
             <div className="space-y-2">
               <Label className={`text-[10px] font-black uppercase tracking-widest ${email && !isEmailValid(email) ? 'text-red-400' : 'text-white/40'}`}>Correo Electrónico</Label>
-              <Input
-                type="email"
-                placeholder="email@ejemplo.com"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (errors.server) setErrors({});
-                }}
-                className={`bg-white/5 border-white/10 text-white focus:border-blue-500/50 transition-all font-bold h-12 ${email && !isEmailValid(email) ? 'border-red-500/50 bg-red-500/5' : ''}`}
-              />
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  placeholder="email@ejemplo.com"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (errors.server) setErrors({});
+                  }}
+                  className={`bg-white/5 border-white/10 text-white focus:border-blue-500/50 transition-all font-bold h-12 flex-1 ${email && !isEmailValid(email) ? 'border-red-500/50 bg-red-500/5' : ''}`}
+                />
+                {isUnverified && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="h-12 w-12 p-0 bg-white/5 border-white/10 hover:bg-white/10 flex items-center justify-center shrink-0 text-white/70 hover:text-white"
+                    onClick={() => handleApply(true)}
+                    disabled={isUpdating || !isFormValid || checkingStatus}
+                    title="Guardar y reenviar invitación"
+                  >
+                      {checkingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                  </Button>
+                )}
+              </div>
               {email && !isEmailValid(email) && <p className="text-red-400 text-[8px] font-bold uppercase tracking-widest pl-1">Email no válido</p>}
             </div>
 
@@ -185,7 +220,7 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
           <DialogHeader className="pt-2">
             <Button
               size="xl"
-              onClick={handleApply}
+              onClick={() => handleApply(false)}
               disabled={isUpdating || !isFormValid}
               className="w-full bg-white text-black hover:bg-blue-400 hover:text-white font-black tracking-widest uppercase rounded-xl shadow-xl transition-all disabled:opacity-20"
             >
