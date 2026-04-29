@@ -210,7 +210,8 @@ export async function getPlatformOmniData(userId: string, monthOverride?: string
             getAvailableClassesCached(),
             databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
                 sdk.Query.equal("student_id", userId),
-                sdk.Query.limit(25),      // 🛡️ LÍMITE DEFENSIVO: solo las próximas 25 plazas
+                sdk.Query.limit(50),      // Incrementado para asegurar traer reservas actuales y futuras
+                sdk.Query.orderDesc("$createdAt"),
                 sdk.Query.select(["$id", "class_id"])
             ]),
             databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
@@ -315,7 +316,7 @@ export async function getClassAttendees(classId: string) {
     try {
         const bookings = await databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
             sdk.Query.equal("class_id", classId),
-            sdk.Query.limit(25),      // 🛡️ Zero-Waste Extremo
+            sdk.Query.limit(50),      // Incrementado para cubrir la capacidad máxima de la clase (30)
             sdk.Query.select(["$id", "student_id"])
         ]);
 
@@ -920,11 +921,11 @@ export async function markNotificationAsReadAction(userId: string, notificationI
                 read_at: new Date().toISOString()
             }
         );
-        
+
         // 🔄 REVALIDACIÓN: Asegurar que el estado "Leído" se refleje tras un refresh
         revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max");
         revalidatePath("/", "layout" as any);
-        
+
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -947,7 +948,7 @@ export async function markAllNotificationsAsReadAction(userId: string, notificat
             )
         );
         await Promise.all(promises);
-        
+
         // 🔄 REVALIDACIÓN: Asegurar que el estado "Leído" se refleje tras un refresh
         revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max");
         revalidatePath("/", "layout" as any);
@@ -974,9 +975,9 @@ export async function createClassServer(newClass: any) {
         ]);
 
         if (existing.total > 0) {
-            return { 
-                success: false, 
-                error: `Ya existe una clase programada para el día ${newClass.date} a las ${newClass.time}.` 
+            return {
+                success: false,
+                error: `Ya existe una clase programada para el día ${newClass.date} a las ${newClass.time}.`
             };
         }
 
@@ -1158,7 +1159,7 @@ export async function bookClassAction(classId: string, userId: string) {
         // revalidateTag limpia la caché de datos. revalidatePath("/") limpia la caché de página/layout.
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
         revalidatePath("/", "layout");
-        
+
         return { success: true, booking: JSON.parse(JSON.stringify(booking)) };
     } catch (error: any) {
         console.error("[bookClassAction ERROR]", error);
@@ -1178,7 +1179,7 @@ export async function cancelBookingAction(classId: string, bookingId: string) {
         // 🔄 PURGA TOTAL DE CACHÉ
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
         revalidatePath("/", "layout");
-        
+
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -1334,7 +1335,7 @@ export const getAvailableClassesCached = unstable_cache(
             COLLECTION_CLASSES,
             [
                 sdk.Query.greaterThanEqual("date", sevenDaysAgo.substring(0, 10)),
-                sdk.Query.limit(25),      // 🛡️ Zero-Waste Extremo
+                sdk.Query.limit(150),      // Incrementado para incluir clases pasadas y futuras de la semana
                 sdk.Query.orderAsc("date")
             ]
         );
