@@ -280,16 +280,20 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const deactivateProfileOptimistically = React.useCallback((profileId: string) => {
-    // 🛡️ LIBRAR ID SÍNCRONAMENTE: Evitar que el Realtime duplique la resta
-    if (!processedProfilesRef.current.has(profileId)) return;
-    processedProfilesRef.current.delete(profileId);
-
-    setStudentsList(prev => prev.filter(s => s.$id !== profileId));
-    setTotalStudents(t => Math.max(0, t - 1));
-    
-    if (!paidStudentIdsRef.current.has(profileId)) {
-      setUnpaidCount(u => Math.max(0, u - 1));
-    }
+    setStudentsList(prev => {
+      const exists = prev.some(s => s.$id === profileId);
+      if (exists) {
+        // 🛡️ LIBRAR ID SÍNCRONAMENTE: Evitar doble resta
+        processedProfilesRef.current.delete(profileId);
+        setTotalStudents(t => Math.max(0, t - 1));
+        
+        if (!paidStudentIdsRef.current.has(profileId)) {
+          setUnpaidCount(u => Math.max(0, u - 1));
+        }
+        return prev.filter(s => s.$id !== profileId);
+      }
+      return prev;
+    });
   }, []);
 
   const updatePaymentOptimistically = React.useCallback((studentId: string, isPaid: boolean, amount: number, method?: string) => {

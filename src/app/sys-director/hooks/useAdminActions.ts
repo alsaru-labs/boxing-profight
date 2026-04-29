@@ -67,7 +67,7 @@ export function useAdminActions({
     }
   };
 
-  const handleSaveProfile = async (selectedStudent: any, editName: string, editLastName: string, editEmail: string, editPhone: string, editLevel: string) => {
+  const handleSaveProfile = async (selectedStudent: any, editName: string, editLastName: string, editEmail: string, editPhone: string, editLevel: string, forceResend?: boolean) => {
     if (isUpdating) return { success: false, error: "Operación en curso..." };
 
     try {
@@ -77,7 +77,8 @@ export function useAdminActions({
         last_name: editLastName,
         email: editEmail.toLowerCase(),
         phone: editPhone,
-        level: editLevel
+        level: editLevel,
+        forceResend: forceResend
       });
 
       if (result.success) {

@@ -210,7 +210,8 @@ export async function getPlatformOmniData(userId: string, monthOverride?: string
             getAvailableClassesCached(),
             databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
                 sdk.Query.equal("student_id", userId),
-                sdk.Query.limit(25),      // 🛡️ LÍMITE DEFENSIVO: solo las próximas 25 plazas
+                sdk.Query.limit(50),      // Incrementado para asegurar traer reservas actuales y futuras
+                sdk.Query.orderDesc("$createdAt"),
                 sdk.Query.select(["$id", "class_id"])
             ]),
             databases.listDocuments(DATABASE_ID, COLLECTION_PAYMENTS, [
@@ -315,7 +316,7 @@ export async function getClassAttendees(classId: string) {
     try {
         const bookings = await databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
             sdk.Query.equal("class_id", classId),
-            sdk.Query.limit(25),      // 🛡️ Zero-Waste Extremo
+            sdk.Query.limit(50),      // Incrementado para cubrir la capacidad máxima de la clase (30)
             sdk.Query.select(["$id", "student_id"])
         ]);
 
@@ -510,24 +511,88 @@ export async function updateStudentProfileAction(profileId: string, data: any) {
         // 3. Email (Lógica Crítica de Sincronización Auth-Perfil)
         if (data.email !== undefined) {
             const emailLower = data.email.toLowerCase().trim();
+            const currentEmailLower = (currentProfile.email || "").toLowerCase().trim();
 
-            if (emailLower !== currentProfile.email) {
-                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLower)) return { success: false, error: "Formato de email no válido." };
+            if (emailLower !== currentEmailLower || data.forceResend) {
+                if (emailLower !== currentEmailLower) {
+                    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLower)) return { success: false, error: "Formato de email no válido." };
 
-                // 🛡️ UNICIDAD (DB): Comprobar si el email está siendo usado por OTRO alumno
-                const collisionCheck = await databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [
-                    sdk.Query.equal("email", emailLower),
-                    sdk.Query.notEqual("$id", profileId),
-                    sdk.Query.limit(1)
-                ]);
-                if (collisionCheck.total > 0) {
-                    return { success: false, error: "Este email ya pertenece a otro perfil (aunque esté de baja)." };
+                    // 🛡️ UNICIDAD (DB): Comprobar si el email está siendo usado por OTRO alumno
+                    const collisionCheck = await databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [
+                        sdk.Query.equal("email", emailLower),
+                        sdk.Query.notEqual("$id", profileId),
+                        sdk.Query.limit(1)
+                    ]);
+                    if (collisionCheck.total > 0) {
+                        return { success: false, error: "Este email ya pertenece a otro perfil (aunque esté de baja)." };
+                    }
                 }
 
                 // 🔐 SINCRONIZACIÓN AUTH (Appwrite Users):
-                // Si el email es diferente, intentamos actualizar la cuenta de Auth primero
+                // Si el email es diferente o forzamos el reenvío, intentamos actualizar la cuenta de Auth primero
                 try {
-                    await users.updateEmail(currentProfile.user_id || profileId, emailLower);
+                    const authUserId = currentProfile.user_id || profileId;
+                    let isUnverified = false;
+
+                    try {
+                        const authUser = await users.get(authUserId);
+                        console.log(`[updateStudentProfileAction] User ${authUserId} emailVerification:`, authUser.emailVerification);
+                        isUnverified = !authUser.emailVerification;
+                        if (emailLower !== currentEmailLower) {
+                            await users.updateEmail(authUserId, emailLower);
+                        }
+                    } catch (e: any) {
+                        if (e.code === 404) {
+                            // El usuario aún no se ha registrado en Auth (solo existe el perfil)
+                            isUnverified = true;
+                        } else {
+                            throw e;
+                        }
+                    }
+
+                    // 📨 RE-ENVÍO DE INVITACIÓN SI NO ESTABA VERIFICADO
+                    if (isUnverified || data.forceResend) {
+                        console.log(`[updateStudentProfileAction] Usuario no verificado o sin Auth. Regenerando tokens para: ${emailLower}`);
+                        // Limpiar tokens antiguos
+                        try {
+                            const oldTokens = await databases.listDocuments(DATABASE_ID, COLLECTION_INVITATION_TOKENS, [
+                                sdk.Query.equal("user_id", authUserId),
+                                sdk.Query.limit(10)
+                            ]);
+                            for (const oldDoc of oldTokens.documents) {
+                                await databases.deleteDocument(DATABASE_ID, COLLECTION_INVITATION_TOKENS, oldDoc.$id);
+                            }
+                        } catch (e) { /* silent */ }
+
+                        // DISPARAR LA FUNCIÓN APPWRITE DIRECTAMENTE
+                        try {
+                            const { functions } = await createAdminClient();
+                            const inviteFunctionId = process.env.INVITE_FUNCTION_ID;
+
+                            if (!inviteFunctionId) {
+                                console.error("[updateStudentProfileAction] CRÍTICO: No se encontró INVITE_FUNCTION_ID en .env");
+                            } else {
+                                const functionPayload = {
+                                    type: "welcome",
+                                    email: emailLower,
+                                    name: data.name || currentProfile.name,
+                                    user_id: authUserId,
+                                    role: "alumno"
+                                };
+
+                                console.log(`[updateStudentProfileAction] Ejecutando Invite Function para ${emailLower}...`);
+                                await functions.createExecution(
+                                    inviteFunctionId,
+                                    JSON.stringify(functionPayload),
+                                    false // isAsync (false = background)
+                                );
+                                console.log(`[updateStudentProfileAction] Invite Function ejecutada en segundo plano.`);
+                            }
+                        } catch (fnErr) {
+                            console.error(`[updateStudentProfileAction] Error disparando la Invite Function:`, fnErr);
+                        }
+                    }
+
                 } catch (authError: any) {
                     console.error("[Auth Sync Error]", authError);
                     if (authError.code === 409) {
@@ -536,7 +601,9 @@ export async function updateStudentProfileAction(profileId: string, data: any) {
                     return { success: false, error: "No se ha podido sincronizar el email con tu cuenta de acceso." };
                 }
 
-                payload.email = emailLower;
+                if (emailLower !== currentEmailLower) {
+                    payload.email = emailLower;
+                }
             }
         }
 
@@ -920,11 +987,11 @@ export async function markNotificationAsReadAction(userId: string, notificationI
                 read_at: new Date().toISOString()
             }
         );
-        
+
         // 🔄 REVALIDACIÓN: Asegurar que el estado "Leído" se refleje tras un refresh
         revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max");
         revalidatePath("/", "layout" as any);
-        
+
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -947,7 +1014,7 @@ export async function markAllNotificationsAsReadAction(userId: string, notificat
             )
         );
         await Promise.all(promises);
-        
+
         // 🔄 REVALIDACIÓN: Asegurar que el estado "Leído" se refleje tras un refresh
         revalidateTag(CACHE_TAGS.ANNOUNCEMENTS, "max");
         revalidatePath("/", "layout" as any);
@@ -974,9 +1041,9 @@ export async function createClassServer(newClass: any) {
         ]);
 
         if (existing.total > 0) {
-            return { 
-                success: false, 
-                error: `Ya existe una clase programada para el día ${newClass.date} a las ${newClass.time}.` 
+            return {
+                success: false,
+                error: `Ya existe una clase programada para el día ${newClass.date} a las ${newClass.time}.`
             };
         }
 
@@ -1158,7 +1225,7 @@ export async function bookClassAction(classId: string, userId: string) {
         // revalidateTag limpia la caché de datos. revalidatePath("/") limpia la caché de página/layout.
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
         revalidatePath("/", "layout");
-        
+
         return { success: true, booking: JSON.parse(JSON.stringify(booking)) };
     } catch (error: any) {
         console.error("[bookClassAction ERROR]", error);
@@ -1178,7 +1245,7 @@ export async function cancelBookingAction(classId: string, bookingId: string) {
         // 🔄 PURGA TOTAL DE CACHÉ
         revalidateTag(CACHE_TAGS.CLASSES, "max" as any);
         revalidatePath("/", "layout");
-        
+
         return { success: true };
     } catch (error: any) {
         return { success: false, error: error.message };
@@ -1334,7 +1401,7 @@ export const getAvailableClassesCached = unstable_cache(
             COLLECTION_CLASSES,
             [
                 sdk.Query.greaterThanEqual("date", sevenDaysAgo.substring(0, 10)),
-                sdk.Query.limit(25),      // 🛡️ Zero-Waste Extremo
+                sdk.Query.limit(150),      // Incrementado para incluir clases pasadas y futuras de la semana
                 sdk.Query.orderAsc("date")
             ]
         );
@@ -1465,3 +1532,25 @@ export async function acceptLegalTermsAction(profileId: string) {
     }
 }
 
+/**
+ * Verifica si el estudiante aún está pendiente de registro (no verificado).
+ * Diseñado para Zero-Waste: Se llama solo bajo demanda al abrir el modal.
+ */
+export async function checkStudentVerifiedStatus(profileId: string, userId: string) {
+    if (!profileId) return { success: false };
+    try {
+        const { users } = await createAdminClient();
+        try {
+            const authUser = await users.get(userId || profileId);
+            return { success: true, isUnverified: !authUser.emailVerification };
+        } catch (e: any) {
+            if (e.code === 404) {
+                // Usuario no existe en Auth todavía
+                return { success: true, isUnverified: true };
+            }
+            return { success: false };
+        }
+    } catch (err) {
+        return { success: false };
+    }
+}

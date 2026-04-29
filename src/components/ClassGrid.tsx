@@ -58,7 +58,7 @@ export function ClassGrid({
     });
 
     // State for progressive loading
-    const [daysToView, setDaysToView] = useState(2);
+    const [daysToView, setDaysToView] = useState(1);
     const visibleDates = sortedDates.slice(0, daysToView);
     const hasMore = daysToView < sortedDates.length;
 
