@@ -37,12 +37,19 @@ export function AttendeesModal({ isOpen, onOpenChange, selectedClass }: any) {
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="bg-zinc-950 text-white border border-white/10 p-0 overflow-hidden sm:max-w-[450px]">
         <DialogHeader className="p-6 pb-2">
-          <DialogTitle className="text-xl font-bold">Listado de Alumnos</DialogTitle>
+          <DialogTitle className="text-xl font-bold flex items-center gap-3">
+            <span>Listado de Alumnos</span>
+            {!loading && attendees.length > 0 && (
+              <span className="text-xs font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-lg">
+                {attendees.length}
+              </span>
+            )}
+          </DialogTitle>
           <DialogDescription className="text-white/50">
             {selectedClass?.name} ({selectedClass?.time})
           </DialogDescription>
         </DialogHeader>
-        <div className="max-h-[60vh] overflow-y-auto px-6 pb-6">
+        <div className="max-h-[60vh] overflow-y-auto px-6 pb-6 custom-scrollbar">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <Loader2 className="w-8 h-8 text-emerald-500 animate-spin fill-emerald-500/20" />
@@ -69,17 +76,6 @@ export function AttendeesModal({ isOpen, onOpenChange, selectedClass }: any) {
                       </p>
                       <p className="text-xs text-white/50">{student.email}</p>
                     </div>
-                  </div>
-                  <div>
-                    <Badge variant="outline" className={`
-                      ${student.level === 'Iniciación' ? 'border-amber-500/30 text-amber-500' : ''}
-                      ${student.level === 'Media' ? 'border-blue-500/30 text-blue-400' : ''}
-                      ${student.level === 'Profesional' ? 'border-red-500/30 text-red-500' : ''}
-                      bg-black/40 shadow-inner px-2 py-0.5
-                    `}>
-                      <Signal className="w-3 h-3 mr-1" />
-                      {student.level || "N/A"}
-                    </Badge>
                   </div>
                 </div>
               ))}

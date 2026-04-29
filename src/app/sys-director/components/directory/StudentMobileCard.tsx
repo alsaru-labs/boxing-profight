@@ -89,7 +89,7 @@ export function StudentMobileCard({
           <h3 className={`text-white font-bold leading-tight text-base tracking-tight mb-0.5 break-words whitespace-normal ${(student.status === 'Baja' || student.is_active === false) ? 'opacity-50' : ''}`}>
             {student.name} {student.last_name || ""}
           </h3>
-          <p className={`text-white/30 text-[10px] truncate font-medium ${(student.status === 'Baja' || student.is_active === false) ? 'opacity-30' : ''}`}>
+          <p className={`text-sky-400/80 text-[10px] truncate font-medium ${(student.status === 'Baja' || student.is_active === false) ? 'opacity-40' : ''}`}>
             {student.email}
           </p>
         </div>
@@ -179,7 +179,7 @@ export function StudentMobileCard({
           <span className="text-[10px] font-bold uppercase tracking-wider">{student.level || "Iniciación"}</span>
         </div>
 
-        <span className="text-white/20 text-[9px] font-black tracking-widest uppercase">
+        <span className="text-teal-400/80 text-[9px] font-black tracking-widest uppercase">
           Alta: {new Date(student.$createdAt).toLocaleDateString('es-ES', { month: 'short', year: '2-digit' })}
         </span>
       </div>

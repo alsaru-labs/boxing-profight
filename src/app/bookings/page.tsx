@@ -342,14 +342,16 @@ export default function BookingsPage() {
                             <div className="h-px flex-1 bg-white/5" />
                         </div>
 
-                        <div className="bg-white/[0.02] border border-white/5 rounded-3xl overflow-hidden max-w-4xl">
+                        <div className="bg-white/[0.02] border border-white/5 rounded-3xl overflow-hidden w-full">
                             {historyLoading && pastClasses.length === 0 ? (
                                 <div className="p-12 flex items-center justify-center gap-3 text-white/40">
                                     <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
                                     <span className="text-sm font-medium">Sincronizando historial...</span>
                                 </div>
                             ) : pastClasses.length === 0 ? (
-                                <div className="p-16 text-center text-white/20 italic">Aún no has asistido a ninguna clase registrada.</div>
+                                <div className="p-16 text-center text-white/60 font-medium text-sm tracking-wide">
+                                    Aún no has asistido a ninguna clase registrada. ¡Tu primera sesión te está esperando!
+                                </div>
                             ) : (
                                 <div className="divide-y divide-white/5">
                                     {pastClasses.map(cls => (

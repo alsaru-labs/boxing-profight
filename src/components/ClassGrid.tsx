@@ -84,15 +84,15 @@ export function ClassGrid({
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="col-span-full border border-dashed border-white/5 bg-white/[0.02] rounded-2xl p-16 text-center text-white/20"
+                    className="col-span-full border border-dashed border-white/10 bg-white/[0.03] rounded-2xl p-16 text-center text-white/60"
                 >
-                    <CalendarClock className="w-12 h-12 mx-auto mb-4 opacity-10" />
-                    <p className="text-lg font-medium">
+                    <CalendarClock className="w-12 h-12 mx-auto mb-4 opacity-30 text-emerald-500" />
+                    <p className="text-lg font-bold tracking-wide">
                         {isHistory
                             ? LITERALS.CLASS_CARD.HISTORY_EMPTY_STATE
                             : LITERALS.BOOKINGS.EMPTY_STATE}
                     </p>
-                    <p className="text-sm text-white/40 mt-2">
+                    <p className="text-sm text-white/40 mt-2 tracking-wide font-medium">
                         {isHistory
                             ? LITERALS.CLASS_CARD.HISTORY_EMPTY_SUB
                             : LITERALS.CLASS_CARD.EMPTY_SUB}
@@ -175,10 +175,10 @@ export function ClassGrid({
                                                                     <span className="text-white/30 text-[9px] md:text-[10px] uppercase font-black tracking-widest">Coach Titular</span>
                                                                 </div>
                                                                 <div className="text-right">
-                                                                    <span className={`text-[9px] md:text-xs font-black uppercase tracking-widest ${isFull ? 'text-rose-500' : 'text-emerald-500/60'}`}>
+                                                                    <span className={`text-[9px] md:text-xs font-black uppercase tracking-widest ${isFull ? 'text-rose-500' : 'text-emerald-400'}`}>
                                                                         {isFull ? LITERALS.CLASS_CARD.FULL : LITERALS.CLASS_CARD.FREE_SPACES(cls.capacity - cls.registeredCount)}
                                                                     </span>
-                                                                    <div className="text-[9px] text-white/10 font-bold">{LITERALS.CLASS_CARD.TOTAL_CAPACITY(cls.capacity)}</div>
+                                                                    <div className="text-[9px] text-sky-400 font-bold">{LITERALS.CLASS_CARD.TOTAL_CAPACITY(cls.capacity)}</div>
                                                                 </div>
                                                             </div>
                                                             
@@ -260,16 +260,16 @@ export function ClassGrid({
                                 onClick={() => setDaysToView(prev => prev + 1)}
                                 variant="outline"
                                 className={`
-                                    w-full sm:w-auto bg-white/[0.03] border-white/10 text-white hover:bg-emerald-500 hover:border-emerald-500 hover:text-white px-6 md:px-10 h-12 md:h-14 rounded-xl md:rounded-2xl font-black uppercase tracking-widest transition-all duration-300 group text-[11px] md:text-xs shadow-lg hover:shadow-emerald-500/20
-                                    ${isAdmin ? 'flex items-center gap-3 border-emerald-500/30 ring-1 ring-emerald-500/10' : ''}
+                                    w-full sm:w-auto bg-white/[0.03] border-white/10 text-white hover:bg-emerald-500 hover:border-emerald-500 hover:text-white px-3 sm:px-10 h-12 md:h-14 rounded-xl md:rounded-2xl font-black uppercase tracking-wider sm:tracking-widest transition-all duration-300 group text-[9px] sm:text-[11px] md:text-xs shadow-lg hover:shadow-emerald-500/20
+                                    ${isAdmin ? 'flex items-center gap-2 sm:gap-3 border-emerald-500/30 ring-1 ring-emerald-500/10' : ''}
                                 `}
                             >
                                 {isAdmin ? (
                                     <>
                                         VER SIGUIENTE DÍA ({formatDate(sortedDates[daysToView])})
-                                        <motion.div animate={{ x: [0, 5, 0] }} transition={{ repeat: Infinity, duration: 1.5 }}>
-                                            <CalendarDays className="w-5 h-5 text-emerald-400" />
-                                        </motion.div>
+                                        <div>
+                                            <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
+                                        </div>
                                     </>
                                 ) : (
                                     <>

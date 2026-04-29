@@ -107,7 +107,7 @@ export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, cla
 
         <div className="p-8 space-y-6 relative z-10 overflow-y-auto flex-1 custom-scrollbar">
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormSelect
                 label="Disciplina"
                 value={newClass.name}
@@ -122,7 +122,7 @@ export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, cla
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField
                 label="Fecha"
                 type="date"

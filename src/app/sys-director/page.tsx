@@ -370,7 +370,7 @@ export default function AdminDashboard() {
             />
           </TabsContent>
 
-          <TabsContent value="general" className="space-y-6 md:space-y-10 focus-visible:outline-none">
+          <TabsContent value="general" className="space-y-4 md:space-y-6 focus-visible:outline-none">
             {/* Month Selector (Oculto en Producción) */}
             {!isProduction && (
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 bg-zinc-900/40 p-6 rounded-2xl border border-white/5">
@@ -423,7 +423,7 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="clases" className="space-y-6 md:space-y-10 focus-visible:outline-none">
-            <div className="space-y-4 mt-16 pb-12">
+            <div className="space-y-4 mt-6 pb-12">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
                 <div>
                   <h2 className="text-2xl font-bold tracking-tight">{LITERALS.DASHBOARD.CLASSES.TITLE}</h2>
@@ -432,7 +432,7 @@ export default function AdminDashboard() {
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Button
                     onClick={() => setIsClassModalOpen(true)}
-                    className="group relative bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-[0.2em] text-[10px] h-12 px-8 rounded-xl transition-all duration-300 hover:scale-[1.03] active:scale-95 shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:shadow-emerald-500/40 border-b-4 border-emerald-700 hover:border-emerald-600 overflow-hidden"
+                    className="group relative bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-[0.2em] text-[10px] h-12 px-8 rounded-xl transition-all duration-150 hover:scale-[1.03] active:scale-95 shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:shadow-emerald-500/40 border-b-4 border-emerald-700 hover:border-emerald-600 overflow-hidden"
                   >
                     <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                     <Plus className="w-4 h-4 mr-2 relative z-10 group-hover:rotate-90 transition-transform duration-500" />
