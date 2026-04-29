@@ -115,54 +115,38 @@ export default function AccountingPage() {
             <Navbar isHome={false} />
 
             <main className="flex-1 w-full max-w-[1400px] mx-auto pt-4 md:pt-6 lg:pt-8 px-4 md:px-8 lg:px-12 pb-12 z-10">
-                <Tabs defaultValue="mensual" className="w-full">
-                    {/* Replaced AdminTabs with local specialized tabs */}
-                    <div className="mb-4">
-                        <TabsList className="bg-zinc-900/50 p-1 rounded-2xl border border-white/5 w-full max-w-[200px] mx-auto sm:max-w-none !h-auto flex flex-row gap-1">
-                            <TabsTrigger 
-                                value="mensual" 
-                                className="flex-1 rounded-xl px-2 sm:px-8 py-2.5 data-[state=active]:bg-white data-[state=active]:text-black font-black transition-all flex items-center justify-center gap-2 text-[10px] sm:text-sm whitespace-nowrap uppercase tracking-tighter sm:tracking-normal"
-                            >
-                                <Wallet className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                <span>{LITERALS.DASHBOARD.ACCOUNTING.TABS.MONTHLY}</span>
-                            </TabsTrigger>
-                        </TabsList>
-                    </div>
+                {/* Back to Dashboard Button */}
+                <div className="flex justify-start mb-4">
+                    <Button 
+                        onClick={() => router.push("/sys-director")}
+                        variant="ghost"
+                        className="group flex items-center gap-2 text-white/60 hover:text-white transition-all duration-300 text-xs font-black uppercase tracking-[0.15em] px-4 py-2 bg-white/[0.03] hover:bg-white/[0.08] rounded-xl border border-white/5 hover:border-red-500/30"
+                    >
+                        <ChevronLeft className="w-4 h-4 text-red-500 group-hover:-translate-x-1 transition-transform" />
+                        <span>{LITERALS.DASHBOARD.ACCOUNTING.GO_BACK}</span>
+                    </Button>
+                </div>
 
-                    <TabsContent value="mensual" className="space-y-8 mt-12 focus-visible:outline-none">
-                        {/* Header Section */}
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-8">
-                            <div>
-                                <h1 className="text-4xl font-black tracking-tighter uppercase italic">{LITERALS.DASHBOARD.ACCOUNTING.TITLE}</h1>
-                                <p className="text-white/50 text-sm mt-2 font-medium">{LITERALS.DASHBOARD.ACCOUNTING.SUBTITLE}</p>
-                            </div>
-                            <Button 
-                                variant="outline" 
-                                onClick={() => router.push("/sys-director")}
-                                className="w-fit border-white/10 bg-zinc-900 hover:bg-zinc-800 text-xs font-bold uppercase tracking-widest px-6"
-                            >
-                                <ChevronLeft className="w-4 h-4 mr-2" />
-                                {LITERALS.DASHBOARD.ACCOUNTING.GO_BACK}
-                            </Button>
-                        </div>
+                {/* Header Section */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-2 mb-4">
+                    <div>
+                        <h1 className="text-2xl font-black tracking-tighter uppercase italic">{LITERALS.DASHBOARD.ACCOUNTING.TITLE}</h1>
+                        <p className="text-white/40 text-xs mt-1 font-medium">{LITERALS.DASHBOARD.ACCOUNTING.SUBTITLE}</p>
+                    </div>
+                </div>
 
                         {/* Filters & Results Grid */}
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                             {/* Filter Card */}
-                            <div className="lg:col-span-1 space-y-6">
-                                <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-3xl backdrop-blur-sm shadow-2xl">
-                                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                                        <Calendar className="w-5 h-5 text-red-500" />
-                                        Seleccionar Periodo
-                                    </h3>
-                                    
-                                    <div className="space-y-4">
+                            <div className="lg:col-span-1">
+                                <div className="bg-zinc-900/50 border border-white/5 p-4 rounded-xl backdrop-blur-sm shadow-2xl">
+                                    <div className="space-y-3">
                                         <div className="relative group">
-                                            <label className="text-[10px] uppercase font-black tracking-widest text-white/40 mb-2 block">
+                                            <label className="text-[10px] uppercase font-black tracking-widest text-white/40 mb-1 block">
                                                 {LITERALS.DASHBOARD.ACCOUNTING.SELECT_YEAR}
                                             </label>
                                             <Select value={selectedYear} onValueChange={setSelectedYear}>
-                                                <SelectTrigger className="w-full">
+                                                <SelectTrigger className="w-full h-10 text-xs">
                                                     <SelectValue placeholder="Año" />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -174,7 +158,7 @@ export default function AccountingPage() {
                                         </div>
 
                                         <div className="relative group">
-                                            <label className="text-[10px] uppercase font-black tracking-widest text-white/40 mb-2 block">
+                                            <label className="text-[10px] uppercase font-black tracking-widest text-white/40 mb-1 block">
                                                 {LITERALS.DASHBOARD.ACCOUNTING.SELECT_MONTH}
                                             </label>
                                             <Select 
@@ -182,7 +166,7 @@ export default function AccountingPage() {
                                                 onValueChange={setSelectedMonth}
                                                 disabled={!selectedYear}
                                             >
-                                                <SelectTrigger className="w-full">
+                                                <SelectTrigger className="w-full h-10 text-xs">
                                                     <SelectValue placeholder="Mes" />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -198,7 +182,7 @@ export default function AccountingPage() {
 
                             {/* Result Display Card */}
                             <div className="lg:col-span-2">
-                                <div className="h-full bg-zinc-900/30 border border-white/5 rounded-3xl p-10 flex flex-col items-center justify-center text-center relative overflow-hidden group min-h-[300px]">
+                                <div className="h-full bg-zinc-900/30 border border-white/5 rounded-xl p-4 flex flex-col items-center justify-center text-center relative overflow-hidden group min-h-[140px]">
                                     {/* Aesthetic Background element */}
                                     <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
                                         <Wallet className="w-64 h-64 -mr-16 -mt-16" />
@@ -206,11 +190,11 @@ export default function AccountingPage() {
 
                                     {currentRevenue !== null ? (
                                         <div className="relative z-10">
-                                            <span className="text-[12px] uppercase font-black tracking-[0.2em] text-red-500 mb-4 block animate-in fade-in slide-in-from-bottom-2">
+                                            <span className="text-[12px] uppercase font-black tracking-[0.2em] text-red-500 mb-2 block animate-in fade-in slide-in-from-bottom-2">
                                                 {LITERALS.DASHBOARD.ACCOUNTING.TOTAL_REVENUE}
                                             </span>
-                                            <div className="flex items-baseline justify-center gap-2 mb-2 animate-in zoom-in duration-500">
-                                                <span className="text-7xl md:text-9xl font-black tracking-tighter tabular-nums drop-shadow-2xl text-white">
+                                            <div className="flex items-baseline justify-center gap-2 mb-1 animate-in zoom-in duration-500">
+                                                <span className="text-5xl md:text-7xl font-black tracking-tighter tabular-nums drop-shadow-2xl text-white">
                                                     {currentRevenue}
                                                 </span>
                                                 <span className="text-4xl font-bold text-white/30 ml-2">€</span>
@@ -267,8 +251,7 @@ export default function AccountingPage() {
                                 </div>
                             </div>
                         )}
-                    </TabsContent>
-                </Tabs>
+
             </main>
 
             {/* Background design elements */}

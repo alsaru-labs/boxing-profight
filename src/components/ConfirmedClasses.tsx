@@ -58,8 +58,8 @@ export default function ConfirmedClasses({
             </h3>
 
             {confirmedClasses.length === 0 ? (
-                <div className="border border-dashed border-white/5 bg-white/[0.02] rounded-2xl p-8 text-white/30 text-sm italic text-center">
-                    No tienes ninguna plaza reservada todavía para esta semana.
+                <div className="border border-dashed border-white/10 bg-white/[0.03] rounded-2xl p-12 text-white/60 font-medium text-sm text-center w-full tracking-wide">
+                    No tienes ninguna plaza reservada para esta semana. ¡Elige tu clase y asegura tu sitio!
                 </div>
             ) : (
                 <div className="space-y-12">

@@ -43,7 +43,7 @@ export function StudentFilters({
   totalResults
 }: StudentFiltersProps) {
   return (
-    <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between mb-6 gap-4">
+    <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between mb-4 gap-4">
       <div className="flex flex-col gap-1">
         <h2 className="text-2xl font-bold tracking-tight">{LITERALS.DASHBOARD.STUDENTS_DIRECTORY}</h2>
         <div className="flex items-center gap-1.5 ml-0.5">
@@ -131,23 +131,26 @@ export function StudentFilters({
         </div>
 
         {/* Reset Filters */}
-        {(searchTerm !== "" || filterPayment !== "Todos" || filterLevel !== "Todos" || sortConfig !== null) && (
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setSearchTerm("");
-              setFilterPayment("Todos");
-              setFilterLevel("Todos");
-              setFilterMethod("Todos");
-              setSortConfig(null);
-              setVisibleCount(30);
-            }}
-            className="h-10 text-red-400 hover:text-red-300 hover:bg-red-500/10 whitespace-nowrap px-3"
-          >
-            <X className="w-4 h-4 mr-1.5" />
-            Limpiar Filtros
-          </Button>
-        )}
+        {/* Reset Filters */}
+        <Button
+          variant="ghost"
+          onClick={() => {
+            setSearchTerm("");
+            setFilterPayment("Todos");
+            setFilterLevel("Todos");
+            setFilterMethod("Todos");
+            setSortConfig(null);
+            setVisibleCount(30);
+          }}
+          className={`h-10 text-red-400 hover:text-red-300 hover:bg-red-500/10 flex items-center transition-all duration-500 overflow-hidden ${
+            (searchTerm !== "" || filterPayment !== "Todos" || filterLevel !== "Todos" || filterMethod !== "Todos" || sortConfig !== null)
+              ? "max-w-[180px] opacity-100 pointer-events-auto px-3 ml-1"
+              : "max-w-0 opacity-0 pointer-events-none px-0 border-0 ml-0"
+          }`}
+        >
+          <X className="w-4 h-4 mr-1.5 shrink-0" />
+          <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">Limpiar Filtros</span>
+        </Button>
       </div>
     </div>
   );

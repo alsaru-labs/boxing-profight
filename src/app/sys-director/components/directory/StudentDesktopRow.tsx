@@ -64,7 +64,7 @@ export function StudentDesktopRow({
                 <Badge variant="outline" className="bg-zinc-500/10 text-zinc-500 border-zinc-500/20 text-[8px] h-4 font-black px-1.5 uppercase tracking-tighter">Baja</Badge>
               )}
             </div>
-            <p className="text-white/30 text-[10px] tracking-tight">{student.email}</p>
+            <p className="text-sky-400/80 text-[10px] tracking-tight font-medium">{student.email}</p>
           </div>
         </div>
       </TableCell>
@@ -119,7 +119,7 @@ export function StudentDesktopRow({
         </Badge>
       </TableCell>
 
-      <TableCell className="text-white/30 text-[10px] font-black tracking-widest hidden md:table-cell uppercase">
+      <TableCell className="text-teal-400/80 text-[10px] font-black tracking-widest hidden md:table-cell uppercase">
         {new Date(student.$createdAt).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
       </TableCell>
 
