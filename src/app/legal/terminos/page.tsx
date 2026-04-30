@@ -52,6 +52,33 @@ export default function TerminosPage() {
               de seguir las instrucciones de los entrenadores para minimizar riesgos de lesiones.
             </p>
           </section>
+          <section>
+            <h2 className="text-xl font-bold text-white uppercase mb-4 tracking-tight">5. DECLARACIÓN DE EXENCIÓN DE RESPONSABILIDAD</h2>
+            <p className="mb-4">
+              El usuario <span className="text-white italic">MANIFIESTA por medio del presente escrito:</span>
+            </p>
+            <ul className="space-y-4 list-disc list-outside ml-6">
+              <li>Que la organización me ha informado suficientemente y en un lenguaje comprensible sobre las características de la actividad/evento en la que voy a participar y sobre las condiciones físicas requeridas para dicha participación.</li>
+              <li>Que se me ha informado de forma suficiente y clara sobre los riesgos de dicha actividad y sobre las medidas de seguridad a adoptar en la realización de la misma.</li>
+              <li>Que no padezco contraindicación alguna para participar en dicha actividad/ evento, manifestando de forma responsable que la persona firmante se ha sometido previamente a examen médico a fin de descartar cualquier contraindicación que impida o desaconseje su participación en la citada actividad/evento.</li>
+              <li>Que conozco y entiendo las norma que regulan la actividad deportiva y que estoy plenamente conforme con las mismas sometiéndome a la potestad de dirección y a las instrucciones de la organización.</li>
+              <li>Que asumo voluntariamente los riesgos propios de la actividad y, en consecuencia, eximo a la organización de cualquier daño o perjuicio que pueda sufrir en el desarrollo de la actividad.</li>
+              <li>Que concedo mi permiso a la organización para usar mi imagen con el proposito de dar difusión a la actividad/evento, sin derecho por mi parte a recibir compensación económica.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-white uppercase mb-4 tracking-tight">6. PROTECCIÓN DE DATOS</h2>
+            <p className="mb-4">
+              En cumplimiento de lo dispuesto en la Ley Orgánica 15/1999 de Protección de Datos de Carácter Personal, <strong className="text-white">CLUB DE BOXEO BOXING PROFIGHT S.L. con CIF B26932855</strong>, le informa que sus datos personales obtenidos mediante la cumplimentación de este formulario van a ser incorporados para su tratamiento en un fichero automatizado. Asimismo, se le informa que la recogida y tratamiento de dichos datos tienen como finalidad la tramitación de las gestiones expuestas en este formulario.
+            </p>
+            <p className="mb-4">
+              Si lo desea puede ejercitar los derechos de acceso, rectificación, cancelación y oposición previstos por la ley, dirigiendo email a: <span className="text-white italic">alexpintor@hotmail.es</span>
+            </p>
+            <p className="text-white font-medium italic">
+              CLUB DE BOXEO BOXING PROFIGHT S.L. - C/ZARZA 26 LOCAL - 28921 ALCORCÓN
+            </p>
+          </section>
         </div>
       </div>
     </div>
