@@ -40,7 +40,7 @@ export function FormField({
           value={value}
           onChange={(e) => onChange(type === "number" ? Number(e.target.value) : e.target.value)}
           placeholder={placeholder}
-          className={`bg-white/5 border-white/10 h-12 focus:border-emerald-500/50 transition-all font-bold ${Icon ? "pl-10" : ""}`}
+          className={`w-full max-w-full min-w-0 bg-white/5 border-white/10 h-12 focus:border-emerald-500/50 transition-all font-bold ${Icon ? "pl-10" : ""}`}
         />
         {Icon && (
           <Icon className="absolute left-3.5 top-3.5 h-4 w-4 text-emerald-500/40 pointer-events-none" />
