@@ -38,7 +38,7 @@ export default function LoginPage() {
       if (profile.role === "admin") {
         router.push("/sys-director");
       } else {
-        router.push("/perfil");
+        router.push("/bookings");
       }
     } else {
       setCheckingAuth(false);
