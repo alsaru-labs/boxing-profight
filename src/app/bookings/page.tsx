@@ -29,7 +29,6 @@ export default function BookingsPage() {
 
     const [isPending, startTransition] = useTransition();
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [simulatedDay, setSimulatedDay] = useState<number | undefined>(undefined);
 
     // 📜 HISTORIAL LAZY (Zero-Waste)
     const [pastClasses, setPastClasses] = useState<any[]>([]);
@@ -284,31 +283,7 @@ export default function BookingsPage() {
                         </Link>
                     </div>
 
-                    {/* Modo de Prueba (Oculto en Producción) */}
-                    {!isProduction && (
-                        <div className="flex items-center gap-4 bg-zinc-900/50 p-3 rounded-2xl border border-white/10">
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-black text-white/30 uppercase italic leading-none mb-1">Simulador Temporal</span>
-                                <span className="text-xs font-bold text-emerald-500">Día {simulatedDay || new Date().getDate()}</span>
-                            </div>
-                            <input
-                                type="range"
-                                min="1"
-                                max="31"
-                                value={simulatedDay || new Date().getDate()}
-                                onChange={(e) => setSimulatedDay(parseInt(e.target.value))}
-                                className="w-32 accent-emerald-500 cursor-pointer"
-                            />
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setSimulatedDay(undefined)}
-                                className="h-8 text-[9px] font-black uppercase text-white/40 hover:text-white border border-white/5"
-                            >
-                                Reset
-                            </Button>
-                        </div>
-                    )}
+
                 </div>
 
                 <div className="grid grid-cols-1 gap-16">
@@ -326,7 +301,6 @@ export default function BookingsPage() {
                             profileInfo={profileInfo}
                             isProcessingBooking={isPending ? "ALL" : null}
                             onBookClass={handleBookClass}
-                            simulatedDay={simulatedDay}
                         />
                     </section>
 

@@ -24,7 +24,6 @@ interface ClassGridProps {
     isProcessingBooking?: string | null;
     profileInfo?: any;
     userBookings?: any[]; // Only for students to filter
-    simulatedDay?: number;
 }
 
 export function ClassGrid({
@@ -36,8 +35,7 @@ export function ClassGrid({
     onViewAttendees,
     isProcessingBooking,
     profileInfo,
-    userBookings = [],
-    simulatedDay
+    userBookings = []
 }: ClassGridProps) {
     // Filter out classes if student is already booked
     const displayClasses = isAdmin
@@ -131,7 +129,7 @@ export function ClassGrid({
                                             } catch (e) { }
 
                                             const today = new Date();
-                                            const dayOfMonth = simulatedDay || today.getDate();
+                                            const dayOfMonth = today.getDate();
                                             const isGracePeriod = dayOfMonth >= 1 && dayOfMonth <= 10;
                                             const canBook = isGracePeriod || profileInfo?.is_paid;
 

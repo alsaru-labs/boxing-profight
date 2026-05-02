@@ -38,11 +38,7 @@ export default function StudentProfile() {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // 📅 GESTIÓN DE PERIODOS (Oculto en Producción)
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  });
-  const [overriddenProfile, setOverriddenProfile] = useState<any | null>(null);
+
 
   // 🛡️ DETECCIÓN DE ENTORNO (Prevención de Hydration Mismatch)
   const [isProduction, setIsProduction] = useState(false);
@@ -135,32 +131,7 @@ export default function StudentProfile() {
     return () => clearInterval(timer);
   }, []);
 
-  // 📅 CARGA DE DATOS POR MES (Gestión Auditoría)
-  useEffect(() => {
-    const currentActualMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
-    // Si volvemos al mes actual, limpiamos el override para usar los datos vivos de AuthContext
-    if (selectedMonth === currentActualMonth) {
-      setOverriddenProfile(null);
-      return;
-    }
-
-    if (!user?.$id) return;
-
-    const fetchMonthData = async () => {
-      // Usamos isUpdating para mostrar un feedback visual sutil si fuera necesario
-      try {
-        const result = await getPlatformOmniData(user.$id, selectedMonth);
-        if (result.success && result.data) {
-          setOverriddenProfile(result.data.profile);
-        }
-      } catch (err) {
-        console.error("[Profile] Error al cargar datos del mes:", err);
-      }
-    };
-
-    fetchMonthData();
-  }, [selectedMonth, user?.$id]);
 
 
 
@@ -218,38 +189,11 @@ export default function StudentProfile() {
             <AnimatePresence mode="wait">
               <TabsContent key="resumen" value="resumen" className="focus-visible:outline-none focus:outline-none outline-none">
 
-                {/* 📅 Selector de Periodo de Gestión (Solo visible en entornos NO-Producción) */}
-                {!isProduction && (
-                  <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 bg-zinc-900/40 p-6 rounded-2xl border border-white/5 animate-in fade-in slide-in-from-top-4 duration-700">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <HistoryIcon className="w-4 h-4 text-emerald-500" />
-                        <h3 className="text-sm font-black uppercase tracking-widest text-emerald-500">Periodo de Gestión</h3>
-                      </div>
-                      <p className="text-white/40 text-[10px] uppercase font-bold tracking-tight">Auditoría: Consulta y valida pagos de cualquier mes.</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <select
-                        value={selectedMonth}
-                        onChange={(e) => setSelectedMonth(e.target.value)}
-                        className="bg-black/60 border border-white/10 text-white font-black uppercase tracking-widest p-3 rounded-xl outline-none focus:border-emerald-500/50 transition-all cursor-pointer min-w-[220px] text-xs"
-                      >
-                        {Array.from({ length: 24 }).map((_, i) => {
-                          const d = new Date();
-                          d.setDate(1);
-                          d.setMonth(d.getMonth() - 12 + i);
-                          const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                          const label = d.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-                          return <option key={val} value={val} className="bg-zinc-900 border-none">{label}</option>;
-                        })}
-                      </select>
-                    </div>
-                  </div>
-                )}
+
 
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
                   <div className="lg:col-span-4 space-y-6">
-                    <ProfileCard user={user} profileInfo={overriddenProfile || profileInfo} initials={initials} />
+                    <ProfileCard user={user} profileInfo={profileInfo} initials={initials} />
                   </div>
 
                   <div className="lg:col-span-8 space-y-8">
