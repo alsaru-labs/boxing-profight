@@ -274,19 +274,19 @@ export default function BookingsPage() {
 
             <Navbar isHome={false} />
 
-            <main className="flex-1 max-w-7xl mx-auto w-full px-6 pt-1 md:pt-2 pb-12 md:px-12 z-10 space-y-12">
+            <main className="flex-1 max-w-7xl mx-auto w-full px-6 pt-1 md:pt-2 pb-12 md:px-12 z-10 space-y-6 md:space-y-8">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>
-                        <Link href="/perfil" className="flex items-center gap-2 text-white/40 hover:text-emerald-500 transition-colors mb-4 group">
+                        <Link href="/perfil" className="flex items-center gap-2 text-white/70 hover:text-white transition-colors mb-2 group">
                             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                            <span className="text-[10px] font-black uppercase tracking-widest">Volver al Perfil</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest">Ir al Perfil</span>
                         </Link>
                     </div>
 
 
                 </div>
 
-                <div className="grid grid-cols-1 gap-16">
+                <div className="grid grid-cols-1 gap-12">
                     {/* 1. CLASES DISPONIBLES (Grid Principal) */}
                     <section className="space-y-6">
                         <div className="flex items-center gap-4">

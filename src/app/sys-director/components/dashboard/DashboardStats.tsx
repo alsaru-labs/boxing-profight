@@ -23,13 +23,12 @@ export function DashboardStats({ totalStudents, monthlyRevenue, unpaidCount, onN
     <div className="grid grid-cols-2 gap-2 sm:gap-6 mb-3">
       <Card className="bg-zinc-900/50 border-white/10 backdrop-blur-lg group hover:border-emerald-500/30 transition-all duration-300">
         <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-3.5 pb-0.5">
-          <CardTitle className="text-[9px] sm:text-xs font-black text-white/40 uppercase tracking-widest">{LITERALS.DASHBOARD.ACTIVE_STUDENTS}</CardTitle>
+          <CardTitle className="text-[10px] sm:text-sm font-black text-white/80 uppercase tracking-wider sm:tracking-widest whitespace-nowrap truncate mr-2">{LITERALS.DASHBOARD.ACTIVE_STUDENTS}</CardTitle>
           <Users className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
         </CardHeader>
         <CardContent className="flex items-end justify-between p-3 sm:p-3.5 pt-1">
           <div>
-            <div className="text-3xl sm:text-4xl font-black text-white leading-none">{totalStudents}</div>
-            <p className="text-[8px] sm:text-[9px] text-white/20 uppercase font-bold tracking-widest mt-1">{LITERALS.DASHBOARD.TOTAL_STUDENTS}</p>
+            <div className="text-4xl sm:text-4xl font-black text-white leading-none">{totalStudents}</div>
           </div>
           <Button
             onClick={onNewStudent}
@@ -44,14 +43,14 @@ export function DashboardStats({ totalStudents, monthlyRevenue, unpaidCount, onN
 
       <Card className="bg-zinc-900/50 border-white/10 backdrop-blur-lg group hover:border-blue-500/30 transition-all duration-300">
         <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-3.5 pb-0.5">
-          <CardTitle className="text-[9px] sm:text-xs font-black text-white/40 uppercase tracking-widest leading-relaxed">
+          <CardTitle className="text-[10px] sm:text-sm font-black text-white/80 uppercase tracking-wider sm:tracking-widest whitespace-nowrap truncate mr-1">
             {LITERALS.DASHBOARD.MONTHLY_REVENUE(monthLabel)}
           </CardTitle>
           <CreditCard className="h-3.5 w-3.5 text-blue-400 shrink-0" />
         </CardHeader>
         <CardContent className="p-3 sm:p-3.5 pt-1">
-          <div className="text-3xl sm:text-4xl font-black text-white leading-none">{monthlyRevenue}€</div>
-          <p className={`text-[8px] sm:text-[9px] uppercase font-bold tracking-widest mt-1 ${unpaidCount > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+          <div className="text-4xl sm:text-4xl font-black text-white leading-none">{monthlyRevenue}€</div>
+          <p className={`text-[11px] sm:text-[11px] uppercase font-bold tracking-widest mt-1 ${unpaidCount > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
             {unpaidCount > 0 ? `${unpaidCount} ${LITERALS.DASHBOARD.PENDING_PAYMENT}` : LITERALS.DASHBOARD.ALL_UP_TO_DATE}
           </p>
         </CardContent>
