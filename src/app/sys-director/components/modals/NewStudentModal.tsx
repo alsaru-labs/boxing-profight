@@ -94,7 +94,14 @@ export function NewStudentModal({ isOpen, onOpenChange, isUpdating, onSave }: Ne
               <div className="grid grid-cols-2 gap-3">
                 <Button 
                   onClick={() => {
-                    navigator.clipboard.writeText(invitationUrl);
+                    if (invitationUrl) {
+                      navigator.clipboard.writeText(invitationUrl);
+                      import("sonner").then(({ toast }) => {
+                        toast.success("Enlace Copiado", {
+                          description: "El link de invitación está en tu portapapeles.",
+                        });
+                      });
+                    }
                   }}
                   variant="outline"
                   size="xl"

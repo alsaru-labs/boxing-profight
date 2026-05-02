@@ -482,6 +482,7 @@ export async function handleCreateOrReactivateStudent(form: any) {
 export async function updateStudentProfileAction(profileId: string, data: any) {
     if (!profileId) return { success: false, error: "ID de perfil requerido." };
     const { databases, users } = await createAdminClient();
+    let finalToken = null;
     try {
         const payload: any = {};
 
@@ -551,6 +552,7 @@ export async function updateStudentProfileAction(profileId: string, data: any) {
                     }
 
                     // 📨 RE-ENVÍO DE INVITACIÓN SI NO ESTABA VERIFICADO
+                    let newInviteToken = null;
                     if (isUnverified || data.forceResend) {
                         console.log(`[updateStudentProfileAction] Usuario no verificado o sin Auth. Regenerando tokens para: ${emailLower}`);
                         // Limpiar tokens antiguos
@@ -564,7 +566,22 @@ export async function updateStudentProfileAction(profileId: string, data: any) {
                             }
                         } catch (e) { /* silent */ }
 
-                        // DISPARAR LA FUNCIÓN APPWRITE DIRECTAMENTE
+                        // 🛡️ Generar NUEVO Token de Invitación (Validez 48h)
+                        const inviteToken = sdk.ID.unique();
+                        const tokenId = sdk.ID.unique();
+                        await databases.createDocument(
+                            DATABASE_ID,
+                            COLLECTION_INVITATION_TOKENS,
+                            tokenId,
+                            {
+                                user_id: authUserId,
+                                token: inviteToken,
+                                expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+                            }
+                        );
+                        newInviteToken = inviteToken;
+
+                        // DISPARAR LA FUNCIÓN APPWRITE DIRECTAMENTE (Opcional, pero recomendado para el email)
                         try {
                             const { functions } = await createAdminClient();
                             const inviteFunctionId = process.env.INVITE_FUNCTION_ID;
@@ -586,11 +603,14 @@ export async function updateStudentProfileAction(profileId: string, data: any) {
                                     JSON.stringify(functionPayload),
                                     false // isAsync (false = background)
                                 );
-                                console.log(`[updateStudentProfileAction] Invite Function ejecutada en segundo plano.`);
                             }
                         } catch (fnErr) {
                             console.error(`[updateStudentProfileAction] Error disparando la Invite Function:`, fnErr);
                         }
+                    }
+
+                    if (newInviteToken) {
+                        finalToken = newInviteToken;
                     }
 
                 } catch (authError: any) {
@@ -633,7 +653,7 @@ export async function updateStudentProfileAction(profileId: string, data: any) {
 
         revalidateAdminDashboard();
         revalidatePath("/perfil", "page");
-        return { success: true, data: JSON.parse(JSON.stringify(updated)) };
+        return { success: true, data: JSON.parse(JSON.stringify(updated)), token: finalToken };
     } catch (error: any) {
         return { success: false, error: error.message };
     }
