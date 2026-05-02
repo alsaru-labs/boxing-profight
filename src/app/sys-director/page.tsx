@@ -375,7 +375,7 @@ export default function AdminDashboard() {
             {/* Month Selector */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4 mb-3 md:mb-6 bg-zinc-900/40 p-3 md:p-5 rounded-2xl border border-white/5">
                 <div className="space-y-0 md:space-y-1">
-                  <h3 className="text-[11px] md:text-sm font-black uppercase tracking-widest text-emerald-500 leading-none mb-0.5 md:mb-0">Periodo de Gestión</h3>
+                  <h3 className="text-[11px] md:text-sm font-black uppercase tracking-widest text-white leading-none mb-0.5 md:mb-0">Periodo de Gestión</h3>
                   <p className="text-white/40 text-[9px] md:text-xs leading-tight">Consulta y valida pagos de cualquier mes.</p>
                 </div>
                 <div className="flex items-center w-full md:w-auto mt-0.5 md:mt-0">

@@ -110,10 +110,10 @@ export function ClassGrid({
                                 className="space-y-4 md:space-y-6"
                             >
                                 <div className="flex items-center gap-4">
-                                    <h4 className="text-sm md:text-lg font-black uppercase tracking-[0.2em] text-emerald-500/80">
+                                    <h4 className="text-sm md:text-lg font-black uppercase tracking-[0.2em] text-white/80">
                                         {formatDate(dateKey)}
                                     </h4>
-                                    <div className="h-px flex-1 bg-gradient-to-r from-emerald-500/20 to-transparent" />
+                                    <div className="h-px flex-1 bg-gradient-to-r from-white/20 to-transparent" />
                                 </div>
 
                                 <div className="space-y-4">
@@ -160,7 +160,7 @@ export function ClassGrid({
                                                                     <Badge className="bg-rose-500/10 text-rose-500 font-black text-[8px] md:text-[9px] border-0 rounded-sm animate-pulse">COMPLETO</Badge>
                                                                 )}
                                                             </div>
-                                                            <p className="text-emerald-400 font-black text-xl md:text-3xl tracking-tighter leading-none">
+                                                            <p className="text-white font-black text-xl md:text-3xl tracking-tighter leading-none">
                                                                 {cls.time.split('-')[0].trim()}
                                                             </p>
                                                             <p className="text-white/40 font-bold text-[9px] md:text-xs uppercase tracking-widest leading-none">
