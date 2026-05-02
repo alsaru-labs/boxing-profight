@@ -12,6 +12,17 @@ interface ProfileCardProps {
 }
 
 export function ProfileCard({ user, profileInfo, initials }: ProfileCardProps) {
+  const formatName = (name: string) => {
+    if (!name) return "";
+    return name.split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
+  const fullName = profileInfo?.name 
+    ? formatName(`${profileInfo.name} ${profileInfo.last_name || ""}`)
+    : formatName(user?.name || "");
+
   return (
     <Card className="bg-white/5 border-white/10 overflow-hidden h-full">
       <CardHeader className="flex flex-col items-center pt-8 pb-4">
@@ -22,9 +33,9 @@ export function ProfileCard({ user, profileInfo, initials }: ProfileCardProps) {
         </div>
         <CardTitle 
           className="text-2xl md:text-3xl font-black tracking-tighter text-white w-full text-center px-4 break-words leading-tight"
-          title={profileInfo?.name ? `${profileInfo.name} ${profileInfo.last_name || ""}` : user?.name}
+          title={fullName}
         >
-          {profileInfo?.name ? `${profileInfo.name} ${profileInfo.last_name || ""}` : (user?.name || "Cargando...")}
+          {fullName || "Cargando..."}
         </CardTitle>
 
         <CardDescription className="text-white/40 font-medium">

@@ -47,7 +47,16 @@ export default function Navbar({ isHome = false }: { isHome?: boolean }) {
     return name.split(" ").map(n => n[0]).join("").toUpperCase().substring(0, 2);
   };
 
-  const profileName = profile?.name || "Usuario";
+  const capitalize = (str: string) => {
+    if (!str) return "";
+    return str.split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
+  const profileName = profile?.name 
+    ? capitalize(`${profile.name} ${profile.last_name || ""}`)
+    : capitalize(user?.name || "Usuario");
   const isLoggedIn = !!user;
 
   const styleClass = "px-5 py-2 md:px-12 backdrop-blur-xl bg-black/40 shadow-[0_10px_40px_rgba(0,0,0,0.3)]";

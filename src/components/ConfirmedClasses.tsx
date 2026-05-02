@@ -52,7 +52,7 @@ export default function ConfirmedClasses({
     };
 
     return (
-        <div className="space-y-8 pt-16 border-t border-white/10">
+        <div id="confirmadas" className="space-y-8 pt-16 border-t border-white/10">
             <h3 className="text-xl font-black uppercase tracking-widest text-white/90 flex items-center gap-3">
                 <CheckCircle2 className="w-5 h-5" /> Mis Reservas Confirmadas
             </h3>

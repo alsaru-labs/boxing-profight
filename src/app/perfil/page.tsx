@@ -234,7 +234,7 @@ export default function StudentProfile() {
                                 {validUpcomingClasses.filter(c => userBookings.some((b: any) => b.class_id === c.$id))[0].time.split('-')[0].trim()}
                               </p>
                             </div>
-                            <Link href="/bookings">
+                            <Link href="/bookings#confirmadas">
                               <Button className="bg-white text-black hover:bg-emerald-500 hover:text-white font-black px-8 h-14 rounded-xl shadow-[0_0_30px_rgba(255,255,255,0.1)] group transition-all">
                                 VER RESERVAS <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                               </Button>
