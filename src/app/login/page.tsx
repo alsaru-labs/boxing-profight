@@ -38,7 +38,7 @@ export default function LoginPage() {
       if (profile.role === "admin") {
         router.push("/sys-director");
       } else {
-        router.push("/perfil");
+        router.push("/bookings");
       }
     } else {
       setCheckingAuth(false);
@@ -61,7 +61,7 @@ export default function LoginPage() {
 
       // PASO 1: Crear sesión en el cliente (Appwrite Cloud nativo)
       try {
-        await account.createEmailPasswordSession(email, password);
+        await account.createEmailPasswordSession(email.trim().toLowerCase(), password);
       } catch (authErr: any) {
         console.warn("[Auth Attempt Failed]", authErr);
         if (authErr?.code === 429) {

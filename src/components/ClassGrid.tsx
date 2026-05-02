@@ -24,7 +24,6 @@ interface ClassGridProps {
     isProcessingBooking?: string | null;
     profileInfo?: any;
     userBookings?: any[]; // Only for students to filter
-    simulatedDay?: number;
 }
 
 export function ClassGrid({
@@ -36,8 +35,7 @@ export function ClassGrid({
     onViewAttendees,
     isProcessingBooking,
     profileInfo,
-    userBookings = [],
-    simulatedDay
+    userBookings = []
 }: ClassGridProps) {
     // Filter out classes if student is already booked
     const displayClasses = isAdmin
@@ -110,10 +108,10 @@ export function ClassGrid({
                                 className="space-y-4 md:space-y-6"
                             >
                                 <div className="flex items-center gap-4">
-                                    <h4 className="text-sm md:text-lg font-black uppercase tracking-[0.2em] text-emerald-500/80">
+                                    <h4 className="text-sm md:text-lg font-black uppercase tracking-[0.2em] text-white/80">
                                         {formatDate(dateKey)}
                                     </h4>
-                                    <div className="h-px flex-1 bg-gradient-to-r from-emerald-500/20 to-transparent" />
+                                    <div className="h-px flex-1 bg-gradient-to-r from-white/20 to-transparent" />
                                 </div>
 
                                 <div className="space-y-4">
@@ -131,7 +129,7 @@ export function ClassGrid({
                                             } catch (e) { }
 
                                             const today = new Date();
-                                            const dayOfMonth = simulatedDay || today.getDate();
+                                            const dayOfMonth = today.getDate();
                                             const isGracePeriod = dayOfMonth >= 1 && dayOfMonth <= 10;
                                             const canBook = isGracePeriod || profileInfo?.is_paid;
 
@@ -160,7 +158,7 @@ export function ClassGrid({
                                                                     <Badge className="bg-rose-500/10 text-rose-500 font-black text-[8px] md:text-[9px] border-0 rounded-sm animate-pulse">COMPLETO</Badge>
                                                                 )}
                                                             </div>
-                                                            <p className="text-emerald-400 font-black text-xl md:text-3xl tracking-tighter leading-none">
+                                                            <p className="text-white font-black text-xl md:text-3xl tracking-tighter leading-none">
                                                                 {cls.time.split('-')[0].trim()}
                                                             </p>
                                                             <p className="text-white/40 font-bold text-[9px] md:text-xs uppercase tracking-widest leading-none">
@@ -171,8 +169,7 @@ export function ClassGrid({
                                                         <div className="flex-1 space-y-2 md:space-y-3">
                                                             <div className="flex items-center justify-between">
                                                                 <div className="flex flex-col">
-                                                                    <span className="text-white font-black text-sm md:text-lg tracking-tight leading-tight">Prof. {cls.coach}</span>
-                                                                    <span className="text-white/30 text-[9px] md:text-[10px] uppercase font-black tracking-widest">Coach Titular</span>
+                                                                    <span className="text-white font-black text-sm md:text-lg tracking-tight leading-tight">{cls.coach}</span>
                                                                 </div>
                                                                 <div className="text-right">
                                                                     <span className={`text-[9px] md:text-xs font-black uppercase tracking-widest ${isFull ? 'text-rose-500' : 'text-emerald-400'}`}>

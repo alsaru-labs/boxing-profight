@@ -64,7 +64,8 @@ export function CreateClassModal({ isOpen, onOpenChange, isUpdating, onSave, cla
   );
 
   const selectedStartHour = parseInt(newClass.time.split(':')[0]);
-  const isPastTime = newClass.date === localTodayISO && selectedStartHour <= currentHour;
+  const isPastDate = newClass.date < localTodayISO;
+  const isPastTime = isPastDate || (newClass.date === localTodayISO && selectedStartHour <= currentHour);
 
   const handleSubmit = async () => {
     if (isUpdating) return;

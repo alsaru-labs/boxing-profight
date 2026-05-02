@@ -29,7 +29,6 @@ export default function BookingsPage() {
 
     const [isPending, startTransition] = useTransition();
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [simulatedDay, setSimulatedDay] = useState<number | undefined>(undefined);
 
     // 📜 HISTORIAL LAZY (Zero-Waste)
     const [pastClasses, setPastClasses] = useState<any[]>([]);
@@ -161,7 +160,10 @@ export default function BookingsPage() {
         if (!user) return;
         showConfirm(
             LITERALS.BOOKINGS.CONFIRM_RESERVATION_TITLE,
-            LITERALS.BOOKINGS.CONFIRM_RESERVATION_DESC(classObj.name, classObj.coach),
+            LITERALS.BOOKINGS.CONFIRM_RESERVATION_DESC(
+                new Date(classObj.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
+                classObj.time.split('-')[0].trim()
+            ),
             async () => {
                 let success = false;
                 await new Promise<void>((resolve) => {
@@ -199,7 +201,7 @@ export default function BookingsPage() {
                 });
                 return success;
             },
-            "info"
+            "success"
         );
     };
 
@@ -215,7 +217,10 @@ export default function BookingsPage() {
 
         showConfirm(
             LITERALS.BOOKINGS.CANCEL_RESERVATION_TITLE,
-            LITERALS.BOOKINGS.CANCEL_RESERVATION_DESC,
+            LITERALS.BOOKINGS.CANCEL_RESERVATION_DESC(
+                new Date(classObj.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
+                classObj.time.split('-')[0].trim()
+            ),
             async () => {
                 let success = false;
                 await new Promise<void>((resolve) => {
@@ -269,43 +274,19 @@ export default function BookingsPage() {
 
             <Navbar isHome={false} />
 
-            <main className="flex-1 max-w-7xl mx-auto w-full px-6 pt-1 md:pt-2 pb-12 md:px-12 z-10 space-y-12">
+            <main className="flex-1 max-w-7xl mx-auto w-full px-6 pt-1 md:pt-2 pb-12 md:px-12 z-10 space-y-6 md:space-y-8">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>
-                        <Link href="/perfil" className="flex items-center gap-2 text-white/40 hover:text-emerald-500 transition-colors mb-4 group">
+                        <Link href="/perfil" className="flex items-center gap-2 text-white/70 hover:text-white transition-colors mb-2 group">
                             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                            <span className="text-[10px] font-black uppercase tracking-widest">Volver al Perfil</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest">Ir al Perfil</span>
                         </Link>
                     </div>
 
-                    {/* Modo de Prueba (Oculto en Producción) */}
-                    {!isProduction && (
-                        <div className="flex items-center gap-4 bg-zinc-900/50 p-3 rounded-2xl border border-white/10">
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-black text-white/30 uppercase italic leading-none mb-1">Simulador Temporal</span>
-                                <span className="text-xs font-bold text-emerald-500">Día {simulatedDay || new Date().getDate()}</span>
-                            </div>
-                            <input
-                                type="range"
-                                min="1"
-                                max="31"
-                                value={simulatedDay || new Date().getDate()}
-                                onChange={(e) => setSimulatedDay(parseInt(e.target.value))}
-                                className="w-32 accent-emerald-500 cursor-pointer"
-                            />
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setSimulatedDay(undefined)}
-                                className="h-8 text-[9px] font-black uppercase text-white/40 hover:text-white border border-white/5"
-                            >
-                                Reset
-                            </Button>
-                        </div>
-                    )}
+
                 </div>
 
-                <div className="grid grid-cols-1 gap-16">
+                <div className="grid grid-cols-1 gap-12">
                     {/* 1. CLASES DISPONIBLES (Grid Principal) */}
                     <section className="space-y-6">
                         <div className="flex items-center gap-4">
@@ -320,7 +301,6 @@ export default function BookingsPage() {
                             profileInfo={profileInfo}
                             isProcessingBooking={isPending ? "ALL" : null}
                             onBookClass={handleBookClass}
-                            simulatedDay={simulatedDay}
                         />
                     </section>
 
@@ -361,10 +341,10 @@ export default function BookingsPage() {
                                                     <span className="text-lg font-black text-white leading-none">
                                                         {new Date(cls.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).toUpperCase()}
                                                     </span>
-                                                    <span className="text-xs font-black text-emerald-500 uppercase mt-1">{cls.time.split(':')[0]}h</span>
+                                                    <span className="text-xs font-black text-white uppercase mt-1">{cls.time.split(':')[0]}h</span>
                                                 </div>
                                                 <div className="flex flex-col items-start border-l border-white/10 pl-6 py-1">
-                                                    <span className="text-[10px] text-white/40 font-bold block">{cls.coach}</span>
+                                                    <span className="text-[10px] text-white/90 font-bold block">{cls.coach}</span>
                                                     <span className="text-[9px] text-white/20 uppercase font-black tracking-widest leading-none mt-0.5">{cls.name}</span>
                                                 </div>
                                             </div>

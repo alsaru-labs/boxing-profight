@@ -93,9 +93,9 @@ export const LITERALS = {
         SHOWING_AVAILABILITY: "Disponibilidad los proximos 7 días",
         EMPTY_STATE: "No hay plazas nuevas disponibles para reservar en este momento.",
         CONFIRM_RESERVATION_TITLE: "Confirmar Reserva",
-        CONFIRM_RESERVATION_DESC: (name: string, coach: string) => `¿Quieres reservar tu plaza para la clase de ${name} con ${coach}?`,
+        CONFIRM_RESERVATION_DESC: (date: string, time: string) => `¿Quieres reservar tu plaza para la clase del ${date} a las ${time}?`,
         CANCEL_RESERVATION_TITLE: "Cancelar Reserva",
-        CANCEL_RESERVATION_DESC: "¿Seguro que quieres cancelar tu plaza en esta clase? Esta acción permitirá que otro compañero asista.",
+        CANCEL_RESERVATION_DESC: (date: string, time: string) => `¿Seguro que quieres cancelar tu plaza para la clase del ${date} a las ${time}? Esta acción permitirá que otro compañero asista.`,
     },
     CLASS_CARD: {
         FREE_SPACES: (count: number) => `${count} plazas libres`,

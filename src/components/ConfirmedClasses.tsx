@@ -52,7 +52,7 @@ export default function ConfirmedClasses({
     };
 
     return (
-        <div className="space-y-8 pt-16 border-t border-white/10">
+        <div id="confirmadas" className="space-y-8 pt-16 border-t border-white/10">
             <h3 className="text-xl font-black uppercase tracking-widest text-white/90 flex items-center gap-3">
                 <CheckCircle2 className="w-5 h-5" /> Mis Reservas Confirmadas
             </h3>
@@ -73,35 +73,36 @@ export default function ConfirmedClasses({
                                 className="space-y-4"
                             >
                                 <div className="flex items-center gap-4">
-                                    <h5 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30">
+                                    <h5 className="text-sm md:text-lg font-black uppercase tracking-[0.2em] text-white/80">
                                         {formatDate(dateKey)}
                                     </h5>
-                                    <div className="h-px flex-1 bg-white/5" />
+                                    <div className="h-px flex-1 bg-gradient-to-r from-white/20 to-transparent" />
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {groupedByDate[dateKey].map((cls) => (
                                         <div key={cls.$id} className="bg-white/5 hover:bg-white/[0.07] transition-all border border-white/5 hover:border-emerald-500/20 rounded-2xl p-4 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 md:gap-6 group">
-                                            <div className="space-y-1">
-                                                <Badge className="bg-emerald-500 text-black font-black text-[8px] md:text-[10px] tracking-widest mb-1.5 md:mb-2 border-0 rounded-sm">
+                                            <div className="space-y-2.5 md:space-y-4 w-full flex flex-col items-start text-left">
+                                                <Badge className="bg-emerald-500 text-black font-black text-[8px] md:text-[10px] tracking-widest border-0 rounded-sm">
                                                     {cls.name.toUpperCase()} • CONFIRMADA
                                                 </Badge>
-                                                <p className="text-emerald-400 font-black text-xl md:text-2xl tracking-tighter leading-none mb-1">
-                                                    {cls.time}
-                                                </p>
-                                                <p className="text-white font-bold text-sm md:text-base tracking-tight opacity-90">
-                                                    {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                                                </p>
-                                                <div className="flex items-center gap-2 text-white/40 text-[11px] md:text-xs font-medium pt-2">
-                                                    <span className="bg-white/5 px-2 py-0.5 rounded-full border border-white/5 italic">Prof. {cls.coach}</span>
+                                                <div className="space-y-1 pl-2">
+                                                    <p className="text-white font-black text-xl md:text-3xl tracking-tighter leading-none">
+                                                        {cls.time}
+                                                    </p>
+                                                    <p className="text-white/60 font-bold text-[10px] md:text-sm uppercase tracking-widest">
+                                                        {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-white/40 text-[11px] md:text-xs font-medium pt-1">
+                                                    <span className="bg-white/5 px-2.5 py-1 rounded-lg border border-white/5 italic">{cls.coach}</span>
                                                 </div>
                                             </div>
                                             {isCancellable(cls.date, cls.time, currentTime) && (
                                                 <Button
-                                                    variant="ghost"
                                                     onClick={() => handleCancelBooking(cls)}
                                                     disabled={isProcessingBooking === cls.$id}
-                                                    className="w-full sm:w-auto text-red-400 hover:text-red-500 hover:bg-red-500/10 border border-white/5 hover:border-red-500/20 px-6 h-10 md:h-12 font-bold transition-all rounded-xl"
+                                                    className="w-full sm:w-auto bg-red-500/5 text-red-400 hover:text-red-500 hover:bg-red-500/10 border border-red-500/10 hover:border-red-500/20 px-8 h-10 md:h-12 font-bold transition-all rounded-xl shadow-lg shadow-red-500/5"
                                                 >
                                                     {isProcessingBooking === cls.$id ? <Loader2 className="w-5 h-5 animate-spin" /> : "Anular Reserva"}
                                                 </Button>

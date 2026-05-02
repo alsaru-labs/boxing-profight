@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 /**
  * API Route for Automated Class Generation
  * Designed to be triggered by a Cron Job (e.g. Vercel Cron Jobs)
- * Every Saturday at 00:00.
+ * Every Saturday at 01:00 AM (Spain local time) / Friday 23:00 UTC.
  */
 export async function GET(request: Request) {
     // 1. Security Check (Optional but recommended)

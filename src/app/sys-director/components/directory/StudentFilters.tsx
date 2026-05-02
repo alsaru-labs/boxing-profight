@@ -18,8 +18,6 @@ interface StudentFiltersProps {
   setSearchTerm: (value: string) => void;
   filterPayment: string;
   setFilterPayment: (value: string) => void;
-  filterLevel: string;
-  setFilterLevel: (value: string) => void;
   sortConfig: any;
   setSortConfig: (config: any) => void;
   setVisibleCount: (count: number | ((prev: number) => number)) => void;
@@ -33,8 +31,6 @@ export function StudentFilters({
   setSearchTerm,
   filterPayment,
   setFilterPayment,
-  filterLevel,
-  setFilterLevel,
   sortConfig,
   setSortConfig,
   setVisibleCount,
@@ -81,27 +77,27 @@ export function StudentFilters({
           </div>
         </div>
 
-        <div className="flex w-full sm:w-auto gap-3">
+        <div className="grid grid-cols-2 sm:flex w-full sm:w-auto gap-2 sm:gap-3">
           {/* Filter Payment */}
-          <div className="flex-1 sm:w-40 space-y-1">
+          <div className="flex-1 sm:w-40 space-y-1 min-w-0">
             <span className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Pago</span>
             <Select value={filterPayment} onValueChange={setFilterPayment}>
-              <SelectTrigger className="w-full h-10">
+              <SelectTrigger className="w-full h-10 px-3">
                 <SelectValue placeholder={LITERALS.DASHBOARD.FILTER_ALL_PAYMENTS} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Todos">{LITERALS.DASHBOARD.FILTER_ALL_PAYMENTS}</SelectItem>
-                <SelectItem value="pagado">{LITERALS.DASHBOARD.FILTER_PAID}</SelectItem>
-                <SelectItem value="pendiente">{LITERALS.DASHBOARD.FILTER_PENDING}</SelectItem>
+                <SelectItem value="Pagado">Pagado</SelectItem>
+                <SelectItem value="Pendiente">Pendiente</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {/* Filter Method */}
-          <div className="flex-1 sm:w-40 space-y-1">
+          <div className="flex-1 sm:w-40 space-y-1 min-w-0">
             <span className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Método</span>
             <Select value={filterMethod} onValueChange={setFilterMethod}>
-              <SelectTrigger className="w-full h-10">
+              <SelectTrigger className="w-full h-10 px-3">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
@@ -109,22 +105,6 @@ export function StudentFilters({
                 <SelectItem value="Efectivo">Efectivo</SelectItem>
                 <SelectItem value="Bizum">Bizum</SelectItem>
                 <SelectItem value="Tarjeta">Tarjeta</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Filter Level */}
-          <div className="flex-1 sm:w-40 space-y-1">
-            <span className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Nivel</span>
-            <Select value={filterLevel} onValueChange={setFilterLevel}>
-              <SelectTrigger className="w-full h-10">
-                <SelectValue placeholder="Todos los Niveles" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Todos">Todos los Niveles</SelectItem>
-                <SelectItem value="Iniciación">Iniciación</SelectItem>
-                <SelectItem value="Media">Media</SelectItem>
-                <SelectItem value="Profesional">Profesional</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -137,13 +117,12 @@ export function StudentFilters({
           onClick={() => {
             setSearchTerm("");
             setFilterPayment("Todos");
-            setFilterLevel("Todos");
             setFilterMethod("Todos");
             setSortConfig(null);
             setVisibleCount(30);
           }}
           className={`h-10 text-red-400 hover:text-red-300 hover:bg-red-500/10 flex items-center transition-all duration-500 overflow-hidden ${
-            (searchTerm !== "" || filterPayment !== "Todos" || filterLevel !== "Todos" || filterMethod !== "Todos" || sortConfig !== null)
+            (searchTerm !== "" || filterPayment !== "Todos" || filterMethod !== "Todos" || sortConfig !== null)
               ? "max-w-[180px] opacity-100 pointer-events-auto px-3 ml-1"
               : "max-w-0 opacity-0 pointer-events-none px-0 border-0 ml-0"
           }`}
