@@ -55,7 +55,6 @@ export function StudentDirectory({
   const [searchTerm, setSearchTerm] = useState("");
 
   const [filterPayment, setFilterPayment] = useState("Todos");
-  const [filterLevel, setFilterLevel] = useState("Todos");
   const [filterMethod, setFilterMethod] = useState("Todos");
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
   const [visibleCount, setVisibleCount] = useState(30);
@@ -103,15 +102,10 @@ export function StudentDirectory({
 
     // 2. Payment filter
     if (filterPayment !== "Todos") {
-      result = result.filter(s => filterPayment === "pagado" ? s.is_paid : !s.is_paid);
+      result = result.filter(s => filterPayment === "Pagado" ? s.is_paid : !s.is_paid);
     }
 
-    // 3. Level filter
-    if (filterLevel !== "Todos") {
-      result = result.filter(s => (s.level || "Iniciación") === filterLevel);
-    }
-
-    // 4. Payment method filter
+    // 3. Payment method filter
     if (filterMethod !== "Todos") {
       result = result.filter(s => (s.payment_method || "") === filterMethod);
     }
@@ -133,7 +127,7 @@ export function StudentDirectory({
     }
 
     return result;
-  }, [studentsList, searchTerm, filterPayment, filterLevel, filterMethod, sortConfig]);
+  }, [studentsList, searchTerm, filterPayment, filterMethod, sortConfig]);
 
   const slicedStudents = processedStudents.slice(0, visibleCount);
 
@@ -145,8 +139,6 @@ export function StudentDirectory({
         setSearchTerm={setSearchTerm}
         filterPayment={filterPayment}
         setFilterPayment={setFilterPayment}
-        filterLevel={filterLevel}
-        setFilterLevel={setFilterLevel}
         sortConfig={sortConfig}
         setSortConfig={setSortConfig}
         setVisibleCount={setVisibleCount}

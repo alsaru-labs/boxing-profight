@@ -82,7 +82,7 @@ export function StudentDesktopRow({
             {student.is_paid ? "Pagado" : "Pendiente"}
           </Badge>
           {student.is_paid && student.payment_method && (
-            <span className="text-[9px] font-black uppercase tracking-widest text-white/30 ml-1">
+            <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400/60 ml-1">
               {student.payment_method}
             </span>
           )}
