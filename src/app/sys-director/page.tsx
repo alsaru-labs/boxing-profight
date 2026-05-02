@@ -156,7 +156,7 @@ export default function AdminDashboard() {
 
     showConfirm(
       "Borrar Clase",
-      "¿Seguro que quieres borrar esta clase de forma permanente? Se cancelarán también todas las reservas de los alumnos.",
+      `¿Seguro que quieres borrar la clase del ${new Date(classObj.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })} a las ${classObj.time.split('-')[0].trim()}? Se cancelarán también todas las reservas de los alumnos.`,
       async () => {
         let success = false;
         await new Promise<void>((resolve) => {

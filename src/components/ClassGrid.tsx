@@ -171,8 +171,7 @@ export function ClassGrid({
                                                         <div className="flex-1 space-y-2 md:space-y-3">
                                                             <div className="flex items-center justify-between">
                                                                 <div className="flex flex-col">
-                                                                    <span className="text-white font-black text-sm md:text-lg tracking-tight leading-tight">Prof. {cls.coach}</span>
-                                                                    <span className="text-white/30 text-[9px] md:text-[10px] uppercase font-black tracking-widest">Coach Titular</span>
+                                                                    <span className="text-white font-black text-sm md:text-lg tracking-tight leading-tight">{cls.coach}</span>
                                                                 </div>
                                                                 <div className="text-right">
                                                                     <span className={`text-[9px] md:text-xs font-black uppercase tracking-widest ${isFull ? 'text-rose-500' : 'text-emerald-400'}`}>

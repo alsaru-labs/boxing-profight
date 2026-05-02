@@ -161,7 +161,10 @@ export default function BookingsPage() {
         if (!user) return;
         showConfirm(
             LITERALS.BOOKINGS.CONFIRM_RESERVATION_TITLE,
-            LITERALS.BOOKINGS.CONFIRM_RESERVATION_DESC(classObj.name, classObj.coach),
+            LITERALS.BOOKINGS.CONFIRM_RESERVATION_DESC(
+                new Date(classObj.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
+                classObj.time.split('-')[0].trim()
+            ),
             async () => {
                 let success = false;
                 await new Promise<void>((resolve) => {
@@ -199,7 +202,7 @@ export default function BookingsPage() {
                 });
                 return success;
             },
-            "info"
+            "success"
         );
     };
 
@@ -215,7 +218,10 @@ export default function BookingsPage() {
 
         showConfirm(
             LITERALS.BOOKINGS.CANCEL_RESERVATION_TITLE,
-            LITERALS.BOOKINGS.CANCEL_RESERVATION_DESC,
+            LITERALS.BOOKINGS.CANCEL_RESERVATION_DESC(
+                new Date(classObj.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
+                classObj.time.split('-')[0].trim()
+            ),
             async () => {
                 let success = false;
                 await new Promise<void>((resolve) => {
@@ -361,10 +367,10 @@ export default function BookingsPage() {
                                                     <span className="text-lg font-black text-white leading-none">
                                                         {new Date(cls.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).toUpperCase()}
                                                     </span>
-                                                    <span className="text-xs font-black text-emerald-500 uppercase mt-1">{cls.time.split(':')[0]}h</span>
+                                                    <span className="text-xs font-black text-white uppercase mt-1">{cls.time.split(':')[0]}h</span>
                                                 </div>
                                                 <div className="flex flex-col items-start border-l border-white/10 pl-6 py-1">
-                                                    <span className="text-[10px] text-white/40 font-bold block">{cls.coach}</span>
+                                                    <span className="text-[10px] text-white/90 font-bold block">{cls.coach}</span>
                                                     <span className="text-[9px] text-white/20 uppercase font-black tracking-widest leading-none mt-0.5">{cls.name}</span>
                                                 </div>
                                             </div>

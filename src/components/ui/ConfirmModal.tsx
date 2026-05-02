@@ -65,7 +65,7 @@ export function ConfirmModal({
           
           <div className="space-y-2">
             <DialogTitle className="text-2xl font-black tracking-tight">{title}</DialogTitle>
-            <DialogDescription className="text-white/40 font-medium leading-relaxed">
+            <DialogDescription className="text-white/80 font-medium leading-relaxed">
               {description}
             </DialogDescription>
           </div>
