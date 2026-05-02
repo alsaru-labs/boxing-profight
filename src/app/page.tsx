@@ -55,7 +55,7 @@ export default function Home() {
                   RESERVAR CLASE <ArrowRight className="ml-3 w-4 h-4" />
                 </Button>
               </Link>
-              <Link href="/login" className="w-full sm:w-auto">
+              <Link href="/perfil" className="w-full sm:w-auto">
                 <Button className="h-14 md:h-16 w-full sm:px-12 bg-white text-black hover:bg-black hover:text-white border border-white rounded-none font-black uppercase tracking-widest text-[10px] md:text-xs transition-all">
                   ÁREA ALUMNOS
                 </Button>
