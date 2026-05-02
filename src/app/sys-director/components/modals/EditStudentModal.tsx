@@ -29,6 +29,7 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
   
   const [isUnverified, setIsUnverified] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [invitationUrl, setInvitationUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (student && isOpen) {
@@ -38,6 +39,7 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
       setPhone(student.phone || "");
       setLevel(student.level || "Iniciación");
       setErrors({});
+      setInvitationUrl(null);
       
       // Zero-waste on-demand fetch of Auth verification status
       setIsUnverified(false);
@@ -68,7 +70,12 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
 
     const result = await onSave(student, name, lastName, email, phone, level, forceResend);
     if (result?.success) {
-      onOpenChange(false);
+      if (result.token) {
+        const url = `${window.location.origin}/set-password?token=${result.token}`;
+        setInvitationUrl(url);
+      } else {
+        onOpenChange(false);
+      }
     } else {
         setErrors({ server: result?.error || "Email ya en uso o error de servidor." });
     }
@@ -99,7 +106,47 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
         </DialogHeader>
 
         <div className="p-8 space-y-6 relative z-10 overflow-y-auto flex-1 custom-scrollbar">
-          <div className="space-y-4">
+          {invitationUrl ? (
+            <div className="space-y-6 py-4 animate-in fade-in slide-in-from-bottom-4">
+              <div className="p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-[1.5rem] space-y-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 text-center">Enlace de Acceso Actualizado</p>
+                <div className="bg-black/40 p-4 rounded-xl border border-white/5 break-all">
+                  <p className="text-[11px] font-mono text-white/70 text-center select-all">{invitationUrl}</p>
+                </div>
+                <p className="text-[9px] text-white/40 text-center italic">Copia este enlace y envíaselo al alumno para que cree su contraseña.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Button 
+                  onClick={() => {
+                    if (invitationUrl) {
+                      navigator.clipboard.writeText(invitationUrl);
+                      import("sonner").then(({ toast }) => {
+                        toast.success("Enlace Copiado", {
+                          description: "El link de invitación está en tu portapapeles.",
+                        });
+                      });
+                    }
+                  }}
+                  variant="outline"
+                  size="xl"
+                  className="bg-emerald-500/20 border-emerald-500/40 text-emerald-400 font-black tracking-widest uppercase rounded-xl hover:bg-emerald-500 hover:text-white transition-all"
+                >
+                  COPIAR LINK
+                </Button>
+                <Button 
+                  onClick={() => onOpenChange(false)}
+                  variant="ghost"
+                  size="xl"
+                  className="bg-white/5 border-white/5 text-white/40 hover:text-white font-black tracking-widest uppercase rounded-xl transition-all"
+                >
+                  CERRAR
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+            <div className="space-y-4">
             {errors.server && (
                 <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 text-red-400" />
@@ -215,18 +262,20 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
                 ))}
               </div>
             </div>
-          </div>
+            </div>
 
-          <DialogHeader className="pt-2">
-            <Button
-              size="xl"
-              onClick={() => handleApply(false)}
-              disabled={isUpdating || !isFormValid}
-              className="w-full bg-white text-black hover:bg-blue-400 hover:text-white font-black tracking-widest uppercase rounded-xl shadow-xl transition-all disabled:opacity-20"
-            >
-              {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "GUARDAR CAMBIOS"}
-            </Button>
-          </DialogHeader>
+            <DialogHeader className="pt-2">
+              <Button
+                size="xl"
+                onClick={() => handleApply(false)}
+                disabled={isUpdating || !isFormValid}
+                className="w-full bg-white text-black hover:bg-blue-400 hover:text-white font-black tracking-widest uppercase rounded-xl shadow-xl transition-all disabled:opacity-20"
+              >
+                {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "GUARDAR CAMBIOS"}
+              </Button>
+            </DialogHeader>
+          </>
+          )}
         </div>
       </DialogContent>
     </Dialog>
