@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect } from "react";
 import { Loader2, ShieldCheck, CalendarDays, Plus } from "lucide-react";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AdminTabs } from "./components/AdminTabs";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { ClassGrid } from "@/components/ClassGrid";
@@ -371,35 +372,44 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="general" className="space-y-4 md:space-y-6 focus-visible:outline-none">
-            {/* Month Selector (Oculto en Producción) */}
-            {!isProduction && (
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 bg-zinc-900/40 p-6 rounded-2xl border border-white/5">
-                <div className="space-y-1">
-                  <h3 className="text-sm font-black uppercase tracking-widest text-emerald-500">Periodo de Gestión</h3>
-                  <p className="text-white/40 text-xs">Consulta y valida pagos de cualquier mes.</p>
+            {/* Month Selector */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4 mb-3 md:mb-6 bg-zinc-900/40 p-3 md:p-5 rounded-2xl border border-white/5">
+                <div className="space-y-0 md:space-y-1">
+                  <h3 className="text-[11px] md:text-sm font-black uppercase tracking-widest text-emerald-500 leading-none mb-0.5 md:mb-0">Periodo de Gestión</h3>
+                  <p className="text-white/40 text-[9px] md:text-xs leading-tight">Consulta y valida pagos de cualquier mes.</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <select
+                <div className="flex items-center w-full md:w-auto mt-0.5 md:mt-0">
+                  <Select
                     value={selectedMonth}
-                    onChange={(e) => {
-                      const newMonth = e.target.value;
+                    onValueChange={(newMonth) => {
                       setSelectedMonth(newMonth);
                       loadDashboardData(false, newMonth);
                     }}
-                    className="bg-black/60 border border-white/10 text-white font-black uppercase tracking-widest p-3 rounded-xl outline-none focus:border-emerald-500/50 transition-all cursor-pointer min-w-[220px]"
                   >
-                    {Array.from({ length: 24 }).map((_, i) => {
-                      const d = new Date();
-                      d.setDate(1);
-                      d.setMonth(d.getMonth() - 12 + i);
-                      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                      const label = d.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-                      return <option key={val} value={val} className="bg-zinc-900 border-none">{label}</option>;
-                    })}
-                  </select>
+                    <SelectTrigger className="w-full md:w-auto min-w-[200px] md:min-w-[220px] h-9 md:h-11 px-3 md:px-4 text-[10px] md:text-sm uppercase tracking-widest font-black">
+                      {(() => {
+                        const [y, m] = selectedMonth.split('-').map(Number);
+                        const d = new Date(y, m - 1, 2);
+                        return new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(d);
+                      })()}
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 24 }).map((_, i) => {
+                        const d = new Date();
+                        d.setDate(1);
+                        d.setMonth(d.getMonth() - 12 + i);
+                        const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                        const label = d.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+                        return (
+                          <SelectItem key={val} value={val} className="uppercase tracking-widest text-xs font-black">
+                            {label}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            )}
 
             <DashboardStats
               totalStudents={totalStudents}
