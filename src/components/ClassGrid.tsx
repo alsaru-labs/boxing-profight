@@ -130,7 +130,12 @@ export function ClassGrid({
 
                                             const today = new Date();
                                             const dayOfMonth = today.getDate();
-                                            const isGracePeriod = dayOfMonth >= 1 && dayOfMonth <= 10;
+                                            const month = today.getMonth();
+                                            const year = today.getFullYear();
+
+                                            // General rule: day 5. Exception May 2026: day 12.
+                                            const graceLimit = (year === 2026 && month === 4) ? 12 : 5;
+                                            const isGracePeriod = dayOfMonth >= 1 && dayOfMonth <= graceLimit;
                                             const canBook = isGracePeriod || profileInfo?.is_paid;
 
                                             return (
