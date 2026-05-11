@@ -232,7 +232,7 @@ export default function NotificationPanel() {
                                                         key={n.$id}
                                                         onClick={() => handleMarkAsRead(n.$id)}
                                                         className={`p-4 rounded-xl transition-all border group cursor-pointer ${isRead
-                                                            ? "bg-white/5 border-white/5 opacity-40 grayscale"
+                                                            ? "bg-white/5 border-transparent opacity-75"
                                                             : "bg-white/10 border-white/10 hover:bg-white/15 hover:scale-[1.01] shadow-lg"
                                                             }`}
                                                     >
