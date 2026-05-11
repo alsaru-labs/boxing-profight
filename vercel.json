@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/generate-classes",
       "schedule": "0 23 * * 5"
+    },
+    {
+      "path": "/api/cron/sparring-reminder",
+      "schedule": "0 6 * * 3"
     }
   ]
 }
