@@ -18,11 +18,11 @@ interface Notification {
 }
 
 export default function NotificationPanel() {
-    const { 
-        user, 
+    const {
+        user,
         profile,
-        loading: authLoading, 
-        announcements, 
+        loading: authLoading,
+        announcements,
         readNotifications,
         unreadNotificationsCount: unreadCount,
         refreshGlobalData
@@ -67,12 +67,12 @@ export default function NotificationPanel() {
         try {
             const dateStr = n.$createdAt || n.createdAt;
             if (!dateStr) return true; // Si no hay fecha, no ocultamos (nuevo RT)
-            
+
             const createdDate = new Date(dateStr);
             if (isNaN(createdDate.getTime())) return true; // Si es inválida, mostrar
 
             const cutoffDate = new Date();
-            cutoffDate.setHours(cutoffDate.getHours() - (5 * 24)); // 5 días
+            cutoffDate.setHours(cutoffDate.getHours() - (7 * 24)); // 7 días
             return createdDate > cutoffDate;
         } catch (e) {
             return true; // En caso de duda, mostrar
@@ -137,7 +137,8 @@ export default function NotificationPanel() {
                     </span>
                 )}
             </button>
-            {/* Modal / Panel - Rendered via Portal to escape Navbar containment */}
+
+            {/* Modal / Panel - Rendered via Portal to escape Navbar containment */}
             {typeof document !== 'undefined' && createPortal(
                 <AnimatePresence>
                     {isOpen && (
@@ -162,7 +163,7 @@ export default function NotificationPanel() {
                                         <div className="flex flex-col">
                                             <h3 className="font-bold text-lg text-white">{LITERALS.DASHBOARD.ANNOUNCEMENTS.PANEL_TITLE}</h3>
                                             {optimisticUnreadCount > 0 && (
-                                                <button 
+                                                <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         handleMarkAllAsRead();
@@ -221,17 +222,17 @@ export default function NotificationPanel() {
                                             visibleNotifications.map((n: any) => {
                                                 const isRead = allReadIds.includes(n.$id);
                                                 const typeLabel = n.type === 'urgent' ? 'Importante' : (n.type || 'Información');
-                                                const typeColor = n.type === 'urgent' ? 'text-red-500' : 
-                                                                n.type === 'warning' ? 'text-amber-400' : 
-                                                                n.type === 'success' ? 'text-emerald-400' : 
-                                                                'text-blue-400';
+                                                const typeColor = n.type === 'urgent' ? 'text-red-500' :
+                                                    n.type === 'warning' ? 'text-amber-400' :
+                                                        n.type === 'success' ? 'text-emerald-400' :
+                                                            'text-blue-400';
 
                                                 return (
                                                     <div
                                                         key={n.$id}
                                                         onClick={() => handleMarkAsRead(n.$id)}
                                                         className={`p-4 rounded-xl transition-all border group cursor-pointer ${isRead
-                                                            ? "bg-white/5 border-white/5 opacity-40 grayscale"
+                                                            ? "bg-white/5 border-transparent opacity-75"
                                                             : "bg-white/10 border-white/10 hover:bg-white/15 hover:scale-[1.01] shadow-lg"
                                                             }`}
                                                     >
@@ -276,7 +277,7 @@ export default function NotificationPanel() {
                         </>
                     )}
                 </AnimatePresence>
-            , document.body)}
+                , document.body)}
         </div>
     );
 }
