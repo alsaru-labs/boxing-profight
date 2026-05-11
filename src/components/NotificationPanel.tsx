@@ -71,9 +71,9 @@ export default function NotificationPanel() {
             const createdDate = new Date(dateStr);
             if (isNaN(createdDate.getTime())) return true; // Si es inválida, mostrar
 
-            const fortyEightHoursAgo = new Date();
-            fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
-            return createdDate > fortyEightHoursAgo;
+            const cutoffDate = new Date();
+            cutoffDate.setHours(cutoffDate.getHours() - (5 * 24)); // 5 días
+            return createdDate > cutoffDate;
         } catch (e) {
             return true; // En caso de duda, mostrar
         }
