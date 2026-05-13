@@ -130,8 +130,8 @@ export default function AccountingPage() {
                 {/* Header Section */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-2 mb-4">
                     <div>
-                        <h1 className="text-2xl font-black tracking-tighter uppercase italic">{LITERALS.DASHBOARD.ACCOUNTING.TITLE}</h1>
-                        <p className="text-white/40 text-xs mt-1 font-medium">{LITERALS.DASHBOARD.ACCOUNTING.SUBTITLE}</p>
+                        <h1 className="text-base md:text-lg font-black uppercase tracking-widest text-white leading-none mb-1 italic">{LITERALS.DASHBOARD.ACCOUNTING.TITLE}</h1>
+                        <p className="text-white/60 text-sm font-medium leading-tight mt-1 md:mt-0.5">{LITERALS.DASHBOARD.ACCOUNTING.SUBTITLE}</p>
                     </div>
                 </div>
 

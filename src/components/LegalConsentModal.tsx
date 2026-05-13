@@ -100,22 +100,21 @@ export default function LegalConsentModal({ profileId }: LegalConsentModalProps)
               </label>
             </div>
 
-            <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4">
-              <button
-                onClick={handleAccept}
-                disabled={!accepted || loading}
-                className="w-full h-14 bg-white text-black font-black uppercase tracking-widest text-sm hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30 disabled:hover:scale-100 transition-all flex items-center justify-center gap-2 rounded-lg"
-              >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Aceptar y Entrar"}
-              </button>
-              
+            <div className="flex flex-row gap-3">
               <button
                 onClick={handleLogout}
                 disabled={loading}
-                className="w-full h-14 border border-white/10 text-white/50 font-black uppercase tracking-widest text-sm hover:bg-white/5 hover:text-white transition-all flex items-center justify-center gap-2 group rounded-lg"
+                className="flex-1 h-16 md:h-14 border border-white/10 text-white/50 font-black uppercase tracking-widest text-[10px] hover:bg-white/5 hover:text-white transition-all flex items-center justify-center gap-2 group rounded-xl"
               >
-                <LogOut className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                No acepto
+                <LogOut className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                Salir
+              </button>
+              <button
+                onClick={handleAccept}
+                disabled={!accepted || loading}
+                className="flex-1 h-16 md:h-14 bg-white text-black font-black uppercase tracking-widest text-[10px] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30 disabled:hover:scale-100 transition-all flex items-center justify-center gap-2 rounded-xl shadow-xl"
+              >
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "ACEPTAR"}
               </button>
             </div>
             

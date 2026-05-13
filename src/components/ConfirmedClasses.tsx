@@ -87,11 +87,11 @@ export default function ConfirmedClasses({
                                                     {cls.name.toUpperCase()} • CONFIRMADA
                                                 </Badge>
                                                 <div className="space-y-1 pl-2">
-                                                    <p className="text-white font-black text-xl md:text-3xl tracking-tighter leading-none">
-                                                        {cls.time}
+                                                    <p className="text-white/60 font-black text-[9px] md:text-[10px] uppercase tracking-widest leading-none mb-1">
+                                                        {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric' })}
                                                     </p>
-                                                    <p className="text-white/60 font-bold text-[10px] md:text-sm uppercase tracking-widest">
-                                                        {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                                                    <p className="text-white font-black text-xl md:text-3xl tracking-tighter leading-none">
+                                                        {cls.time.split('-')[0].trim()}
                                                     </p>
                                                 </div>
                                                 <div className="flex items-center gap-2 text-white/40 text-[11px] md:text-xs font-medium pt-1">
@@ -102,7 +102,7 @@ export default function ConfirmedClasses({
                                                 <Button
                                                     onClick={() => handleCancelBooking(cls)}
                                                     disabled={isProcessingBooking === cls.$id}
-                                                    className="w-full sm:w-auto bg-red-500/5 text-red-400 hover:text-red-500 hover:bg-red-500/10 border border-red-500/10 hover:border-red-500/20 px-8 h-10 md:h-12 font-bold transition-all rounded-xl shadow-lg shadow-red-500/5"
+                                                    className="w-full sm:w-auto bg-red-500/5 text-red-400 hover:text-red-500 hover:bg-red-500/10 border border-red-500/10 hover:border-red-500/20 px-8 h-14 md:h-12 font-bold transition-all rounded-xl shadow-lg shadow-red-500/5"
                                                 >
                                                     {isProcessingBooking === cls.$id ? <Loader2 className="w-5 h-5 animate-spin" /> : "Anular Reserva"}
                                                 </Button>

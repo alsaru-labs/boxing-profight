@@ -163,11 +163,11 @@ export function ClassGrid({
                                                                     <Badge className="bg-rose-500/10 text-rose-500 font-black text-[8px] md:text-[9px] border-0 rounded-sm animate-pulse">COMPLETO</Badge>
                                                                 )}
                                                             </div>
+                                                            <p className="text-white/60 font-black text-[9px] md:text-[10px] uppercase tracking-widest leading-none mb-1">
+                                                                {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric' })}
+                                                            </p>
                                                             <p className="text-white font-black text-xl md:text-3xl tracking-tighter leading-none">
                                                                 {cls.time.split('-')[0].trim()}
-                                                            </p>
-                                                            <p className="text-white/40 font-bold text-[9px] md:text-xs uppercase tracking-widest leading-none">
-                                                                {LITERALS.CLASS_CARD.START_TIME}
                                                             </p>
                                                         </div>
 
@@ -177,10 +177,10 @@ export function ClassGrid({
                                                                     <span className="text-white font-black text-sm md:text-lg tracking-tight leading-tight">{cls.coach}</span>
                                                                 </div>
                                                                 <div className="text-right">
-                                                                    <span className={`text-[9px] md:text-xs font-black uppercase tracking-widest ${isFull ? 'text-rose-500' : 'text-emerald-400'}`}>
+                                                                    <span className={`text-[11px] md:text-xs font-black uppercase tracking-widest ${isFull ? 'text-rose-500' : 'text-emerald-400'}`}>
                                                                         {isFull ? LITERALS.CLASS_CARD.FULL : LITERALS.CLASS_CARD.FREE_SPACES(cls.capacity - cls.registeredCount)}
                                                                     </span>
-                                                                    <div className="text-[9px] text-sky-400 font-bold">{LITERALS.CLASS_CARD.TOTAL_CAPACITY(cls.capacity)}</div>
+                                                                    <div className="text-[10px] md:text-[11px] text-sky-400 font-bold">{LITERALS.CLASS_CARD.TOTAL_CAPACITY(cls.capacity)}</div>
                                                                 </div>
                                                             </div>
                                                             
@@ -231,7 +231,7 @@ export function ClassGrid({
                                                                 onClick={() => onBookClass?.(cls)}
                                                                 disabled={isFull || !!isProcessingBooking || !canBook}
                                                                 className={`
-                                                                    w-full sm:w-auto font-black h-10 md:h-14 px-8 text-[10px] md:text-xs uppercase tracking-[0.2em] rounded-xl transition-all duration-300
+                                                                    w-full sm:w-auto font-black h-14 md:h-14 px-8 text-[10px] md:text-xs uppercase tracking-[0.2em] rounded-xl transition-all duration-300
                                                                     ${isFull
                                                                         ? 'bg-zinc-900 text-zinc-600 border border-white/5 cursor-not-allowed'
                                                                         : !canBook
