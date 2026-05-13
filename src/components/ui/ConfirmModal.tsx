@@ -70,13 +70,12 @@ export function ConfirmModal({
             </DialogDescription>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-4 w-full pt-4">
+          <div className="flex flex-row gap-3 w-full pt-4">
             {showCancel && (
               <Button 
                 variant="ghost" 
-                size="xl"
                 onClick={() => onOpenChange(false)}
-                className="flex-1 bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white transition-all"
+                className="flex-1 h-16 bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-2xl font-bold uppercase tracking-widest text-[10px]"
                 disabled={isLoading}
               >
                 {cancelText}
@@ -88,8 +87,7 @@ export function ConfirmModal({
                   await onConfirm();
               }}
               disabled={isLoading}
-              size="xl"
-              className={`flex-1 shadow-xl transition-all duration-300 ${
+              className={`flex-1 h-16 shadow-xl transition-all duration-300 rounded-2xl font-black uppercase tracking-widest text-[10px] ${
                 variant === 'danger' ? 'bg-red-500 hover:bg-red-600 text-white' : 
                 variant === 'success' ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 
                 'bg-white text-black hover:bg-neutral-200 shadow-white/5'
@@ -98,7 +96,6 @@ export function ConfirmModal({
               {isLoading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                  <span>Procesando...</span>
                 </>
               ) : (
                 <span>{confirmText}</span>

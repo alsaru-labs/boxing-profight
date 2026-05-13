@@ -102,7 +102,7 @@ export default function ConfirmedClasses({
                                                 <Button
                                                     onClick={() => handleCancelBooking(cls)}
                                                     disabled={isProcessingBooking === cls.$id}
-                                                    className="w-full sm:w-auto bg-red-500/5 text-red-400 hover:text-red-500 hover:bg-red-500/10 border border-red-500/10 hover:border-red-500/20 px-8 h-10 md:h-12 font-bold transition-all rounded-xl shadow-lg shadow-red-500/5"
+                                                    className="w-full sm:w-auto bg-red-500/5 text-red-400 hover:text-red-500 hover:bg-red-500/10 border border-red-500/10 hover:border-red-500/20 px-8 h-14 md:h-12 font-bold transition-all rounded-xl shadow-lg shadow-red-500/5"
                                                 >
                                                     {isProcessingBooking === cls.$id ? <Loader2 className="w-5 h-5 animate-spin" /> : "Anular Reserva"}
                                                 </Button>

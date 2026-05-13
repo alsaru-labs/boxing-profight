@@ -234,14 +234,21 @@ export function NewStudentModal({ isOpen, onOpenChange, isUpdating, onSave }: Ne
                 </div>
               </div>
 
-              <div className="pt-2">
+              <div className="flex flex-row gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => onOpenChange(false)}
+                  className="flex-1 h-16 md:h-14 bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl font-bold uppercase tracking-widest text-[10px]"
+                >
+                  Cancelar
+                </Button>
                 <Button 
                   type="submit" 
-                  size="xl"
                   disabled={isUpdating}
-                  className="w-full bg-white text-black hover:bg-emerald-500 hover:text-white font-black tracking-widest uppercase rounded-xl shadow-xl transition-all disabled:opacity-20"
+                  className="flex-1 h-16 md:h-14 bg-white text-black hover:bg-emerald-500 hover:text-white font-black tracking-widest uppercase rounded-xl shadow-xl transition-all disabled:opacity-20 text-[10px]"
                 >
-                  {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "REGISTRAR ALUMNO"}
+                  {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : "REGISTRAR"}
                 </Button>
               </div>
             </form>

@@ -185,18 +185,25 @@ export function ChangePasswordModal({ isOpen, onOpenChange, onSubmit, isUpdating
             )}
           </AnimatePresence>
 
-          <div className="pt-2">
+          <div className="flex flex-row gap-3 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              className="flex-1 h-16 md:h-14 bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl font-bold uppercase tracking-widest text-[10px]"
+            >
+              Cancelar
+            </Button>
             <Button 
               type="submit"
-              size="xl"
               disabled={isUpdating || !allMet || !isMatching || !oldPassword}
-              className={`w-full tracking-widest uppercase transition-all shadow-xl ${
+              className={`flex-1 h-16 md:h-14 font-black text-[10px] tracking-widest uppercase transition-all rounded-xl shadow-xl ${
                 allMet && isMatching && oldPassword
                 ? "bg-white text-black hover:bg-emerald-500 hover:text-white" 
                 : "bg-white/5 text-white/20 border-white/5 cursor-not-allowed opacity-50"
               }`}
             >
-              {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : "GUARDAR NUEVA CONTRASEÑA"}
+              {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : "GUARDAR"}
             </Button>
           </div>
         </form>

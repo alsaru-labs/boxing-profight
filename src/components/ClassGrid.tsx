@@ -231,7 +231,7 @@ export function ClassGrid({
                                                                 onClick={() => onBookClass?.(cls)}
                                                                 disabled={isFull || !!isProcessingBooking || !canBook}
                                                                 className={`
-                                                                    w-full sm:w-auto font-black h-10 md:h-14 px-8 text-[10px] md:text-xs uppercase tracking-[0.2em] rounded-xl transition-all duration-300
+                                                                    w-full sm:w-auto font-black h-14 md:h-14 px-8 text-[10px] md:text-xs uppercase tracking-[0.2em] rounded-xl transition-all duration-300
                                                                     ${isFull
                                                                         ? 'bg-zinc-900 text-zinc-600 border border-white/5 cursor-not-allowed'
                                                                         : !canBook
