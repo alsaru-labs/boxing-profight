@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/generate-classes",
-      "schedule": "0 23 * * 5"
+      "schedule": "0 19 * * 5"
     },
     {
       "path": "/api/cron/sparring-reminder",

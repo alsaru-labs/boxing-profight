@@ -254,7 +254,7 @@ export default function NotificationPanel() {
                                                                 <h4 className={`font-bold leading-tight mb-1 text-white text-base ${isRead ? 'text-white/70' : 'text-white'}`}>
                                                                     {n.title}
                                                                 </h4>
-                                                                <p className="text-sm text-white/50 leading-relaxed font-light">
+                                                                <p className="text-sm text-white/50 leading-relaxed font-light whitespace-pre-line">
                                                                     {n.content}
                                                                 </p>
                                                             </div>

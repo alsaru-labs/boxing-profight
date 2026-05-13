@@ -193,7 +193,7 @@ export function AnnouncementManager({ announcements, setAnnouncements, showAlert
                       </span>
                     </div>
                     <h4 className="font-bold text-white truncate">{a.title}</h4>
-                    <p className="text-sm text-white/50 line-clamp-2">{a.content}</p>
+                    <p className="text-sm text-white/50 line-clamp-2 whitespace-pre-line">{a.content}</p>
                   </div>
                   <Button
                     variant="ghost"
