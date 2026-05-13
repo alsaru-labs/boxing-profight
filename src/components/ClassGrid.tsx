@@ -163,11 +163,11 @@ export function ClassGrid({
                                                                     <Badge className="bg-rose-500/10 text-rose-500 font-black text-[8px] md:text-[9px] border-0 rounded-sm animate-pulse">COMPLETO</Badge>
                                                                 )}
                                                             </div>
+                                                            <p className="text-white/60 font-black text-[9px] md:text-[10px] uppercase tracking-widest leading-none mb-1">
+                                                                {new Date(cls.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric' })}
+                                                            </p>
                                                             <p className="text-white font-black text-xl md:text-3xl tracking-tighter leading-none">
                                                                 {cls.time.split('-')[0].trim()}
-                                                            </p>
-                                                            <p className="text-white/40 font-bold text-[9px] md:text-xs uppercase tracking-widest leading-none">
-                                                                {LITERALS.CLASS_CARD.START_TIME}
                                                             </p>
                                                         </div>
 
