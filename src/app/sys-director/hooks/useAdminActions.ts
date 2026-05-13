@@ -17,7 +17,6 @@ interface UseAdminActionsProps {
   classesList: any[];
   setClassesList: (val: any) => void;
   setMonthlyRevenue: (val: any) => void;
-  setUnpaidCount: (val: any) => void;
   setTotalStudents: (val: any) => void;
   showAlert: (title: string, description: string, variant?: any) => void;
   showConfirm: (title: string, description: string, onConfirm: () => Promise<any>, variant?: any) => void;
@@ -34,6 +33,7 @@ export function useAdminActions({
   showAlert,
   showConfirm,
   selectedMonth,
+  paidStudentIds,
   registerProfileOptimistically,
   deactivateProfileOptimistically,
   updatePaymentOptimistically
@@ -67,7 +67,7 @@ export function useAdminActions({
     }
   };
 
-  const handleSaveProfile = async (selectedStudent: any, editName: string, editLastName: string, editEmail: string, editPhone: string, editLevel: string, forceResend?: boolean) => {
+  const handleSaveProfile = async (selectedStudent: any, editName: string, editLastName: string, editEmail: string, editPhone: string, editLevel: string, forceResend?: boolean, isVip?: boolean) => {
     if (isUpdating) return { success: false, error: "Operación en curso..." };
 
     try {
@@ -78,14 +78,24 @@ export function useAdminActions({
         email: editEmail.toLowerCase(),
         phone: editPhone,
         level: editLevel,
-        forceResend: forceResend
+        forceResend: forceResend,
+        is_vip: isVip
       });
 
       if (result.success) {
         // Prevención de Stale Closures usando el setter funcional
-        setStudentsList((prev: any[]) => prev.map(s =>
-          s.$id === selectedStudent.$id ? { ...s, name: editName, last_name: editLastName, email: editEmail.toLowerCase(), phone: editPhone, level: editLevel } : s
-        ));
+        setStudentsList((prev: any[]) => {
+          const oldS = prev.find(s => s.$id === selectedStudent.$id);
+          const wasVip = !!oldS?.is_vip;
+
+          return prev.map(s => {
+            if (s.$id !== selectedStudent.$id) return s;
+            let newMethod = s.payment_method;
+            if (isVip && !wasVip) newMethod = "VIP";
+            if (!isVip && wasVip && newMethod === "VIP") newMethod = null;
+            return { ...s, name: editName, last_name: editLastName, email: editEmail.toLowerCase(), phone: editPhone, level: editLevel, is_vip: isVip, payment_method: newMethod };
+          });
+        });
       }
       return result;
     } catch (error) {

@@ -2,7 +2,7 @@ import "server-only";
 import { Client, Account, Databases, Users, Functions, Query } from "node-appwrite";
 import { cookies } from "next/headers";
 import { cache } from "react";
-import { PROJECT_ID, ENDPOINT, DATABASE_ID, COLLECTION_PAYMENTS } from "@/lib/appwrite";
+import { PROJECT_ID, ENDPOINT, DATABASE_ID, COLLECTION_PAYMENTS, COLLECTION_PROFILES } from "@/lib/appwrite";
 
 /**
  * Ayudante para variables de SERVIDOR (no públicas).
@@ -111,6 +111,9 @@ export const checkPaymentStatus = cache(async (userId: string, currentMonth: str
     const { databases } = await createAdminClient();
     
     try {
+        const profile = await databases.getDocument(DATABASE_ID, COLLECTION_PROFILES, userId).catch(() => null);
+        if (profile && profile.is_vip) return true;
+
         const response = await databases.listDocuments(
             DATABASE_ID,
             COLLECTION_PAYMENTS,
