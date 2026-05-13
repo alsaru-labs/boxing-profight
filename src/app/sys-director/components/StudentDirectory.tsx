@@ -126,9 +126,11 @@ export function StudentDirectory({
           if (typeof valB === 'string') valB = valB.toLowerCase();
         }
 
-        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
+        if (sortConfig.direction === 'asc') {
+          return String(valA).localeCompare(String(valB), 'es', { sensitivity: 'base' });
+        } else {
+          return String(valB).localeCompare(String(valA), 'es', { sensitivity: 'base' });
+        }
       });
     }
 
