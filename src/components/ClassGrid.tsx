@@ -177,10 +177,10 @@ export function ClassGrid({
                                                                     <span className="text-white font-black text-sm md:text-lg tracking-tight leading-tight">{cls.coach}</span>
                                                                 </div>
                                                                 <div className="text-right">
-                                                                    <span className={`text-[9px] md:text-xs font-black uppercase tracking-widest ${isFull ? 'text-rose-500' : 'text-emerald-400'}`}>
+                                                                    <span className={`text-[11px] md:text-xs font-black uppercase tracking-widest ${isFull ? 'text-rose-500' : 'text-emerald-400'}`}>
                                                                         {isFull ? LITERALS.CLASS_CARD.FULL : LITERALS.CLASS_CARD.FREE_SPACES(cls.capacity - cls.registeredCount)}
                                                                     </span>
-                                                                    <div className="text-[9px] text-sky-400 font-bold">{LITERALS.CLASS_CARD.TOTAL_CAPACITY(cls.capacity)}</div>
+                                                                    <div className="text-[10px] md:text-[11px] text-sky-400 font-bold">{LITERALS.CLASS_CARD.TOTAL_CAPACITY(cls.capacity)}</div>
                                                                 </div>
                                                             </div>
                                                             
