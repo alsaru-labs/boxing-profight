@@ -134,7 +134,7 @@ export function StudentDesktopRow({
               <DropdownMenuItem
                 className="group flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-white/70 focus:bg-white/10 focus:text-white cursor-pointer transition-colors"
                 onClick={() => handleActionClick(student)}
-                disabled={isUpdating}
+                disabled={isUpdating || !!student.is_vip}
               >
                 {student.is_paid ? (
                   <><CalendarX className="w-4 h-4 text-orange-400 group-hover:scale-110 transition-transform" /> <span className="text-orange-400">Pago Pendiente</span></>

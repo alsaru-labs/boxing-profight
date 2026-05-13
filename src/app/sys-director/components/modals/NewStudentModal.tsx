@@ -16,12 +16,12 @@ interface NewStudentModalProps {
 
 export function NewStudentModal({ isOpen, onOpenChange, isUpdating, onSave }: NewStudentModalProps) {
   const [invitationUrl, setInvitationUrl] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", lastName: "", email: "", phone: "", level: "Iniciación" });
+  const [form, setForm] = useState({ name: "", lastName: "", email: "", phone: "", level: "Iniciación", is_vip: false });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (isOpen) {
-      setForm({ name: "", lastName: "", email: "", phone: "", level: "Iniciación" });
+      setForm({ name: "", lastName: "", email: "", phone: "", level: "Iniciación", is_vip: false });
       setErrors({});
       setInvitationUrl(null);
     }
@@ -211,6 +211,26 @@ export function NewStudentModal({ isOpen, onOpenChange, isUpdating, onSave }: Ne
                       </Button>
                     ))}
                   </div>
+                </div>
+
+                <div className="space-y-3 pt-4 border-t border-white/10">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Estado VIP (Sin Mensualidad)</Label>
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, is_vip: !form.is_vip })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${form.is_vip ? 'bg-emerald-500' : 'bg-white/10'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.is_vip ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                  {form.is_vip && (
+                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                      <p className="text-emerald-400 text-[9px] font-medium leading-relaxed italic">
+                        Los alumnos VIP siempre aparecen como "Pagados" y no están restringidos por la fecha de límite de pago de mensualidades. Tienen acceso ilimitado a las clases.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 

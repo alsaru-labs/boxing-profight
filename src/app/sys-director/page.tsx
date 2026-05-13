@@ -57,7 +57,6 @@ export default function AdminDashboard() {
     monthlyRevenue,
     setMonthlyRevenue,
     unpaidCount,
-    setUnpaidCount,
     selectedMonth,
     setSelectedMonth,
     loadDashboardData,
@@ -131,7 +130,7 @@ export default function AdminDashboard() {
     handlePermanentDeleteStudent
   } = useAdminActions({
     studentsList, setStudentsList, classesList, setClassesList,
-    setMonthlyRevenue, setUnpaidCount, setTotalStudents,
+    setMonthlyRevenue, setTotalStudents,
     showAlert, showConfirm, selectedMonth, paidStudentIds,
     registerProfileOptimistically, deactivateProfileOptimistically,
     updatePaymentOptimistically
@@ -197,7 +196,7 @@ export default function AdminDashboard() {
   };
 
   const handleSaveProfileUI = async (...args: any[]) => {
-    const res = await handleSaveProfile(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+    const res = await handleSaveProfile(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
     if (res.success) {
       import("sonner").then(({ toast }) => toast.success("Perfil Actualizado", { description: "Los cambios se han guardado correctamente." }));
     } else {

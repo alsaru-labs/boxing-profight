@@ -145,8 +145,14 @@ export async function getAdminDashboardData(month?: string) {
 
         const totalRevenue = monthlyRevenueDoc ? (monthlyRevenueDoc.amount || 0) : 0;
         const totalStudents = allProfiles.length;
-        const paidStudentIds = Array.from(new Set(currentMonthPayments.map((p: any) => p.student_id)));
-        const unpaidCount = Math.max(0, totalStudents - paidStudentIds.length);
+        const paidStudentIds = Array.from(new Set([
+            ...currentMonthPayments.map((p: any) => p.student_id)
+        ]));
+        const paidOrVipIds = Array.from(new Set([
+            ...paidStudentIds,
+            ...allProfiles.filter((p: any) => p.is_vip).map((p: any) => p.$id)
+        ]));
+        const unpaidCount = Math.max(0, totalStudents - paidOrVipIds.length);
 
         const filteredClasses = availableClasses.filter((c: any) => c.date >= sevenDaysAgo.substring(0, 10) && c.date <= thirtyDaysAhead.substring(0, 10));
 
@@ -177,7 +183,10 @@ export async function getAdminStudentsList(month?: string) {
             getMonthlyPaymentsCached(currentMonthStr)
         ]);
 
-        const paidStudentsSet = new Set(monthlyPayments.map((p: any) => p.student_id));
+        const paidStudentsSet = new Set([
+            ...monthlyPayments.map((p: any) => p.student_id),
+            ...allProfiles.filter((p: any) => p.is_vip).map((p: any) => p.$id)
+        ]);
         const paymentMethodsMap = new Map(monthlyPayments.map((p: any) => [p.student_id, p.method]));
 
         const students = allProfiles
@@ -185,7 +194,7 @@ export async function getAdminStudentsList(month?: string) {
             .map((p: any) => ({
                 ...p,
                 is_paid: paidStudentsSet.has(p.$id),
-                payment_method: paymentMethodsMap.get(p.$id) || null
+                payment_method: p.is_vip ? "VIP" : (paymentMethodsMap.get(p.$id) || null)
             }));
 
         return { success: true, students: JSON.parse(JSON.stringify(students)) };
@@ -270,12 +279,13 @@ export async function getPlatformOmniData(userId: string, monthOverride?: string
 
             const hydratedProfiles = (allProfiles || []).map((p: any) => {
                 const payment = paymentsMap.get(p.$id);
+                const isVip = !!p.is_vip;
                 return {
                     ...p,
-                    is_paid: !!payment,
-                    payment_method: payment ? payment.method : null,
-                    payment_amount: payment ? payment.amount : null,
-                    payment_id: payment ? payment.$id : null
+                    is_paid: isVip || !!payment,
+                    payment_method: isVip ? "VIP" : (payment ? payment.method : null),
+                    payment_amount: isVip ? 0 : (payment ? payment.amount : null),
+                    payment_id: isVip ? "vip_access" : (payment ? payment.$id : null)
                 };
             });
 
@@ -287,7 +297,7 @@ export async function getPlatformOmniData(userId: string, monthOverride?: string
                     totalStudents: (allProfiles || []).length,
                     unpaidCount: Math.max(0, (allProfiles || []).length - hydratedProfiles.filter((p: any) => p.is_paid).length),
                     totalRevenue: monthlyRevenueDoc ? (monthlyRevenueDoc.amount || 0) : 0,
-                    paidStudentIds: Array.from(paymentsMap.keys())
+                    paidStudentIds: currentMonthPayments ? currentMonthPayments.map((p: any) => p.student_id) : []
                 },
                 revenueHistory: fullRevenueHistory.documents || []
             };
@@ -296,7 +306,7 @@ export async function getPlatformOmniData(userId: string, monthOverride?: string
         return {
             success: true,
             data: JSON.parse(JSON.stringify({
-                profile: { ...profile, is_paid: (selfPayments.total || 0) > 0 },
+                profile: { ...profile, is_paid: !!profile.is_vip || (selfPayments.total || 0) > 0 },
                 isAdmin,
                 classes,
                 userBookings: bookings,
@@ -400,7 +410,8 @@ export async function handleCreateOrReactivateStudent(form: any) {
                     name: form.name,
                     last_name: form.lastName,
                     phone: form.phone || profile.phone,
-                    level: form.level || profile.level
+                    level: form.level || profile.level,
+                    is_vip: form.is_vip !== undefined ? form.is_vip : profile.is_vip
                 }
             );
             try { await users.updateStatus(profile.user_id, true); } catch (e) { }
@@ -415,9 +426,9 @@ export async function handleCreateOrReactivateStudent(form: any) {
 
             const enriched = {
                 ...updated,
-                is_paid: payment.total > 0,
-                payment_method: payment.total > 0 ? (payment.documents[0] as any).method : null,
-                payment_amount: payment.total > 0 ? (payment.documents[0] as any).amount : null
+                is_paid: !!updated.is_vip || payment.total > 0,
+                payment_method: updated.is_vip ? "VIP" : (payment.total > 0 ? (payment.documents[0] as any).method : null),
+                payment_amount: updated.is_vip ? 0 : (payment.total > 0 ? (payment.documents[0] as any).amount : null)
             };
 
             revalidatePath("/sys-director", "layout");
@@ -440,6 +451,7 @@ export async function handleCreateOrReactivateStudent(form: any) {
                 role: "alumno",
                 is_active: true,
                 level: form.level,
+                is_vip: !!form.is_vip,
                 status: "Activo"
             }
         );
@@ -640,6 +652,7 @@ export async function updateStudentProfileAction(profileId: string, data: any) {
         if (data.level !== undefined) payload.level = data.level;
         if (data.is_active !== undefined) payload.is_active = data.is_active;
         if (data.status !== undefined) payload.status = data.status;
+        if (data.is_vip !== undefined) payload.is_vip = data.is_vip;
 
         // Si no hay nada que actualizar, retornamos éxito silencioso
         if (Object.keys(payload).length === 0) return { success: true };
@@ -1478,7 +1491,7 @@ export const getActiveProfilesCached = unstable_cache(
                 sdk.Query.equal("is_active", true),
                 sdk.Query.equal("role", "alumno"),
                 sdk.Query.notEqual("status", "Baja"),
-                sdk.Query.select(["$id", "user_id", "name", "last_name", "email", "phone", "status", "role", "level"])
+                sdk.Query.select(["$id", "user_id", "name", "last_name", "email", "phone", "status", "role", "level", "is_vip"])
             ]
         );
         return res.documents;

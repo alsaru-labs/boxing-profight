@@ -56,7 +56,7 @@ export function StudentDirectory({
 
   const [filterPayment, setFilterPayment] = useState("Todos");
   const [filterMethod, setFilterMethod] = useState("Todos");
-  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
   const [visibleCount, setVisibleCount] = useState(30);
 
   // Sorting Handler
@@ -68,11 +68,12 @@ export function StudentDirectory({
     setSortConfig({ key, direction });
   };
 
-  // 0. Pre-processing: Inyectar is_paid desde el Set centralizado (Source of Truth)
+  // 0. Pre-processing: Inyectar is_paid desde el Set centralizado (Source of Truth) o si es VIP
   const studentsWithStatus = useMemo(() => {
     return studentsList.map(s => ({
       ...s,
-      is_paid: paidStudentIds.has(s.$id)
+      is_paid: paidStudentIds.has(s.$id) || !!s.is_vip,
+      payment_method: s.is_vip ? "VIP" : s.payment_method
     }));
   }, [studentsList, paidStudentIds]);
 
@@ -113,16 +114,23 @@ export function StudentDirectory({
     // 4. Sorting
     if (sortConfig) {
       result.sort((a, b) => {
-        let valA = a[sortConfig.key];
-        let valB = b[sortConfig.key];
+        let valA, valB;
+        
+        if (sortConfig.key === 'name') {
+          valA = `${a.name} ${a.last_name || ""}`.toLowerCase();
+          valB = `${b.name} ${b.last_name || ""}`.toLowerCase();
+        } else {
+          valA = a[sortConfig.key];
+          valB = b[sortConfig.key];
+          if (typeof valA === 'string') valA = valA.toLowerCase();
+          if (typeof valB === 'string') valB = valB.toLowerCase();
+        }
 
-        // Handle string comparison
-        if (typeof valA === 'string') valA = valA.toLowerCase();
-        if (typeof valB === 'string') valB = valB.toLowerCase();
-
-        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
+        if (sortConfig.direction === 'asc') {
+          return String(valA).localeCompare(String(valB), 'es', { sensitivity: 'base' });
+        } else {
+          return String(valB).localeCompare(String(valA), 'es', { sensitivity: 'base' });
+        }
       });
     }
 

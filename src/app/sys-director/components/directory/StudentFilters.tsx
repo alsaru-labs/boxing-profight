@@ -118,11 +118,11 @@ export function StudentFilters({
             setSearchTerm("");
             setFilterPayment("Todos");
             setFilterMethod("Todos");
-            setSortConfig(null);
+            setSortConfig({ key: 'name', direction: 'asc' });
             setVisibleCount(30);
           }}
           className={`h-10 text-red-400 hover:text-red-300 hover:bg-red-500/10 flex items-center transition-all duration-500 overflow-hidden ${
-            (searchTerm !== "" || filterPayment !== "Todos" || filterMethod !== "Todos" || sortConfig !== null)
+            (searchTerm !== "" || filterPayment !== "Todos" || filterMethod !== "Todos" || sortConfig?.key !== 'name' || sortConfig?.direction !== 'asc')
               ? "max-w-[180px] opacity-100 pointer-events-auto px-3 ml-1"
               : "max-w-0 opacity-0 pointer-events-none px-0 border-0 ml-0"
           }`}

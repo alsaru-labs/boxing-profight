@@ -16,7 +16,7 @@ interface EditStudentModalProps {
   onOpenChange: (open: boolean) => void;
   student: any;
   isUpdating: boolean;
-  onSave: (student: any, name: string, lastName: string, email: string, phone: string, level: string, forceResend?: boolean) => Promise<any>;
+  onSave: (student: any, name: string, lastName: string, email: string, phone: string, level: string, forceResend?: boolean, isVip?: boolean) => Promise<any>;
 }
 
 export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, onSave }: EditStudentModalProps) {
@@ -25,6 +25,7 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [level, setLevel] = useState("Iniciación");
+  const [isVip, setIsVip] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   
   const [isUnverified, setIsUnverified] = useState(false);
@@ -38,6 +39,7 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
       setEmail(student.email || "");
       setPhone(student.phone || "");
       setLevel(student.level || "Iniciación");
+      setIsVip(!!student.is_vip);
       setErrors({});
       setInvitationUrl(null);
       
@@ -68,7 +70,7 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
   const handleApply = async (forceResend: boolean = false) => {
     if (isUpdating || !isFormValid) return;
 
-    const result = await onSave(student, name, lastName, email, phone, level, forceResend);
+    const result = await onSave(student, name, lastName, email, phone, level, forceResend, isVip);
     if (result?.success) {
       if (result.token) {
         const url = `${window.location.origin}/set-password?token=${result.token}`;
@@ -261,6 +263,26 @@ export function EditStudentModal({ isOpen, onOpenChange, student, isUpdating, on
                   </Button>
                 ))}
               </div>
+            </div>
+
+            <div className="space-y-3 pt-4 border-t border-white/10">
+              <div className="flex items-center justify-between">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Estado VIP (Sin Mensualidad)</Label>
+                <button
+                  type="button"
+                  onClick={() => setIsVip(!isVip)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isVip ? 'bg-blue-500' : 'bg-white/10'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isVip ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+              {isVip && (
+                <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                  <p className="text-blue-400 text-[9px] font-medium leading-relaxed italic">
+                    Los alumnos VIP siempre aparecen como "Pagados" y no están restringidos por la fecha de límite de pago de mensualidades. Tienen acceso ilimitado a las clases.
+                  </p>
+                </div>
+              )}
             </div>
             </div>
 

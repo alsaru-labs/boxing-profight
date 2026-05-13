@@ -30,7 +30,6 @@ interface AdminContextType {
   setClassesList: React.Dispatch<React.SetStateAction<any[]>>;
   setAnnouncements: React.Dispatch<React.SetStateAction<any[]>>;
   setMonthlyRevenue: React.Dispatch<React.SetStateAction<number>>;
-  setUnpaidCount: React.Dispatch<React.SetStateAction<number>>;
   setTotalStudents: React.Dispatch<React.SetStateAction<number>>;
   setSelectedMonth: (month: string) => void;
   refreshAdminData: (silent?: boolean, month?: string) => Promise<void>;
@@ -68,7 +67,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [totalStudents, setTotalStudents] = useState<number>(0);
   const [monthlyRevenue, setMonthlyRevenue] = useState<number>(0);
-  const [unpaidCount, setUnpaidCount] = useState<number>(0);
 
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const d = new Date();
@@ -77,6 +75,18 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   
   const [paidStudentIds, setPaidStudentIds] = useState<Set<string>>(new Set());
   const paidStudentIdsRef = useRef<Set<string>>(new Set());
+
+  const unpaidCount = React.useMemo(() => {
+    let count = 0;
+    studentsList.forEach(s => {
+      if (s.status !== 'Baja' && s.is_active !== false) {
+        if (!paidStudentIds.has(s.$id) && !s.is_vip) {
+          count++;
+        }
+      }
+    });
+    return count;
+  }, [studentsList, paidStudentIds]);
 
   const selectedMonthRef = useRef(selectedMonth);
   const subscriptionRef = useRef<any>(null);
@@ -96,7 +106,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       setAnnouncements(adminOmniData.announcements || []); 
       setTotalStudents(adminOmniData.dashboard?.totalStudents || 0);
       setMonthlyRevenue(adminOmniData.dashboard?.totalRevenue || 0);
-      setUnpaidCount(adminOmniData.dashboard?.unpaidCount || 0);
       setRevenueRecords(adminOmniData.revenueHistory || []);
       
       setIsHydrated(true);
@@ -149,12 +158,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
           setClassesList(result.classes);
           setAnnouncements(result.announcements);
           setTotalStudents(result.totalStudents || 0);
-          setMonthlyRevenue(result.totalRevenue || 0); 
-          setUnpaidCount(result.unpaidCount || 0);
+          setMonthlyRevenue(result.totalRevenue || 0);
 
           setStudentsList(prev => {
             if(prev.length === 0) return prev;
-            return prev.map(s => ({ ...s, is_paid: paidSet.has(s.$id) }));
+            return prev.map(s => ({ ...s, is_paid: paidSet.has(s.$id) || !!s.is_vip }));
           });
         }
 
@@ -256,7 +264,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         setStudentsList(adminOmniData.studentsList || []);
         setTotalStudents(adminOmniData.dashboard?.totalStudents || 0);
         setMonthlyRevenue(adminOmniData.dashboard?.totalRevenue || 0);
-        setUnpaidCount(adminOmniData.dashboard?.unpaidCount || 0);
         setLoading(false);
       }
     }
@@ -274,9 +281,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     });
 
     setTotalStudents(t => t + 1);
-    if (!paidStudentIdsRef.current.has(prof.$id)) {
-      setUnpaidCount(u => u + 1);
-    }
   }, []);
 
   const deactivateProfileOptimistically = React.useCallback((profileId: string) => {
@@ -286,10 +290,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         // 🛡️ LIBRAR ID SÍNCRONAMENTE: Evitar doble resta
         processedProfilesRef.current.delete(profileId);
         setTotalStudents(t => Math.max(0, t - 1));
-        
-        if (!paidStudentIdsRef.current.has(profileId)) {
-          setUnpaidCount(u => Math.max(0, u - 1));
-        }
         return prev.filter(s => s.$id !== profileId);
       }
       return prev;
@@ -301,21 +301,24 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const alreadyPaid = paidStudentIdsRef.current.has(studentId);
     if (isPaid === alreadyPaid) return; 
 
-    if (isPaid) {
-      paidStudentIdsRef.current.add(studentId);
-      setUnpaidCount(u => Math.max(0, u - 1));
-      setMonthlyRevenue(r => r + amount);
-    } else {
-      paidStudentIdsRef.current.delete(studentId);
-      setUnpaidCount(u => u + 1);
-      setMonthlyRevenue(r => Math.max(0, r - amount));
-    }
+    setStudentsList(prev => {
+        const student = prev.find(s => s.$id === studentId);
+        const isVip = !!student?.is_vip;
 
-    // Actualizamos el Set reactivo y la lista de alumnos
-    setPaidStudentIds(new Set(paidStudentIdsRef.current));
-    setStudentsList(prev => prev.map(s => 
-      s.$id === studentId ? { ...s, is_paid: isPaid, payment_method: isPaid ? (method || "Efectivo") : null } : s
-    ));
+        if (isPaid) {
+          paidStudentIdsRef.current.add(studentId);
+          setMonthlyRevenue(r => r + amount);
+        } else {
+          paidStudentIdsRef.current.delete(studentId);
+          setMonthlyRevenue(r => Math.max(0, r - amount));
+        }
+
+        setPaidStudentIds(new Set(paidStudentIdsRef.current));
+        
+        return prev.map(s => 
+          s.$id === studentId ? { ...s, is_paid: isPaid || !!s.is_vip, payment_method: isPaid ? (method || "Efectivo") : (s.is_vip ? "VIP" : null) } : s
+        );
+    });
   }, []);
 
   // Suscripción Realtime Singleton para el Administrador (PWA Resilient)
@@ -349,27 +352,41 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
           if (payload.month === currentMonth) {
             if (event.includes(".create")) {
                if (paidStudentIdsRef.current.has(payload.student_id)) return;
-               setPaidStudentIds(prev => {
-                  const next = new Set([...prev, payload.student_id]);
-                  paidStudentIdsRef.current = next;
-                  return next;
+               
+               setStudentsList(prev => {
+                   const student = prev.find(s => s.$id === payload.student_id);
+                   const isVip = !!student?.is_vip;
+                   
+                   setPaidStudentIds(paidPrev => {
+                      const next = new Set([...paidPrev, payload.student_id]);
+                      paidStudentIdsRef.current = next;
+                      return next;
+                   });
+                   
+                   setMonthlyRevenue(r => r + (payload.amount || 0));
+                   
+                   return prev.map(s => s.$id === payload.student_id ? { ...s, is_paid: true, payment_method: payload.method } : s);
                });
-               setStudentsList(prev => prev.map(s => s.$id === payload.student_id ? { ...s, payment_method: payload.method } : s));
-               setUnpaidCount(u => Math.max(0, u - 1));
-               setMonthlyRevenue(r => r + (payload.amount || 0));
                return;
             }
             if (event.includes(".delete")) {
                if (!paidStudentIdsRef.current.has(payload.student_id)) return;
-               setPaidStudentIds(prev => {
-                  const next = new Set(prev);
-                  next.delete(payload.student_id);
-                  paidStudentIdsRef.current = next;
-                  return next;
+               
+               setStudentsList(prev => {
+                   const student = prev.find(s => s.$id === payload.student_id);
+                   const isVip = !!student?.is_vip;
+
+                   setPaidStudentIds(paidPrev => {
+                      const next = new Set(paidPrev);
+                      next.delete(payload.student_id);
+                      paidStudentIdsRef.current = next;
+                      return next;
+                   });
+                   
+                   setMonthlyRevenue(r => Math.max(0, r - (payload.amount || 0)));
+                   
+                   return prev.map(s => s.$id === payload.student_id ? { ...s, is_paid: !!s.is_vip, payment_method: s.is_vip ? "VIP" : null } : s);
                });
-               setStudentsList(prev => prev.map(s => s.$id === payload.student_id ? { ...s, payment_method: null } : s));
-               setUnpaidCount(u => u + 1);
-               setMonthlyRevenue(r => Math.max(0, r - (payload.amount || 0)));
                return;
             }
           }
@@ -431,7 +448,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                 if (!processedProfilesRef.current.has(payload.$id)) {
                     processedProfilesRef.current.add(payload.$id);
                     setTotalStudents(t => t + 1);
-                    if (!paidStudentIdsRef.current.has(payload.$id)) setUnpaidCount(u => u + 1);
                 }
                 return [payload, ...prev.filter(s => s.$id !== payload.$id)];
               });
@@ -446,7 +462,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                   if (!processedProfilesRef.current.has(payload.$id)) {
                       processedProfilesRef.current.add(payload.$id);
                       setTotalStudents(t => t + 1);
-                      if (!paidStudentIdsRef.current.has(payload.$id)) setUnpaidCount(u => u + 1);
                   }
                   return [payload, ...prev];
                 } 
@@ -454,13 +469,21 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                   if (processedProfilesRef.current.has(payload.$id)) {
                       processedProfilesRef.current.delete(payload.$id);
                       setTotalStudents(t => Math.max(0, t - 1));
-                      const isPaid = paidStudentIdsRef.current.has(payload.$id);
-                      if (!isPaid) setUnpaidCount(u => Math.max(0, u - 1));
                   }
                   return prev.filter(s => s.$id !== payload.$id);
                 }
                 else if (nowActive && wasInList) {
-                  return prev.map(s => s.$id === payload.$id ? { ...s, ...payload } : s);
+                  const oldS = prev.find(s => s.$id === payload.$id);
+                  const wasVip = !!oldS?.is_vip;
+                  const isVip = !!payload.is_vip;
+
+                  return prev.map(s => {
+                    if (s.$id !== payload.$id) return s;
+                    let newMethod = s.payment_method;
+                    if (isVip && !wasVip) newMethod = "VIP";
+                    if (!isVip && wasVip && newMethod === "VIP") newMethod = null;
+                    return { ...s, ...payload, payment_method: newMethod };
+                  });
                 }
                 return prev;
               });
@@ -473,8 +496,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                 if (exists || processedProfilesRef.current.has(payload.$id)) {
                   processedProfilesRef.current.delete(payload.$id);
                   setTotalStudents(t => Math.max(0, t - 1));
-                  const isPaid = paidStudentIdsRef.current.has(payload.$id);
-                  if (!isPaid) setUnpaidCount(u => Math.max(0, u - 1));
                   return prev.filter(s => s.$id !== payload.$id);
                 }
                 return prev;
@@ -539,7 +560,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setClassesList,
     setAnnouncements,
     setMonthlyRevenue,
-    setUnpaidCount,
     setTotalStudents,
     setSelectedMonth,
     refreshAdminData: loadDashboardData,
@@ -549,7 +569,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     registerProfileOptimistically,
     deactivateProfileOptimistically,
     updatePaymentOptimistically
-  }), [studentsList, classesList, announcements, totalStudents, monthlyRevenue, unpaidCount, loading, studentsLoading, selectedMonth, revenueRecords, setStudentsList, setClassesList, setAnnouncements, setMonthlyRevenue, setUnpaidCount, setTotalStudents, loadDashboardData, loadStudentsList, loadRevenueHistory, paidStudentIds, registerProfileOptimistically, deactivateProfileOptimistically, updatePaymentOptimistically]);
+  }), [studentsList, classesList, announcements, totalStudents, monthlyRevenue, unpaidCount, loading, studentsLoading, selectedMonth, revenueRecords, setStudentsList, setClassesList, setAnnouncements, setMonthlyRevenue, setTotalStudents, loadDashboardData, loadStudentsList, loadRevenueHistory, paidStudentIds, registerProfileOptimistically, deactivateProfileOptimistically, updatePaymentOptimistically]);
 
   return (
     <AdminContext.Provider value={value}>
