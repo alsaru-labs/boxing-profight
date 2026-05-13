@@ -21,7 +21,7 @@ export async function GET(request: Request) {
         
         const result = await publishAnnouncementAction({
             title: "🥊 ¡Hoy hay Sparring! No olvides tu bucal",
-            content: "Boxing Profight les recuerda que hoy miércoles toca sparring . Recordamos a todos los alumnos que es obligatorio traer el bucal y todo el material necesario para el entrenamiento. Los menores de edad deberán llevar casco obligatoriamente y tener la autorización firmada por sus padres o tutores entregada en recepción.\nGracias por la colaboración.",
+            content: "Boxing Profight les recuerda que hoy miércoles toca sparring . Recordamos a todos los alumnos que es obligatorio traer el bucal y todo el material necesario para el entrenamiento. Los menores de edad deberán llevar casco obligatoriamente y tener la autorización firmada por sus padres o tutores entregada en recepción.\n\nGracias por la colaboración.",
             type: "info"
         });
 
