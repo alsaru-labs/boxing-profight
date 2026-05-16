@@ -1317,6 +1317,11 @@ export async function autoGenerateNextWeekClasses() {
             const dStr = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().split('T')[0];
 
             for (const time of slots) {
+                // 🛑 REGLA DE NEGOCIO: No generar clase de las 21h los viernes
+                if (date.getDay() === 5 && time === "21:00 - 22:00") {
+                    continue;
+                }
+
                 // 🛡️ DOBLE COMPROBACIÓN: Validar contra el bloque inicial Y realizar consulta rápida si es necesario
                 // para prevenir race conditions entre entornos (Local vs Develop).
                 const alreadyExistsInMemory = existingClassesResponse.documents.some((c: any) =>
