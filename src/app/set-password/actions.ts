@@ -17,8 +17,8 @@ export async function setPasswordWithToken(token: string, password: string) {
       return { success: false, error: "Token de invitación no válido." };
     }
 
-    if (!password || password.length < 8) {
-      return { success: false, error: "La contraseña debe tener al menos 8 caracteres." };
+    if (!password || password.length < 8 || !/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      return { success: false, error: "La contraseña debe tener al menos 8 caracteres, incluir al menos una letra y un número." };
     }
 
     const { databases, users } = await createAdminClient();
