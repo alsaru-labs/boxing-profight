@@ -316,8 +316,13 @@ export default function BookingsPage() {
                     {/* 3. HISTORIAL DE ASISTENCIA */}
                     <section className="space-y-6 pt-16 border-t border-white/10">
                         <div className="flex items-center gap-4">
-                            <h4 className="text-xl font-black uppercase tracking-widest text-white/90 flex items-center gap-3">
-                                <HistoryIcon className="w-5 h-5 text-emerald-500" /> Historial de Asistencia (Últimos 30 días)
+                            <h4 className="text-xl font-black uppercase tracking-widest text-white/90 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                                <span className="flex items-center gap-3">
+                                    <HistoryIcon className="w-5 h-5 text-emerald-500" /> Historial de Asistencia
+                                </span>
+                                <span className="text-[10px] sm:text-xs font-semibold text-white/40 normal-case sm:tracking-widest pl-8 sm:pl-0">
+                                    (Últimos 30 días)
+                                </span>
                             </h4>
                             <div className="h-px flex-1 bg-white/5" />
                         </div>
