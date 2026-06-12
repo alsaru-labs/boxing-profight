@@ -393,10 +393,10 @@ export default function AdminDashboard() {
                       })()}
                     </SelectTrigger>
                     <SelectContent>
-                      {Array.from({ length: 24 }).map((_, i) => {
+                      {Array.from({ length: 7 }).map((_, i) => {
                         const d = new Date();
                         d.setDate(1);
-                        d.setMonth(d.getMonth() - 12 + i);
+                        d.setMonth(d.getMonth() - 2 + i);
                         const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
                         const label = d.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
                         return (

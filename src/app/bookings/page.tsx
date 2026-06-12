@@ -317,7 +317,7 @@ export default function BookingsPage() {
                     <section className="space-y-6 pt-16 border-t border-white/10">
                         <div className="flex items-center gap-4">
                             <h4 className="text-xl font-black uppercase tracking-widest text-white/90 flex items-center gap-3">
-                                <HistoryIcon className="w-5 h-5 text-emerald-500" /> Historial de Asistencia
+                                <HistoryIcon className="w-5 h-5 text-emerald-500" /> Historial de Asistencia (Últimos 30 días)
                             </h4>
                             <div className="h-px flex-1 bg-white/5" />
                         </div>
@@ -330,7 +330,7 @@ export default function BookingsPage() {
                                 </div>
                             ) : pastClasses.length === 0 ? (
                                 <div className="p-16 text-center text-white/60 font-medium text-sm tracking-wide">
-                                    Aún no has asistido a ninguna clase registrada. ¡Tu primera sesión te está esperando!
+                                    No has asistido a ninguna clase en los últimos 30 días. ¡Tu próxima sesión te está esperando!
                                 </div>
                             ) : (
                                 <div className="divide-y divide-white/5">
