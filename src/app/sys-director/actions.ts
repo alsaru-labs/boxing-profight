@@ -1455,12 +1455,14 @@ export const getAnnouncementsCached = unstable_cache(
     async () => {
         const { databases } = await createAdminClient();
         try {
+            const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
             const res = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTION_NOTIFICATIONS,
                 [
                     sdk.Query.orderDesc("$createdAt"),
-                    sdk.Query.limit(20)
+                    sdk.Query.greaterThanEqual("$createdAt", ninetyDaysAgo),
+                    sdk.Query.limit(100)
                 ]
             );
             return res.documents;
@@ -1470,7 +1472,10 @@ export const getAnnouncementsCached = unstable_cache(
         }
     },
     ["announcements"],
-    { tags: [CACHE_TAGS.ANNOUNCEMENTS] }
+    { 
+        tags: [CACHE_TAGS.ANNOUNCEMENTS],
+        revalidate: 3600
+    }
 );
 
 

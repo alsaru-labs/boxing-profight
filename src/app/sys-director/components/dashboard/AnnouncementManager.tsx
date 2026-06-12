@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageCircle, X, Loader2 } from "lucide-react";
+import { MessageCircle, X, Loader2, Copy, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -28,6 +28,7 @@ interface AnnouncementManagerProps {
 
 export function AnnouncementManager({ announcements, setAnnouncements, showAlert, showConfirm, isPending, startTransition }: AnnouncementManagerProps) {
   const [newAnnouncement, setNewAnnouncement] = useState({ title: "", content: "", type: "info" });
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const handlePublish = () => {
     if (isPending || !newAnnouncement.title || !newAnnouncement.content) return;
@@ -97,6 +98,17 @@ export function AnnouncementManager({ announcements, setAnnouncements, showAlert
       },
       "danger"
     );
+  };
+
+  const handleCopy = (id: string, content: string) => {
+    navigator.clipboard.writeText(content);
+    setCopiedId(id);
+    import("sonner").then(({ toast }) => {
+      toast.success("Copiado", { description: "El mensaje ha sido copiado al portapapeles." });
+    });
+    setTimeout(() => {
+      setCopiedId(null);
+    }, 2000);
   };
 
   return (
@@ -192,18 +204,34 @@ export function AnnouncementManager({ announcements, setAnnouncements, showAlert
                         {new Date(a.createdAt || a.$createdAt || Date.now()).toLocaleDateString()}
                       </span>
                     </div>
-                    <h4 className="font-bold text-white truncate">{a.title}</h4>
-                    <p className="text-sm text-white/50 line-clamp-2 whitespace-pre-line">{a.content}</p>
+                    <h4 className="font-bold text-white break-words">{a.title}</h4>
+                    <p className="text-sm text-white/50 whitespace-pre-line break-words mt-1">{a.content}</p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(a.$id)}
-                    className="text-white/20 hover:text-red-500 hover:bg-red-500/10 transition-colors"
-                    disabled={isPending}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
+                  <div className="flex flex-col gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleCopy(a.$id || `ann-${index}`, a.content)}
+                      className="text-white/20 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                      title="Copiar mensaje"
+                    >
+                      {copiedId === (a.$id || `ann-${index}`) ? (
+                        <Check className="w-4 h-4 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(a.$id)}
+                      className="text-white/20 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                      disabled={isPending}
+                      title="Eliminar anuncio"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               ))
             )}
