@@ -140,12 +140,25 @@ function SetPasswordForm() {
                         <div className="grid grid-cols-1 gap-2">
                             {PASSWORD_REQUIREMENTS.map((req) => {
                                 const isMet = req.regex.test(password);
+                                const hasInput = password.length > 0;
                                 return (
                                     <div key={req.id} className="flex items-center gap-2.5 transition-all duration-300">
-                                        <div className={`p-0.5 rounded-full border ${isMet ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' : 'bg-white/5 border-white/5 text-white/10'}`}>
-                                            <CheckCircle2 className={`w-3 h-3 ${isMet ? 'opacity-100' : 'opacity-20'}`} />
+                                        <div className={`p-0.5 rounded-full border ${
+                                            isMet 
+                                                ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' 
+                                                : hasInput 
+                                                    ? 'bg-red-500/10 border-red-500/20 text-red-500' 
+                                                    : 'bg-white/5 border-white/5 text-white/10'
+                                        }`}>
+                                            <CheckCircle2 className={`w-3 h-3 ${isMet ? 'opacity-100' : hasInput ? 'text-red-400 opacity-60' : 'opacity-20'}`} />
                                         </div>
-                                        <span className={`text-[11px] font-bold ${isMet ? 'text-white/80' : 'text-white/20'}`}>
+                                        <span className={`text-[11px] font-bold ${
+                                            isMet 
+                                                ? 'text-white/80' 
+                                                : hasInput 
+                                                    ? 'text-red-400' 
+                                                    : 'text-white/20'
+                                        }`}>
                                             {req.label}
                                         </span>
                                     </div>

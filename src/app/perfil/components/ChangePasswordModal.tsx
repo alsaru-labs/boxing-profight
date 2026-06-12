@@ -143,12 +143,25 @@ export function ChangePasswordModal({ isOpen, onOpenChange, onSubmit, isUpdating
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5">
                   {PASSWORD_REQUIREMENTS.map(req => {
                     const met = req.regex.test(newPassword);
+                    const hasInput = newPassword.length > 0;
                     return (
                       <div key={req.id} className="flex items-center gap-1.5">
-                        <div className={`p-0.5 rounded-full ${met ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-white/10'}`}>
-                          <CheckCircle2 className="w-2.5 h-2.5" />
+                        <div className={`p-0.5 rounded-full ${
+                          met 
+                            ? 'bg-emerald-500/20 text-emerald-400' 
+                            : hasInput 
+                              ? 'bg-red-500/10 text-red-500/80 border border-red-500/20' 
+                              : 'bg-white/5 text-white/10'
+                        }`}>
+                          <CheckCircle2 className={`w-2.5 h-2.5 ${met ? 'opacity-100' : hasInput ? 'text-red-400 opacity-60' : 'opacity-20'}`} />
                         </div>
-                        <span className={`text-[10px] font-bold leading-tight ${met ? 'text-white/60' : 'text-white/20'}`}>
+                        <span className={`text-[10px] font-bold leading-tight ${
+                          met 
+                            ? 'text-white/60' 
+                            : hasInput 
+                              ? 'text-red-400' 
+                              : 'text-white/20'
+                        }`}>
                           {req.label}
                         </span>
                       </div>
