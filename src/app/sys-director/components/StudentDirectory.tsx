@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ArrowUpDown,
   ChevronDown,
   Loader2,
-  Users
+  Users,
+  ArrowUp
 } from 'lucide-react';
 import { useAdmin } from "@/contexts/AdminContext";
 import { Card } from "@/components/ui/card";
@@ -58,6 +59,19 @@ export function StudentDirectory({
   const [filterMethod, setFilterMethod] = useState("Todos");
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
   const [visibleCount, setVisibleCount] = useState(30);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 300) {
+        setShowScrollTop(true);
+      } else {
+        setShowScrollTop(false);
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Sorting Handler
   const handleSort = (key: string) => {
@@ -139,6 +153,10 @@ export function StudentDirectory({
 
   const slicedStudents = processedStudents.slice(0, visibleCount);
 
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div className="space-y-4">
       {/* Table Header & Controls */}
@@ -156,7 +174,7 @@ export function StudentDirectory({
       />
 
       <Card className="bg-zinc-900/50 border-white/10 backdrop-blur-lg shadow-2xl overflow-hidden">
-        <div className="max-h-[700px] overflow-y-auto custom-scrollbar relative">
+        <div className="relative lg:max-h-[700px] lg:overflow-y-auto custom-scrollbar">
           {/* Loader de Directorio */}
           {studentsLoading && studentsList.length === 0 && (
             <div className="flex flex-col items-center justify-center py-24 gap-4 bg-zinc-900/20 backdrop-blur-sm">
@@ -221,7 +239,7 @@ export function StudentDirectory({
           </div>
 
           {/* Mobile Card View */}
-          <div className="lg:hidden max-h-[750px] overflow-y-auto custom-scrollbar-mobile bg-black/20 rounded-b-2xl shadow-inner border-t border-white/5 p-4 space-y-4">
+          <div className="lg:hidden bg-black/20 rounded-b-2xl shadow-inner border-t border-white/5 p-4 space-y-4">
             {studentsLoading && studentsList.length === 0 ? (
                <div className="py-12 flex flex-col items-center justify-center gap-3">
                   <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
@@ -264,6 +282,16 @@ export function StudentDirectory({
           )}
         </div>
       </Card>
+
+      {showScrollTop && (
+        <Button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-50 rounded-full h-12 w-12 p-0 bg-emerald-600 hover:bg-emerald-500 text-white shadow-2xl flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-90 animate-in fade-in slide-in-from-bottom-4"
+          title="Volver arriba"
+        >
+          <ArrowUp className="w-5 h-5" />
+        </Button>
+      )}
     </div>
   );
 }

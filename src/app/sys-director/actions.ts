@@ -1163,11 +1163,13 @@ export async function getStudentPastBookingsAction(userId: string) {
     const { databases } = await createAdminClient();
 
     try {
-        // 1. Obtener los últimos 10 bookings del alumno (Regla Q3: Sin paginación)
+        // 1. Obtener los bookings del alumno de los últimos 40 días para cubrir margen
+        const fortyDaysAgoStr = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString();
         const bookingsRes = await databases.listDocuments(DATABASE_ID, COLLECTION_BOOKINGS, [
             sdk.Query.equal("student_id", userId),
-            sdk.Query.limit(10),
-            sdk.Query.orderDesc("$createdAt"), // Asegurar que son las más recientes
+            sdk.Query.greaterThanEqual("$createdAt", fortyDaysAgoStr),
+            sdk.Query.limit(100),
+            sdk.Query.orderDesc("$createdAt"),
             sdk.Query.select(["$id", "class_id", "$createdAt"])
         ]);
 
@@ -1184,9 +1186,10 @@ export async function getStudentPastBookingsAction(userId: string) {
         ]);
 
         const now = new Date();
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         const classesMap = new Map(classesRes.documents.map((c: any) => [c.$id, c]));
 
-        // 3. Filtrar solo clases que ya ocurrieron (pasadas) y enriquecer
+        // 3. Filtrar solo clases que ya ocurrieron en los últimos 30 días y enriquecer
         const pastClasses = bookingsRes.documents
             .map((b: any) => {
                 const cls = classesMap.get(b.class_id);
@@ -1195,7 +1198,10 @@ export async function getStudentPastBookingsAction(userId: string) {
                     const [year, month, day] = cls.date.substring(0, 10).split("-").map(Number);
                     const [hours, minutes] = cls.time.split('-')[0].split(":").map(Number);
                     const classDateTime = new Date(year, month - 1, day, hours, minutes);
-                    if (classDateTime >= now) return null; // Excluir futuras
+                    
+                    // Excluir clases futuras y clases de hace más de 30 días
+                    if (classDateTime >= now || classDateTime < thirtyDaysAgo) return null;
+                    
                     return { ...cls, bookingId: b.$id };
                 } catch { return null; }
             })
@@ -1317,6 +1323,11 @@ export async function autoGenerateNextWeekClasses() {
             const dStr = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().split('T')[0];
 
             for (const time of slots) {
+                // 🛑 REGLA DE NEGOCIO: No generar clase de las 21h los viernes
+                if (date.getDay() === 5 && time === "21:00 - 22:00") {
+                    continue;
+                }
+
                 // 🛡️ DOBLE COMPROBACIÓN: Validar contra el bloque inicial Y realizar consulta rápida si es necesario
                 // para prevenir race conditions entre entornos (Local vs Develop).
                 const alreadyExistsInMemory = existingClassesResponse.documents.some((c: any) =>
@@ -1450,12 +1461,14 @@ export const getAnnouncementsCached = unstable_cache(
     async () => {
         const { databases } = await createAdminClient();
         try {
+            const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
             const res = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTION_NOTIFICATIONS,
                 [
                     sdk.Query.orderDesc("$createdAt"),
-                    sdk.Query.limit(20)
+                    sdk.Query.greaterThanEqual("$createdAt", ninetyDaysAgo),
+                    sdk.Query.limit(100)
                 ]
             );
             return res.documents;
@@ -1465,7 +1478,10 @@ export const getAnnouncementsCached = unstable_cache(
         }
     },
     ["announcements"],
-    { tags: [CACHE_TAGS.ANNOUNCEMENTS] }
+    { 
+        tags: [CACHE_TAGS.ANNOUNCEMENTS],
+        revalidate: 3600
+    }
 );
 
 
