@@ -243,8 +243,8 @@ export default function NotificationPanel() {
                                                                         <span className={`text-[9px] uppercase font-black tracking-tighter ${typeColor}`}>
                                                                             {typeLabel}
                                                                         </span>
-                                                                        <span className="text-[10px] text-white/20 whitespace-nowrap font-medium italic">
-                                                                            {new Date(n.createdAt || n.$createdAt || Date.now()).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}
+                                                                        <span className="text-xs text-white whitespace-nowrap font-semibold">
+                                                                            {new Date(n.createdAt || n.$createdAt || Date.now()).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-')}
                                                                         </span>
                                                                     </div>
                                                                     {!isRead && (
