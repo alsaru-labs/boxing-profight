@@ -144,15 +144,15 @@ export async function getAdminDashboardData(month?: string) {
         ]);
 
         const totalRevenue = monthlyRevenueDoc ? (monthlyRevenueDoc.amount || 0) : 0;
-        const totalStudents = allProfiles.length;
+        const activeProfiles = allProfiles.filter((p: any) => p.status !== "Baja" && p.is_active !== false);
+        const totalStudents = activeProfiles.length;
         const paidStudentIds = Array.from(new Set([
             ...currentMonthPayments.map((p: any) => p.student_id)
         ]));
-        const paidOrVipIds = Array.from(new Set([
-            ...paidStudentIds,
-            ...allProfiles.filter((p: any) => p.is_vip).map((p: any) => p.$id)
-        ]));
-        const unpaidCount = Math.max(0, totalStudents - paidOrVipIds.length);
+        const unpaidCount = activeProfiles.filter((p: any) => {
+            const isPaid = paidStudentIds.includes(p.$id) || !!p.is_vip;
+            return !isPaid;
+        }).length;
 
         const filteredClasses = availableClasses.filter((c: any) => c.date >= sevenDaysAgo.substring(0, 10) && c.date <= thirtyDaysAhead.substring(0, 10));
 
@@ -289,13 +289,21 @@ export async function getPlatformOmniData(userId: string, monthOverride?: string
                 };
             });
 
+            const activeProfiles = (allProfiles || []).filter((p: any) => p.status !== "Baja" && p.is_active !== false);
+            const unpaidCount = activeProfiles.filter((p: any) => {
+                const payment = paymentsMap.get(p.$id);
+                const isVip = !!p.is_vip;
+                const isPaid = isVip || !!payment;
+                return !isPaid;
+            }).length;
+
             adminData = {
                 studentsList: hydratedProfiles,
                 classes,
                 announcements,
                 dashboard: {
-                    totalStudents: (allProfiles || []).length,
-                    unpaidCount: Math.max(0, (allProfiles || []).length - hydratedProfiles.filter((p: any) => p.is_paid).length),
+                    totalStudents: activeProfiles.length,
+                    unpaidCount: unpaidCount,
                     totalRevenue: monthlyRevenueDoc ? (monthlyRevenueDoc.amount || 0) : 0,
                     paidStudentIds: currentMonthPayments ? currentMonthPayments.map((p: any) => p.student_id) : []
                 },
@@ -750,6 +758,33 @@ export async function deleteStudentAccount(profileId: string, userId: string) {
 
         return { success: true };
     } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * 🟢 ACCIÓN A2 — REACTIVAR ALUMNO (Re-activación de cuenta inactiva)
+ */
+export async function reactivateStudentAccount(profileId: string, userId: string) {
+    if (!profileId || !userId) return { success: false, error: "Faltan ID críticos." };
+    const { databases, users } = await createAdminClient();
+
+    try {
+        // 1. Rehabilitar cuenta de Auth
+        try { await users.updateStatus(userId, true); } catch (e) { }
+
+        // 2. Actualizar estado del perfil
+        await databases.updateDocument(DATABASE_ID, COLLECTION_PROFILES, profileId, {
+            is_active: true,
+            status: "Activo"
+        });
+
+        // 3. Invalidar cachés
+        revalidateAdminDashboard();
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("[reactivateStudentAccount] Error:", error.message);
         return { success: false, error: error.message };
     }
 }
@@ -1504,10 +1539,8 @@ export const getActiveProfilesCached = unstable_cache(
             COLLECTION_PROFILES,
             [
                 sdk.Query.limit(250),     // 🛡️ Límite razonable para visibilidad del Directorio
-                sdk.Query.equal("is_active", true),
                 sdk.Query.equal("role", "alumno"),
-                sdk.Query.notEqual("status", "Baja"),
-                sdk.Query.select(["$id", "user_id", "name", "last_name", "email", "phone", "status", "role", "level", "is_vip"])
+                sdk.Query.select(["$id", "user_id", "name", "last_name", "email", "phone", "status", "role", "level", "is_vip", "is_active", "$createdAt"])
             ]
         );
         return res.documents;

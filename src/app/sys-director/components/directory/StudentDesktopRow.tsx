@@ -32,6 +32,7 @@ interface StudentDesktopRowProps {
   handleActionClick: (student: any) => void;
   handleOpenEditModal: (student: any) => void;
   deleteStudentAccount: (id: string, userId: string, name: string) => Promise<boolean>;
+  reactivateStudentAccount: (id: string, userId: string, name: string) => Promise<boolean>;
   handlePermanentDeleteStudent: (profileId: string, userId: string, studentName: string) => Promise<boolean>;
   setStudentsList: React.Dispatch<React.SetStateAction<any[]>>;
   showAlert: (title: string, message: string, variant: "success" | "danger" | "warning") => void;
@@ -45,6 +46,7 @@ export function StudentDesktopRow({
   handleActionClick,
   handleOpenEditModal,
   deleteStudentAccount,
+  reactivateStudentAccount,
   handlePermanentDeleteStudent,
   setStudentsList,
   showAlert,
@@ -74,14 +76,16 @@ export function StudentDesktopRow({
           <Badge
             variant="outline"
             className={
-              student.is_paid
-                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 w-fit"
-                : "bg-red-500/10 text-red-400 border-red-500/20 w-fit"
+              (student.status === 'Baja' || student.is_active === false)
+                ? "bg-zinc-500/10 text-zinc-400 border-zinc-500/20 w-fit uppercase"
+                : student.is_paid
+                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 w-fit"
+                  : "bg-red-500/10 text-red-400 border-red-500/20 w-fit"
             }
           >
-            {student.is_paid ? "Pagado" : "Pendiente"}
+            {(student.status === 'Baja' || student.is_active === false) ? "Baja" : student.is_paid ? "Pagado" : "Pendiente"}
           </Badge>
-          {student.is_paid && student.payment_method && (
+          {student.is_paid && student.payment_method && !(student.status === 'Baja' || student.is_active === false) && (
             <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400/60 ml-1">
               {student.payment_method}
             </span>
@@ -125,7 +129,7 @@ export function StudentDesktopRow({
 
       <TableCell className="text-right pr-6">
         <DropdownMenu>
-          <DropdownMenuTrigger className="h-10 w-10 flex items-center justify-center text-white/20 hover:text-white hover:bg-white/10 rounded-xl transition-all border border-white/5 outline-none focus:ring-2 focus:ring-emerald-500/50">
+          <DropdownMenuTrigger className="h-10 w-10 flex items-center justify-center text-white/70 hover:text-white bg-white/5 hover:bg-white/15 rounded-xl transition-all border border-white/10 hover:border-white/30 outline-none focus:ring-2 focus:ring-emerald-500/50">
             <MoreVertical className="h-5 w-5" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="bg-zinc-900/95 backdrop-blur-xl border-white/10 text-white min-w-[200px] p-2 rounded-2xl shadow-2xl">
@@ -153,21 +157,39 @@ export function StudentDesktopRow({
             </DropdownMenuGroup>
             <DropdownMenuSeparator className="bg-white/5 mx-1" />
             <DropdownMenuGroup className="p-1">
-              <DropdownMenuItem
-                className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-red-400 focus:bg-red-500/20 focus:text-red-400 cursor-pointer transition-colors"
-                onClick={() => {
-                  showConfirm(
-                    "Dar de baja",
-                    `¿Seguro que quieres dar de baja a ${student.name}? El alumno dejará de tener acceso y se cancelarán sus reservas futuras.`,
-                    () => deleteStudentAccount(student.$id, student.user_id, student.name),
-                    "danger"
-                  );
-                }}
-                disabled={isUpdating}
-              >
-                <Signal className="w-4 h-4 opacity-50" />
-                <span>Dar de Baja</span>
-              </DropdownMenuItem>
+              {(student.status === 'Baja' || student.is_active === false) ? (
+                <DropdownMenuItem
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-emerald-400 focus:bg-emerald-500/20 focus:text-emerald-400 cursor-pointer transition-colors"
+                  onClick={() => {
+                    showConfirm(
+                      "Reactivar Alumno",
+                      `¿Seguro que quieres reactivar a ${student.name}? El alumno volverá a tener acceso a la plataforma.`,
+                      () => reactivateStudentAccount(student.$id, student.user_id, student.name),
+                      "success" as any
+                    );
+                  }}
+                  disabled={isUpdating}
+                >
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>Reactivar Alumno</span>
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-red-400 focus:bg-red-500/20 focus:text-red-400 cursor-pointer transition-colors"
+                  onClick={() => {
+                    showConfirm(
+                      "Dar de baja",
+                      `¿Seguro que quieres dar de baja a ${student.name}? El alumno dejará de tener acceso y se cancelarán sus reservas futuras.`,
+                      () => deleteStudentAccount(student.$id, student.user_id, student.name),
+                      "danger"
+                    );
+                  }}
+                  disabled={isUpdating}
+                >
+                  <Signal className="w-4 h-4 opacity-50" />
+                  <span>Dar de Baja</span>
+                </DropdownMenuItem>
+              )}
 
               {!isProduction && (
                 <DropdownMenuItem

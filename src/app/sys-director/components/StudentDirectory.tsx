@@ -32,6 +32,7 @@ interface StudentDirectoryProps {
   handleActionClick: (student: any) => void;
   handleOpenEditModal: (student: any) => void;
   deleteStudentAccount: (id: string, userId: string, name: string) => Promise<boolean>;
+  reactivateStudentAccount: (id: string, userId: string, name: string) => Promise<boolean>;
   handlePermanentDeleteStudent: (profileId: string, userId: string, studentName: string) => Promise<boolean>;
   setStudentsList: React.Dispatch<React.SetStateAction<any[]>>;
   showAlert: (title: string, message: string, variant: "success" | "danger" | "warning") => void;
@@ -44,6 +45,7 @@ export function StudentDirectory({
   handleActionClick,
   handleOpenEditModal,
   deleteStudentAccount,
+  reactivateStudentAccount,
   handlePermanentDeleteStudent,
   setStudentsList,
   showAlert,
@@ -57,6 +59,7 @@ export function StudentDirectory({
 
   const [filterPayment, setFilterPayment] = useState("Todos");
   const [filterMethod, setFilterMethod] = useState("Todos");
+  const [filterStatus, setFilterStatus] = useState("Todos");
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
   const [visibleCount, setVisibleCount] = useState(30);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -117,12 +120,24 @@ export function StudentDirectory({
 
     // 2. Payment filter
     if (filterPayment !== "Todos") {
-      result = result.filter(s => filterPayment === "Pagado" ? s.is_paid : !s.is_paid);
+      result = result.filter(s => {
+        const isBaja = s.status === 'Baja' || s.is_active === false;
+        if (isBaja) return false;
+        return filterPayment === "Pagado" ? s.is_paid : !s.is_paid;
+      });
     }
 
     // 3. Payment method filter
     if (filterMethod !== "Todos") {
       result = result.filter(s => (s.payment_method || "") === filterMethod);
+    }
+
+    // 3.5. Status filter
+    if (filterStatus !== "Todos") {
+      result = result.filter(s => {
+        const isBaja = s.status === 'Baja' || s.is_active === false;
+        return filterStatus === 'Baja' ? isBaja : !isBaja;
+      });
     }
 
     // 4. Sorting
@@ -149,7 +164,7 @@ export function StudentDirectory({
     }
 
     return result;
-  }, [studentsList, searchTerm, filterPayment, filterMethod, sortConfig]);
+  }, [studentsList, searchTerm, filterPayment, filterMethod, filterStatus, sortConfig]);
 
   const slicedStudents = processedStudents.slice(0, visibleCount);
 
@@ -170,6 +185,8 @@ export function StudentDirectory({
         setVisibleCount={setVisibleCount}
         filterMethod={filterMethod}
         setFilterMethod={setFilterMethod}
+        filterStatus={filterStatus}
+        setFilterStatus={setFilterStatus}
         totalResults={processedStudents.length}
       />
 
@@ -227,6 +244,7 @@ export function StudentDirectory({
                       handleActionClick={handleActionClick}
                       handleOpenEditModal={handleOpenEditModal}
                       deleteStudentAccount={deleteStudentAccount}
+                      reactivateStudentAccount={reactivateStudentAccount}
                       handlePermanentDeleteStudent={handlePermanentDeleteStudent}
                       setStudentsList={setStudentsList}
                       showAlert={showAlert}
@@ -259,6 +277,7 @@ export function StudentDirectory({
                   handleActionClick={handleActionClick}
                   handleOpenEditModal={handleOpenEditModal}
                   deleteStudentAccount={deleteStudentAccount}
+                  reactivateStudentAccount={reactivateStudentAccount}
                   handlePermanentDeleteStudent={handlePermanentDeleteStudent}
                   setStudentsList={setStudentsList}
                   showAlert={showAlert}

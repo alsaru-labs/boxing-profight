@@ -45,6 +45,18 @@ export default function Footer() {
                 <span>boxingprofight@gmail.com</span>
               </div>
             </div>
+            <div className="space-y-4">
+              <div className="text-[10px] font-black uppercase tracking-[0.5em] text-white/20">Instagram</div>
+              <Link
+                href="https://www.instagram.com/boxing_profight__/"
+                target="_blank"
+                className="flex items-center gap-3 text-white/50 hover:text-white text-xs font-bold transition-colors group"
+                aria-label="Instagram"
+              >
+                <InstagramIcon className="w-4 h-4 opacity-30 group-hover:opacity-100 transition-opacity" />
+                <span>@boxing_profight__</span>
+              </Link>
+            </div>
           </div>
 
           {/* Legal Links */}
@@ -64,23 +76,13 @@ export default function Footer() {
 
         {/* Bottom Line */}
         <div className="mt-24 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="text-[10px] font-black uppercase tracking-[0.5em] text-white/10 italic">
+          <div className="text-[10px] font-black uppercase tracking-[0.5em] text-white/30 italic">
             &copy; {currentYear} Boxing Profight — No pain no gain
           </div>
 
-          <div className="flex items-center gap-8">
-            <Link
-              href="https://www.instagram.com/boxing_profight__/"
-              target="_blank"
-              className="text-white/20 hover:text-white transition-colors"
-              aria-label="Instagram"
-            >
-              <InstagramIcon className="w-5 h-5" />
-            </Link>
-            <div className="text-[9px] font-black uppercase tracking-[0.4em] text-white/20 flex items-center gap-2">
-              <span>Dev by</span>
-              <Link href="https://alsaru.dev" target="_blank" className="text-white/40 hover:text-white transition-colors">alsaru.dev</Link>
-            </div>
+          <div className="text-[9px] font-black uppercase tracking-[0.4em] text-white/20 flex items-center gap-2">
+            <span>Dev by</span>
+            <Link href="https://alsaru.dev" target="_blank" className="text-white/40 hover:text-white transition-colors">alsaru.dev</Link>
           </div>
         </div>
       </div>

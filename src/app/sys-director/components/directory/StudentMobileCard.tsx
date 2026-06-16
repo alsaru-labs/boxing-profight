@@ -26,6 +26,7 @@ interface StudentMobileCardProps {
   handleActionClick: (student: any) => void;
   handleOpenEditModal: (student: any) => void;
   deleteStudentAccount: (id: string, userId: string, name: string) => Promise<boolean>;
+  reactivateStudentAccount: (id: string, userId: string, name: string) => Promise<boolean>;
   handlePermanentDeleteStudent: (profileId: string, userId: string, studentName: string) => Promise<boolean>;
   setStudentsList: React.Dispatch<React.SetStateAction<any[]>>;
   showAlert: (title: string, message: string, variant: "success" | "danger" | "warning") => void;
@@ -39,6 +40,7 @@ export function StudentMobileCard({
   handleActionClick,
   handleOpenEditModal,
   deleteStudentAccount,
+  reactivateStudentAccount,
   handlePermanentDeleteStudent,
   setStudentsList,
   showAlert,
@@ -55,30 +57,38 @@ export function StudentMobileCard({
       <div className="flex justify-between items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center flex-wrap gap-2 mb-1.5">
-            <Badge
-              variant="outline"
-              className={`
-                text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full
-                ${student.is_paid
-                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                  : "bg-red-500/20 text-red-400 border-red-500/30"
-                }
-              `}
-            >
-              {student.is_paid ? "PAGADO" : "PENDIENTE"}
-            </Badge>
-            {(student.status === 'Baja' || student.is_active === false) && (
-              <Badge variant="outline" className="bg-zinc-500/10 text-zinc-500 border-zinc-500/20 text-[8px] h-4 font-black px-1.5 uppercase tracking-tighter">Baja</Badge>
-            )}
-            {student.is_paid && student.payment_method && (
-              <span className="text-[9px] font-black uppercase tracking-[0.1em] text-emerald-400/60">
-                • {student.payment_method}
-              </span>
-            )}
-            {!student.is_paid && (
-              <span className="text-[9px] font-black uppercase tracking-[0.1em] text-red-400/60">
-                • Sin Pago
-              </span>
+            {(student.status === 'Baja' || student.is_active === false) ? (
+              <Badge
+                variant="outline"
+                className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
+              >
+                BAJA
+              </Badge>
+            ) : (
+              <>
+                <Badge
+                  variant="outline"
+                  className={`
+                    text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full
+                    ${student.is_paid
+                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                      : "bg-red-500/20 text-red-400 border-red-500/30"
+                    }
+                  `}
+                >
+                  {student.is_paid ? "PAGADO" : "PENDIENTE"}
+                </Badge>
+                {student.is_paid && student.payment_method && (
+                  <span className="text-[9px] font-black uppercase tracking-[0.1em] text-emerald-400/60">
+                    • {student.payment_method}
+                  </span>
+                )}
+                {!student.is_paid && (
+                  <span className="text-[9px] font-black uppercase tracking-[0.1em] text-red-400/60">
+                    • Sin Pago
+                  </span>
+                )}
+              </>
             )}
           </div>
 
@@ -103,7 +113,7 @@ export function StudentMobileCard({
               </a>
           )}
           <DropdownMenu>
-            <DropdownMenuTrigger className="h-9 w-9 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 rounded-xl transition-all border border-white/5 bg-zinc-800/50 outline-none focus:ring-2 focus:ring-emerald-500/50">
+            <DropdownMenuTrigger className="h-9 w-9 flex items-center justify-center text-white/70 hover:text-white bg-white/5 hover:bg-white/15 rounded-xl transition-all border border-white/10 hover:border-white/30 outline-none focus:ring-2 focus:ring-emerald-500/50">
               <MoreVertical className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="bg-zinc-900/95 backdrop-blur-xl border-white/10 text-white min-w-[220px] p-2 rounded-2xl shadow-2xl">
@@ -130,6 +140,23 @@ export function StudentMobileCard({
               </DropdownMenuGroup>
               <DropdownMenuSeparator className="bg-white/5 mx-1" />
               <DropdownMenuGroup className="p-1">
+              {(student.status === 'Baja' || student.is_active === false) ? (
+                <DropdownMenuItem
+                  className="flex items-center gap-2 px-3 py-3 rounded-xl text-sm font-bold text-emerald-400 focus:bg-emerald-500/20 focus:text-emerald-400 cursor-pointer transition-colors"
+                  onClick={() => {
+                    showConfirm(
+                      "Reactivar Alumno",
+                      `¿Seguro que quieres reactivar a ${student.name}? El alumno volverá a tener acceso a la plataforma.`,
+                      () => reactivateStudentAccount(student.$id, student.user_id, student.name),
+                      "success" as any
+                    );
+                  }}
+                  disabled={isUpdating}
+                >
+                  <Signal className="w-4 h-4 text-emerald-400" />
+                  <span>Reactivar Alumno</span>
+                </DropdownMenuItem>
+              ) : (
                 <DropdownMenuItem
                   className="flex items-center gap-2 px-3 py-3 rounded-xl text-sm font-bold text-red-400 focus:bg-red-500/20 focus:text-red-400 cursor-pointer transition-colors"
                   onClick={() => {
@@ -145,6 +172,7 @@ export function StudentMobileCard({
                   <Signal className="w-4 h-4 opacity-50" />
                   <span>Dar de Baja</span>
                 </DropdownMenuItem>
+              )}
 
                 {!isProduction && (
                   <DropdownMenuItem
