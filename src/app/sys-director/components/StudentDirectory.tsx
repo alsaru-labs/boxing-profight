@@ -59,7 +59,7 @@ export function StudentDirectory({
 
   const [filterPayment, setFilterPayment] = useState("Todos");
   const [filterMethod, setFilterMethod] = useState("Todos");
-  const [filterStatus, setFilterStatus] = useState("Activos");
+  const [filterStatus, setFilterStatus] = useState("Todos");
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
   const [visibleCount, setVisibleCount] = useState(30);
   const [showScrollTop, setShowScrollTop] = useState(false);
