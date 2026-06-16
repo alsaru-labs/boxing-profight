@@ -38,6 +38,7 @@ interface AdminContextType {
   paidStudentIds: Set<string>;
   registerProfileOptimistically: (profile: any) => void;
   deactivateProfileOptimistically: (profileId: string) => void;
+  reactivateProfileOptimistically: (profileId: string) => void;
   updatePaymentOptimistically: (studentId: string, isPaid: boolean, amount: number, method?: string) => void;
 }
 
@@ -65,8 +66,13 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [revenueRecords, setRevenueRecords] = useState<any[]>([]);
   const [classesList, setClassesList] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
-  const [totalStudents, setTotalStudents] = useState<number>(0);
+  const [totalStudentsState, setTotalStudents] = useState<number>(0);
   const [monthlyRevenue, setMonthlyRevenue] = useState<number>(0);
+
+  const totalStudents = React.useMemo(() => {
+    if (studentsList.length === 0) return totalStudentsState;
+    return studentsList.filter(s => s.status !== 'Baja' && s.is_active !== false).length;
+  }, [studentsList, totalStudentsState]);
 
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const d = new Date();
@@ -287,10 +293,19 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setStudentsList(prev => {
       const exists = prev.some(s => s.$id === profileId);
       if (exists) {
-        // 🛡️ LIBRAR ID SÍNCRONAMENTE: Evitar doble resta
-        processedProfilesRef.current.delete(profileId);
         setTotalStudents(t => Math.max(0, t - 1));
-        return prev.filter(s => s.$id !== profileId);
+        return prev.map(s => s.$id === profileId ? { ...s, is_active: false, status: "Baja" } : s);
+      }
+      return prev;
+    });
+  }, []);
+
+  const reactivateProfileOptimistically = React.useCallback((profileId: string) => {
+    setStudentsList(prev => {
+      const exists = prev.some(s => s.$id === profileId);
+      if (exists) {
+        setTotalStudents(t => t + 1);
+        return prev.map(s => s.$id === profileId ? { ...s, is_active: true, status: "Activo" } : s);
       }
       return prev;
     });
@@ -301,20 +316,16 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const alreadyPaid = paidStudentIdsRef.current.has(studentId);
     if (isPaid === alreadyPaid) return; 
 
+    if (isPaid) {
+      paidStudentIdsRef.current.add(studentId);
+      setMonthlyRevenue(r => r + amount);
+    } else {
+      paidStudentIdsRef.current.delete(studentId);
+      setMonthlyRevenue(r => Math.max(0, r - amount));
+    }
+    setPaidStudentIds(new Set(paidStudentIdsRef.current));
+
     setStudentsList(prev => {
-        const student = prev.find(s => s.$id === studentId);
-        const isVip = !!student?.is_vip;
-
-        if (isPaid) {
-          paidStudentIdsRef.current.add(studentId);
-          setMonthlyRevenue(r => r + amount);
-        } else {
-          paidStudentIdsRef.current.delete(studentId);
-          setMonthlyRevenue(r => Math.max(0, r - amount));
-        }
-
-        setPaidStudentIds(new Set(paidStudentIdsRef.current));
-        
         return prev.map(s => 
           s.$id === studentId ? { ...s, is_paid: isPaid || !!s.is_vip, payment_method: isPaid ? (method || "Efectivo") : (s.is_vip ? "VIP" : null) } : s
         );
@@ -352,39 +363,22 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
           if (payload.month === currentMonth) {
             if (event.includes(".create")) {
                if (paidStudentIdsRef.current.has(payload.student_id)) return;
+               paidStudentIdsRef.current.add(payload.student_id);
+               setPaidStudentIds(new Set(paidStudentIdsRef.current));
+               setMonthlyRevenue(r => r + (payload.amount || 0));
                
                setStudentsList(prev => {
-                   const student = prev.find(s => s.$id === payload.student_id);
-                   const isVip = !!student?.is_vip;
-                   
-                   setPaidStudentIds(paidPrev => {
-                      const next = new Set([...paidPrev, payload.student_id]);
-                      paidStudentIdsRef.current = next;
-                      return next;
-                   });
-                   
-                   setMonthlyRevenue(r => r + (payload.amount || 0));
-                   
                    return prev.map(s => s.$id === payload.student_id ? { ...s, is_paid: true, payment_method: payload.method } : s);
                });
                return;
             }
             if (event.includes(".delete")) {
                if (!paidStudentIdsRef.current.has(payload.student_id)) return;
+               paidStudentIdsRef.current.delete(payload.student_id);
+               setPaidStudentIds(new Set(paidStudentIdsRef.current));
+               setMonthlyRevenue(r => Math.max(0, r - (payload.amount || 0)));
                
                setStudentsList(prev => {
-                   const student = prev.find(s => s.$id === payload.student_id);
-                   const isVip = !!student?.is_vip;
-
-                   setPaidStudentIds(paidPrev => {
-                      const next = new Set(paidPrev);
-                      next.delete(payload.student_id);
-                      paidStudentIdsRef.current = next;
-                      return next;
-                   });
-                   
-                   setMonthlyRevenue(r => Math.max(0, r - (payload.amount || 0)));
-                   
                    return prev.map(s => s.$id === payload.student_id ? { ...s, is_paid: !!s.is_vip, payment_method: s.is_vip ? "VIP" : null } : s);
                });
                return;
@@ -442,41 +436,56 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         // 5. ⚡️ ACTUALIZACIÓN INCREMENTAL: Perfiles (Registro/Baja)
         if (collectionId === COLLECTION_PROFILES) {
            if (event.includes(".create")) {
-              if (payload.role !== "alumno" || payload.is_active === false || payload.status === "Baja") return;
+              if (payload.role !== "alumno") return;
               setStudentsList(prev => {
                 if (prev.some(s => s.$id === payload.$id)) return prev;
-                if (!processedProfilesRef.current.has(payload.$id)) {
+                const isActive = payload.is_active !== false && payload.status !== "Baja";
+                if (isActive && !processedProfilesRef.current.has(payload.$id)) {
                     processedProfilesRef.current.add(payload.$id);
                     setTotalStudents(t => t + 1);
                 }
-                return [payload, ...prev.filter(s => s.$id !== payload.$id)];
+                return [payload, ...prev];
               });
               return;
            }
 
-          if (event.includes(".update")) {
-              setStudentsList(prev => {
-                const nowActive = payload.is_active === true && payload.status !== "Baja" && payload.role === "alumno";
-                const wasInList = prev.some(s => s.$id === payload.$id);
-                if (nowActive && !wasInList) {
-                  if (!processedProfilesRef.current.has(payload.$id)) {
-                      processedProfilesRef.current.add(payload.$id);
-                      setTotalStudents(t => t + 1);
-                  }
-                  return [payload, ...prev];
-                } 
-                else if (!nowActive && wasInList) {
-                  if (processedProfilesRef.current.has(payload.$id)) {
+           if (event.includes(".update")) {
+              if (payload.role !== "alumno") {
+                setStudentsList(prev => {
+                  const wasInList = prev.some(s => s.$id === payload.$id);
+                  if (wasInList) {
+                    if (processedProfilesRef.current.has(payload.$id)) {
                       processedProfilesRef.current.delete(payload.$id);
                       setTotalStudents(t => Math.max(0, t - 1));
+                    }
+                    return prev.filter(s => s.$id !== payload.$id);
                   }
-                  return prev.filter(s => s.$id !== payload.$id);
+                  return prev;
+                });
+                return;
+              }
+
+              setStudentsList(prev => {
+                const wasInList = prev.some(s => s.$id === payload.$id);
+                const oldS = prev.find(s => s.$id === payload.$id);
+                const wasActive = oldS ? (oldS.is_active !== false && oldS.status !== "Baja") : false;
+                const nowActive = payload.is_active !== false && payload.status !== "Baja";
+
+                if (nowActive && !wasActive) {
+                  if (!processedProfilesRef.current.has(payload.$id)) {
+                    processedProfilesRef.current.add(payload.$id);
+                  }
+                  setTotalStudents(t => t + 1);
+                } else if (!nowActive && wasActive) {
+                  if (processedProfilesRef.current.has(payload.$id)) {
+                    processedProfilesRef.current.delete(payload.$id);
+                  }
+                  setTotalStudents(t => Math.max(0, t - 1));
                 }
-                else if (nowActive && wasInList) {
-                  const oldS = prev.find(s => s.$id === payload.$id);
+
+                if (wasInList) {
                   const wasVip = !!oldS?.is_vip;
                   const isVip = !!payload.is_vip;
-
                   return prev.map(s => {
                     if (s.$id !== payload.$id) return s;
                     let newMethod = s.payment_method;
@@ -484,21 +493,22 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
                     if (!isVip && wasVip && newMethod === "VIP") newMethod = null;
                     return { ...s, ...payload, payment_method: newMethod };
                   });
+                } else {
+                  return [payload, ...prev];
                 }
-                return prev;
               });
               return;
            }
 
            if (event.includes(".delete")) {
               setStudentsList(prev => {
-                const exists = prev.find(s => s.$id === payload.$id);
-                if (exists || processedProfilesRef.current.has(payload.$id)) {
+                const oldS = prev.find(s => s.$id === payload.$id);
+                const wasActive = oldS ? (oldS.is_active !== false && oldS.status !== "Baja") : false;
+                if (wasActive || processedProfilesRef.current.has(payload.$id)) {
                   processedProfilesRef.current.delete(payload.$id);
                   setTotalStudents(t => Math.max(0, t - 1));
-                  return prev.filter(s => s.$id !== payload.$id);
                 }
-                return prev;
+                return prev.filter(s => s.$id !== payload.$id);
               });
               return;
            }
@@ -568,8 +578,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     paidStudentIds,
     registerProfileOptimistically,
     deactivateProfileOptimistically,
+    reactivateProfileOptimistically,
     updatePaymentOptimistically
-  }), [studentsList, classesList, announcements, totalStudents, monthlyRevenue, unpaidCount, loading, studentsLoading, selectedMonth, revenueRecords, setStudentsList, setClassesList, setAnnouncements, setMonthlyRevenue, setTotalStudents, loadDashboardData, loadStudentsList, loadRevenueHistory, paidStudentIds, registerProfileOptimistically, deactivateProfileOptimistically, updatePaymentOptimistically]);
+  }), [studentsList, classesList, announcements, totalStudents, monthlyRevenue, unpaidCount, loading, studentsLoading, selectedMonth, revenueRecords, setStudentsList, setClassesList, setAnnouncements, setMonthlyRevenue, setTotalStudents, loadDashboardData, loadStudentsList, loadRevenueHistory, paidStudentIds, registerProfileOptimistically, deactivateProfileOptimistically, reactivateProfileOptimistically, updatePaymentOptimistically]);
 
   return (
     <AdminContext.Provider value={value}>

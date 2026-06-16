@@ -23,6 +23,8 @@ interface StudentFiltersProps {
   setVisibleCount: (count: number | ((prev: number) => number)) => void;
   filterMethod: string;
   setFilterMethod: (value: string) => void;
+  filterStatus: string;
+  setFilterStatus: (value: string) => void;
   totalResults: number;
 }
 
@@ -36,6 +38,8 @@ export function StudentFilters({
   setVisibleCount,
   filterMethod,
   setFilterMethod,
+  filterStatus,
+  setFilterStatus,
   totalResults
 }: StudentFiltersProps) {
   return (
@@ -77,9 +81,24 @@ export function StudentFilters({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:flex w-full sm:w-auto gap-2 sm:gap-3">
+        <div className="grid grid-cols-3 sm:flex w-full sm:w-auto gap-2 sm:gap-3">
+          {/* Filter Status */}
+          <div className="flex-1 sm:w-36 space-y-1 min-w-0">
+            <span className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Estado</span>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-full h-10 px-3">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Todos">Todos</SelectItem>
+                <SelectItem value="Activos">Activos</SelectItem>
+                <SelectItem value="Baja">De Baja</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Filter Payment */}
-          <div className="flex-1 sm:w-40 space-y-1 min-w-0">
+          <div className="flex-1 sm:w-36 space-y-1 min-w-0">
             <span className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Pago</span>
             <Select value={filterPayment} onValueChange={setFilterPayment}>
               <SelectTrigger className="w-full h-10 px-3">
@@ -94,7 +113,7 @@ export function StudentFilters({
           </div>
 
           {/* Filter Method */}
-          <div className="flex-1 sm:w-40 space-y-1 min-w-0">
+          <div className="flex-1 sm:w-36 space-y-1 min-w-0">
             <span className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Método</span>
             <Select value={filterMethod} onValueChange={setFilterMethod}>
               <SelectTrigger className="w-full h-10 px-3">
@@ -111,18 +130,18 @@ export function StudentFilters({
         </div>
 
         {/* Reset Filters */}
-        {/* Reset Filters */}
         <Button
           variant="ghost"
           onClick={() => {
             setSearchTerm("");
             setFilterPayment("Todos");
             setFilterMethod("Todos");
+            setFilterStatus("Todos");
             setSortConfig({ key: 'name', direction: 'asc' });
             setVisibleCount(30);
           }}
           className={`h-10 text-red-400 hover:text-red-300 hover:bg-red-500/10 flex items-center transition-all duration-500 overflow-hidden ${
-            (searchTerm !== "" || filterPayment !== "Todos" || filterMethod !== "Todos" || sortConfig?.key !== 'name' || sortConfig?.direction !== 'asc')
+            (searchTerm !== "" || filterPayment !== "Todos" || filterMethod !== "Todos" || filterStatus !== "Todos" || sortConfig?.key !== 'name' || sortConfig?.direction !== 'asc')
               ? "max-w-[180px] opacity-100 pointer-events-auto px-3 ml-1"
               : "max-w-0 opacity-0 pointer-events-none px-0 border-0 ml-0"
           }`}

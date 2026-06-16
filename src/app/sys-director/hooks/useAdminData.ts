@@ -24,6 +24,7 @@ export function useAdminData() {
     paidStudentIds,
     registerProfileOptimistically,
     deactivateProfileOptimistically,
+    reactivateProfileOptimistically,
     updatePaymentOptimistically
   } = useAdmin();
 
@@ -48,6 +49,7 @@ export function useAdminData() {
     paidStudentIds,
     registerProfileOptimistically,
     deactivateProfileOptimistically,
+    reactivateProfileOptimistically,
     updatePaymentOptimistically
   };
 }

@@ -11,7 +11,7 @@ import { ClassGrid } from "@/components/ClassGrid";
 import { StudentDirectory } from "./components/StudentDirectory";
 import { LITERALS } from "@/constants/literals";
 import Navbar from "@/components/Navbar";
-import { deleteStudentAccount } from "./actions";
+import { deleteStudentAccount, reactivateStudentAccount } from "./actions";
 
 // Hooks
 import { useAdminData } from "./hooks/useAdminData";
@@ -64,6 +64,7 @@ export default function AdminDashboard() {
     paidStudentIds,
     registerProfileOptimistically,
     deactivateProfileOptimistically,
+    reactivateProfileOptimistically,
     updatePaymentOptimistically
   } = useAdminData();
 
@@ -247,6 +248,28 @@ export default function AdminDashboard() {
     return success;
   };
 
+  const wrappedReactivateStudentAccount = async (profileId: string, userId: string, name: string) => {
+    if (isPending) return false;
+    let success = false;
+    await new Promise<void>((resolve) => {
+      startTransition(async () => {
+        try {
+          const result = await reactivateStudentAccount(profileId, userId);
+          if (result.success) {
+            reactivateProfileOptimistically(profileId);
+            import("sonner").then(({ toast }) => toast.success("Alumno reactivado", { description: `${name} ha sido reactivado.` }));
+            success = true;
+          } else {
+            import("sonner").then(({ toast }) => toast.error("Error", { description: result.error || "No se pudo reactivar." }));
+          }
+        } catch (err) {
+          import("sonner").then(({ toast }) => toast.error("Error", { description: "Error de red al intentar reactivar." }));
+        } finally { resolve(); }
+      });
+    });
+    return success;
+  };
+
   const wrappedPermanentDeleteStudentUI = async (profileId: string, userId: string, name: string) => {
     if (isPending) return false;
     let success = false;
@@ -424,6 +447,7 @@ export default function AdminDashboard() {
               handleActionClick={handleActionClick}
               handleOpenEditModal={handleOpenEditModal}
               deleteStudentAccount={wrappedDeleteStudentAccount}
+              reactivateStudentAccount={wrappedReactivateStudentAccount}
               handlePermanentDeleteStudent={wrappedPermanentDeleteStudentUI}
               setStudentsList={setStudentsList}
               showAlert={showAlert as any}
