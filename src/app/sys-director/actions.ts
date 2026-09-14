@@ -232,7 +232,8 @@ export async function getPlatformOmniData(userId: string, monthOverride?: string
             getAnnouncementsCached(),
             databases.listDocuments(DATABASE_ID, COLLECTION_NOTIFICATIONS_READ, [
                 sdk.Query.equal("user_id", userId),
-                sdk.Query.limit(20),      // 🛡️ Reducido de 100 a 20 (máxima optimización)
+                sdk.Query.limit(100),     // 🛡️ ZERO-WASTE: Alineado exactamente con el límite máximo de 100 anuncios
+                sdk.Query.orderDesc("$createdAt"),
                 sdk.Query.select(["notifications_id"])
             ]).catch(() => ({ documents: [] }))
         ];

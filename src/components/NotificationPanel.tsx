@@ -64,6 +64,9 @@ export default function NotificationPanel() {
 
     // Filter notifications from last 48 hours for the panel display
     const visibleNotifications = announcements.filter(n => {
+        // Siempre mostrar si NO está leída
+        if (!allReadIds.includes(n.$id)) return true;
+
         try {
             const dateStr = n.$createdAt || n.createdAt;
             if (!dateStr) return true; // Si no hay fecha, no ocultamos (nuevo RT)
