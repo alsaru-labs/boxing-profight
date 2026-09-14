@@ -344,7 +344,7 @@ export async function getClassAttendees(classId: string) {
         const studentIds = Array.from(new Set(bookings.documents.map((b: any) => b.student_id)));
         const profilesRes = await databases.listDocuments(DATABASE_ID, COLLECTION_PROFILES, [
             sdk.Query.equal("$id", studentIds),
-            sdk.Query.limit(25)
+            sdk.Query.limit(100)
         ]);
 
         const profilesMap = new Map(profilesRes.documents.map((p: any) => [p.$id, p]));
@@ -1538,7 +1538,7 @@ export const getActiveProfilesCached = unstable_cache(
             DATABASE_ID,
             COLLECTION_PROFILES,
             [
-                sdk.Query.limit(250),     // 🛡️ Límite razonable para visibilidad del Directorio
+                sdk.Query.limit(800),    // 🛡️ Límite máximo para asegurar que todos los alumnos aparezcan
                 sdk.Query.equal("role", "alumno"),
                 sdk.Query.select(["$id", "user_id", "name", "last_name", "email", "phone", "status", "role", "level", "is_vip", "is_active", "$createdAt"])
             ]
